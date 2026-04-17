@@ -1,0 +1,48 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.6</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.img.envops</groupId>
+    <artifactId>envops-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>envops-parent</name>
+
+    <modules>
+        <module>envops-boot</module>
+        <module>envops-common</module>
+        <module>envops-framework</module>
+        <module>envops-system</module>
+        <module>envops-asset</module>
+        <module>envops-monitor</module>
+        <module>envops-app</module>
+        <module>envops-deploy</module>
+        <module>envops-exec</module>
+        <module>envops-traffic</module>
+    </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <mybatis-spring-boot.version>3.0.3</mybatis-spring-boot.version>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

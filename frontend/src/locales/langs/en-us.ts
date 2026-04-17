@@ -1,0 +1,1007 @@
+const local: App.I18n.Schema = {
+  system: {
+    title: 'EnvOps',
+    updateTitle: 'System Version Update Notification',
+    updateContent: 'A new version of the system has been detected. Do you want to refresh the page immediately?',
+    updateConfirm: 'Refresh immediately',
+    updateCancel: 'Later'
+  },
+  common: {
+    action: 'Action',
+    add: 'Add',
+    addSuccess: 'Add Success',
+    backToHome: 'Back to home',
+    batchDelete: 'Batch Delete',
+    cancel: 'Cancel',
+    close: 'Close',
+    check: 'Check',
+    selectAll: 'Select All',
+    expandColumn: 'Expand Column',
+    columnSetting: 'Column Setting',
+    config: 'Config',
+    confirm: 'Confirm',
+    delete: 'Delete',
+    deleteSuccess: 'Delete Success',
+    confirmDelete: 'Are you sure you want to delete?',
+    edit: 'Edit',
+    warning: 'Warning',
+    error: 'Error',
+    index: 'Index',
+    keywordSearch: 'Please enter keyword',
+    logout: 'Logout',
+    logoutConfirm: 'Are you sure you want to log out?',
+    lookForward: 'Coming soon',
+    modify: 'Modify',
+    modifySuccess: 'Modify Success',
+    noData: 'No Data',
+    operate: 'Operate',
+    pleaseCheckValue: 'Please check whether the value is valid',
+    refresh: 'Refresh',
+    reset: 'Reset',
+    search: 'Search',
+    switch: 'Switch',
+    tip: 'Tip',
+    trigger: 'Trigger',
+    update: 'Update',
+    updateSuccess: 'Update Success',
+    userCenter: 'User Center',
+    yesOrNo: {
+      yes: 'Yes',
+      no: 'No'
+    }
+  },
+  request: {
+    logout: 'Logout user after request failed',
+    logoutMsg: 'User status is invalid, please log in again',
+    logoutWithModal: 'Pop up modal after request failed and then log out user',
+    logoutWithModalMsg: 'User status is invalid, please log in again',
+    tokenExpired: 'The requested token has expired'
+  },
+  theme: {
+    themeDrawerTitle: 'Theme Configuration',
+    tabs: {
+      appearance: 'Appearance',
+      layout: 'Layout',
+      general: 'General',
+      preset: 'Preset'
+    },
+    appearance: {
+      themeSchema: {
+        title: 'Theme Schema',
+        light: 'Light',
+        dark: 'Dark',
+        auto: 'Follow System'
+      },
+      grayscale: 'Grayscale',
+      colourWeakness: 'Colour Weakness',
+      themeColor: {
+        title: 'Theme Color',
+        primary: 'Primary',
+        info: 'Info',
+        success: 'Success',
+        warning: 'Warning',
+        error: 'Error',
+        followPrimary: 'Follow Primary'
+      },
+      themeRadius: {
+        title: 'Theme Radius'
+      },
+      recommendColor: 'Apply Recommended Color Algorithm',
+      recommendColorDesc: 'The recommended color algorithm refers to',
+      preset: {
+        title: 'Theme Presets',
+        apply: 'Apply',
+        applySuccess: 'Preset applied successfully',
+        default: {
+          name: 'Default Preset',
+          desc: 'Default theme preset with balanced settings'
+        },
+        dark: {
+          name: 'Dark Preset',
+          desc: 'Dark theme preset for night time usage'
+        },
+        compact: {
+          name: 'Compact Preset',
+          desc: 'Compact layout preset for small screens'
+        },
+        azir: {
+          name: "Azir's Preset",
+          desc: 'It is a cold and elegant preset that Azir likes'
+        }
+      }
+    },
+    layout: {
+      layoutMode: {
+        title: 'Layout Mode',
+        vertical: 'Vertical Mode',
+        horizontal: 'Horizontal Mode',
+        'vertical-mix': 'Vertical Mix Mode',
+        'vertical-hybrid-header-first': 'Left Hybrid Header-First',
+        'top-hybrid-sidebar-first': 'Top-Hybrid Sidebar-First',
+        'top-hybrid-header-first': 'Top-Hybrid Header-First',
+        vertical_detail: 'Vertical menu layout, with the menu on the left and content on the right.',
+        'vertical-mix_detail':
+          'Vertical mix-menu layout, with the primary menu on the dark left side and the secondary menu on the lighter left side.',
+        'vertical-hybrid-header-first_detail':
+          'Left hybrid layout, with the primary menu at the top, the secondary menu on the dark left side, and the tertiary menu on the lighter left side.',
+        horizontal_detail: 'Horizontal menu layout, with the menu at the top and content below.',
+        'top-hybrid-sidebar-first_detail':
+          'Top hybrid layout, with the primary menu on the left and the secondary menu at the top.',
+        'top-hybrid-header-first_detail':
+          'Top hybrid layout, with the primary menu at the top and the secondary menu on the left.'
+      },
+      tab: {
+        title: 'Tab Settings',
+        visible: 'Tab Visible',
+        cache: 'Tag Bar Info Cache',
+        cacheTip: 'Keep the tab bar information after leaving the page',
+        height: 'Tab Height',
+        mode: {
+          title: 'Tab Mode',
+          slider: 'Slider',
+          chrome: 'Chrome',
+          button: 'Button'
+        },
+        closeByMiddleClick: 'Close Tab by Middle Click',
+        closeByMiddleClickTip: 'Enable closing tabs by clicking with the middle mouse button'
+      },
+      header: {
+        title: 'Header Settings',
+        height: 'Header Height',
+        breadcrumb: {
+          visible: 'Breadcrumb Visible',
+          showIcon: 'Breadcrumb Icon Visible'
+        }
+      },
+      sider: {
+        title: 'Sider Settings',
+        inverted: 'Dark Sider',
+        width: 'Sider Width',
+        collapsedWidth: 'Sider Collapsed Width',
+        mixWidth: 'Mix Sider Width',
+        mixCollapsedWidth: 'Mix Sider Collapse Width',
+        mixChildMenuWidth: 'Mix Child Menu Width',
+        autoSelectFirstMenu: 'Auto Select First Submenu',
+        autoSelectFirstMenuTip:
+          'When a first-level menu is clicked, the first submenu is automatically selected and navigated to the deepest level'
+      },
+      footer: {
+        title: 'Footer Settings',
+        visible: 'Footer Visible',
+        fixed: 'Fixed Footer',
+        height: 'Footer Height',
+        right: 'Right Footer'
+      },
+      content: {
+        title: 'Content Area Settings',
+        scrollMode: {
+          title: 'Scroll Mode',
+          tip: 'The theme scroll only scrolls the main part, the outer scroll can carry the header and footer together',
+          wrapper: 'Wrapper',
+          content: 'Content'
+        },
+        page: {
+          animate: 'Page Animate',
+          mode: {
+            title: 'Page Animate Mode',
+            fade: 'Fade',
+            'fade-slide': 'Slide',
+            'fade-bottom': 'Fade Zoom',
+            'fade-scale': 'Fade Scale',
+            'zoom-fade': 'Zoom Fade',
+            'zoom-out': 'Zoom Out',
+            none: 'None'
+          }
+        },
+        fixedHeaderAndTab: 'Fixed Header And Tab'
+      }
+    },
+    general: {
+      title: 'General Settings',
+      watermark: {
+        title: 'Watermark Settings',
+        visible: 'Watermark Full Screen Visible',
+        text: 'Custom Watermark Text',
+        enableUserName: 'Enable User Name Watermark',
+        enableTime: 'Show Current Time',
+        timeFormat: 'Time Format'
+      },
+      multilingual: {
+        title: 'Multilingual Settings',
+        visible: 'Display multilingual button'
+      },
+      globalSearch: {
+        title: 'Global Search Settings',
+        visible: 'Display GlobalSearch button'
+      }
+    },
+    configOperation: {
+      copyConfig: 'Copy Config',
+      copySuccessMsg: 'Copy Success, Please replace the variable "themeSettings" in "src/theme/settings.ts"',
+      resetConfig: 'Reset Config',
+      resetSuccessMsg: 'Reset Success'
+    }
+  },
+  route: {
+    login: 'Login',
+    403: 'No Permission',
+    404: 'Page Not Found',
+    500: 'Server Error',
+    'iframe-page': 'Iframe',
+    home: 'Dashboard',
+    asset: 'Asset Center',
+    asset_host: 'Host Management',
+    asset_group: 'Group Management',
+    asset_tag: 'Tag Management',
+    asset_credential: 'Credential Management',
+    monitor: 'Monitoring',
+    'monitor_detect-task': 'Detection Tasks',
+    monitor_metric: 'Metric Snapshot',
+    app: 'Applications',
+    app_definition: 'Application Definitions',
+    app_version: 'Versions',
+    app_package: 'Packages',
+    'app_config-template': 'Config Templates',
+    'app_script-template': 'Script Templates',
+    deploy: 'Deployment',
+    deploy_task: 'Deployment Tasks',
+    task: 'Task Orchestration',
+    task_center: 'Task Center',
+    traffic: 'Traffic Governance',
+    traffic_controller: 'Traffic Controller',
+    system: 'System',
+    system_user: 'User Management'
+  },
+  page: {
+    login: {
+      common: {
+        loginOrRegister: 'Login / Register',
+        userNamePlaceholder: 'Please enter user name',
+        phonePlaceholder: 'Please enter phone number',
+        codePlaceholder: 'Please enter verification code',
+        passwordPlaceholder: 'Please enter password',
+        confirmPasswordPlaceholder: 'Please enter password again',
+        codeLogin: 'Verification code login',
+        confirm: 'Confirm',
+        back: 'Back',
+        validateSuccess: 'Verification passed',
+        loginSuccess: 'Login successfully',
+        welcomeBack: 'Welcome back, {userName} !'
+      },
+      pwdLogin: {
+        title: 'Password Login',
+        rememberMe: 'Remember me',
+        forgetPassword: 'Forget password?',
+        register: 'Register',
+        otherAccountLogin: 'Other Account Login',
+        otherLoginMode: 'Other Login Mode',
+        superAdmin: 'Super Admin',
+        admin: 'Admin',
+        user: 'User'
+      },
+      codeLogin: {
+        title: 'Verification Code Login',
+        getCode: 'Get verification code',
+        reGetCode: 'Reacquire after {time}s',
+        sendCodeSuccess: 'Verification code sent successfully',
+        imageCodePlaceholder: 'Please enter image verification code'
+      },
+      register: {
+        title: 'Register',
+        agreement: 'I have read and agree to',
+        protocol: '《User Agreement》',
+        policy: '《Privacy Policy》'
+      },
+      resetPwd: {
+        title: 'Reset Password'
+      },
+      bindWeChat: {
+        title: 'Bind WeChat'
+      }
+    },
+    home: {
+      branchDesc:
+        'For the convenience of everyone in developing and updating the merge, we have streamlined the code of the main branch, only retaining the homepage menu, and the rest of the content has been moved to the example branch for maintenance. The preview address displays the content of the example branch.',
+      greeting: 'Good morning, {userName}, today is another day full of vitality!',
+      weatherDesc: 'Today is cloudy to clear, 20℃ - 25℃!',
+      projectCount: 'Project Count',
+      todo: 'Todo',
+      message: 'Message',
+      downloadCount: 'Download Count',
+      registerCount: 'Register Count',
+      schedule: 'Work and rest Schedule',
+      study: 'Study',
+      work: 'Work',
+      rest: 'Rest',
+      entertainment: 'Entertainment',
+      visitCount: 'Visit Count',
+      turnover: 'Turnover',
+      dealCount: 'Deal Count',
+      projectNews: {
+        title: 'Project News',
+        moreNews: 'More News',
+        desc1: 'EnvOps has completed the first frontend shell and navigation scaffold.',
+        desc2: 'Asset, monitor, app, deploy, traffic and system pages now load through dynamic routes.',
+        desc3: 'The test environment is now wired to the current EnvOps backend address.',
+        desc4: 'The frontend no longer depends on the missing isRouteExist backend endpoint.',
+        desc5: 'Task 3 page copy is now localized for both Chinese and English.'
+      },
+      creativity: 'Creativity'
+    },
+    app: {
+      common: {
+        save: 'Save',
+        appCode: 'App Code',
+        appName: 'App Name',
+        appType: 'App Type',
+        runtimeType: 'Runtime Type',
+        deployMode: 'Deploy Mode',
+        defaultPort: 'Default Port',
+        healthCheckPath: 'Health Check Path',
+        description: 'Description',
+        status: 'Status',
+        updatedAt: 'Updated At'
+      },
+      definition: {
+        desc: 'Maintain application definitions against the real backend contracts.',
+        listTitle: 'Application List',
+        detailTitle: 'Application Detail',
+        formTitleCreate: 'Create Application Definition',
+        formTitleEdit: 'Edit Application Definition'
+      },
+      version: {
+        desc: 'Browse versions by application and maintain package and template bindings.',
+        listTitle: 'Version List',
+        currentApp: 'Current App',
+        selectApp: 'Select App',
+        formTitleCreate: 'Create App Version',
+        formTitleEdit: 'Edit App Version',
+        versionNo: 'Version No.',
+        packageId: 'Package',
+        configTemplateId: 'Config Template',
+        scriptTemplateId: 'Script Template',
+        changelog: 'Changelog'
+      },
+      package: {
+        desc: 'Register, upload and delete artifacts through the package APIs.',
+        uploadTitle: 'Upload Package',
+        listTitle: 'Package List',
+        packageName: 'Package Name',
+        packageType: 'Package Type',
+        storageType: 'Storage Type',
+        file: 'File',
+        selectFile: 'Select File',
+        uploadAction: 'Upload',
+        uploadFileRequired: 'Please select a file to upload first.',
+        filePath: 'File Path',
+        fileSize: 'File Size',
+        fileHash: 'File Hash'
+      },
+      configTemplate: {
+        desc: 'Maintain deploy-time configuration content through the config template APIs.',
+        listTitle: 'Config Template List',
+        formTitleCreate: 'Create Config Template',
+        formTitleEdit: 'Edit Config Template',
+        templateCode: 'Template Code',
+        templateName: 'Template Name',
+        templateContent: 'Template Content',
+        renderEngine: 'Render Engine'
+      },
+      scriptTemplate: {
+        desc: 'Maintain install and bootstrap scripts through the script template APIs.',
+        listTitle: 'Script Template List',
+        formTitleCreate: 'Create Script Template',
+        formTitleEdit: 'Edit Script Template',
+        templateCode: 'Template Code',
+        templateName: 'Template Name',
+        scriptType: 'Script Type',
+        scriptContent: 'Script Content'
+      }
+    },
+    envops: {
+      common: {
+        environment: {
+          production: 'Production',
+          staging: 'Staging',
+          sandbox: 'Sandbox'
+        },
+        batch: {
+          canary20: '20% canary',
+          fullRelease: 'full release',
+          canary10: '10% canary'
+        },
+        owner: {
+          envops: 'EnvOps',
+          release: 'Release Team',
+          sre: 'SRE',
+          qa: 'QA Team'
+        },
+        team: {
+          envops: 'EnvOps',
+          release: 'Release Team',
+          traffic: 'Traffic',
+          qa: 'QA',
+          fintech: 'FinTech',
+          platform: 'Platform',
+          sre: 'SRE'
+        },
+        status: {
+          running: 'Running',
+          pendingApproval: 'Pending approval',
+          rollbackRequired: 'Rollback required',
+          success: 'Success',
+          warning: 'Warning',
+          timeout: 'Timeout',
+          online: 'Online',
+          offline: 'Offline',
+          pending: 'Pending',
+          failed: 'Failed',
+          managed: 'Managed',
+          draft: 'Draft',
+          review: 'Review',
+          queued: 'Queued',
+          cancelled: 'Cancelled',
+          rejected: 'Rejected',
+          enabled: 'Enabled',
+          preview: 'Preview',
+          standby: 'Standby',
+          active: 'Active',
+          disabled: 'Disabled'
+        },
+        schedule: {
+          every10Min: 'Every 10 min',
+          everyHour: 'Every hour',
+          every5Min: 'Every 5 min',
+          every15Min: 'Every 15 min'
+        },
+        taskType: {
+          inspection: 'Inspection',
+          deploy: 'Deploy',
+          traffic: 'Traffic',
+          assetSync: 'Asset Sync'
+        },
+        strategy: {
+          headerCanary: 'Header canary',
+          blueGreen: 'Blue-green',
+          weightedRouting: 'Weighted routing',
+          emergencyRollback: 'Emergency rollback'
+        },
+        role: {
+          platformAdmin: 'Platform Admin',
+          releaseManager: 'Release Manager',
+          trafficOwner: 'Traffic Owner',
+          observer: 'Observer'
+        },
+        loginType: {
+          passwordOtp: 'Password + OTP',
+          password: 'Password',
+          sso: 'SSO'
+        }
+      },
+      home: {
+        hero: {
+          title: 'EnvOps Control Plane',
+          description: 'This is the first frontend shell for assets, release tasks, traffic policies and platform operations.',
+          descriptionWithUser: 'Welcome back, {userName}. This is the first frontend shell for assets, release tasks, traffic policies and platform operations.'
+        },
+        tags: {
+          dynamicRoutesReady: 'Dynamic routes ready',
+          vitestHarnessEnabled: 'Vitest harness enabled'
+        },
+        summary: {
+          managedApplications: {
+            label: 'Managed Applications',
+            desc: 'Application definitions ready for delivery orchestration'
+          },
+          onlineHosts: {
+            label: 'Online Hosts',
+            desc: 'Instances continuously reporting healthy heartbeats'
+          },
+          runningTasks: {
+            label: 'Running Tasks',
+            desc: 'Cross-domain jobs executing across the platform'
+          },
+          trafficPolicies: {
+            label: 'Traffic Policies',
+            desc: 'Release rules and control strategies currently enabled'
+          }
+        },
+        sections: {
+          releasePipelineFocus: 'Release pipeline focus',
+          operatorFocus: 'Operator focus',
+          inspectionHealth: 'Inspection health',
+          platformReadiness: 'Platform readiness'
+        },
+        releaseTable: {
+          taskId: 'Task ID',
+          application: 'Application',
+          environment: 'Environment',
+          batch: 'Batch',
+          owner: 'Owner',
+          status: 'Status'
+        },
+        operatorFocusDesc: 'Updated for the first EnvOps shell iteration',
+        focusList: {
+          item1: 'Review the asset-sync canary failure and prepare rollback notes.',
+          item2: 'Confirm the approval window for the payment-gateway production release.',
+          item3: 'Re-run the traffic-canary-guard detector after gateway config sync.',
+          item4: 'Complete access provisioning for the first EnvOps users and roles.'
+        },
+        inspectionTable: {
+          task: 'Task',
+          target: 'Target',
+          schedule: 'Schedule',
+          lastResult: 'Last Result'
+        },
+        readiness: {
+          frontendShell: {
+            label: 'Frontend shell',
+            value: 'Asset, monitor, app, deploy, task, traffic and user page shells are in place.'
+          },
+          routingMode: {
+            label: 'Routing mode',
+            value: 'Dynamic route initialization and menu injection are wired end to end.'
+          },
+          qualityGate: {
+            label: 'Quality gate',
+            value: 'Vitest route-store tests are wired into the project scripts.'
+          },
+          nextSlice: {
+            label: 'Next slice',
+            value: 'Continue by connecting backend queries and workflow mutations on top of the current shell.'
+          }
+        }
+      },
+      assetHost: {
+        hero: {
+          title: 'Host Inventory',
+          description: 'A starter shell for asset onboarding, ownership management and runtime visibility.'
+        },
+        tags: {
+          cmdbSynchronized: 'CMDB synchronized',
+          maintenanceWindow: '1 maintenance window today'
+        },
+        summary: {
+          managedHosts: {
+            label: 'Managed Hosts',
+            desc: 'Total hosts currently managed in the asset inventory'
+          },
+          online: {
+            label: 'Online Hosts',
+            desc: 'Total hosts in the asset inventory whose status is online'
+          },
+          pendingMaintenance: {
+            label: 'Warning Hosts',
+            desc: 'Total hosts in the asset inventory whose status is warning'
+          }
+        },
+        table: {
+          title: 'Host Snapshot',
+          host: 'Host',
+          ip: 'IP',
+          environment: 'Environment',
+          cluster: 'Cluster',
+          owner: 'Owner',
+          status: 'Status',
+          lastHeartbeat: 'Last Heartbeat'
+        }
+      },
+      assetGroup: {
+        hero: {
+          title: 'Group Management',
+          description: 'Review asset ownership and managed scope from the group perspective.'
+        },
+        tags: {
+          groups: 'Groups {count}',
+          hosts: 'Hosts {count}'
+        },
+        table: {
+          title: 'Group List',
+          group: 'Group',
+          description: 'Description',
+          hostCount: 'Host Count'
+        }
+      },
+      assetTag: {
+        hero: {
+          title: 'Tag Management',
+          description: 'Use standardized tags to classify operating systems, usage and maintenance attributes.'
+        },
+        tags: {
+          total: 'Tags {count}'
+        },
+        table: {
+          title: 'Tag Catalog',
+          tag: 'Tag',
+          color: 'Color',
+          description: 'Description'
+        }
+      },
+      assetCredential: {
+        hero: {
+          title: 'Credential Management',
+          description: 'Maintain credential entries for host access and automated execution in one place.'
+        },
+        tags: {
+          total: 'Total {count}',
+          passwords: 'Passwords {count}',
+          keys: 'Keys {count}',
+          tokens: 'Tokens {count}'
+        },
+        types: {
+          sshPassword: 'SSH Password',
+          sshKey: 'SSH Key',
+          apiToken: 'API Token'
+        },
+        form: {
+          title: 'Create Credential',
+          name: 'Name',
+          type: 'Type',
+          username: 'Username',
+          secret: 'Secret or Key Content',
+          description: 'Description',
+          placeholders: {
+            name: 'Example: prod-root-password',
+            username: 'Example: root / deploy',
+            secret: 'Enter the secret, private key or token',
+            description: 'Optional notes about the usage scope'
+          },
+          actions: {
+            create: 'Create Credential'
+          }
+        },
+        table: {
+          title: 'Existing Credentials',
+          name: 'Name',
+          type: 'Type',
+          username: 'Username',
+          description: 'Description',
+          createdAt: 'Created At'
+        },
+        messages: {
+          fillNameAndType: 'Please enter the credential name and type first',
+          createSuccess: 'Credential created successfully'
+        }
+      },
+      monitorDetectTask: {
+        hero: {
+          title: 'Detection Tasks',
+          description: 'Use the live monitor task API to show current jobs, targets and latest outcomes.'
+        },
+        tags: {
+          healthyCount: '{count} healthy',
+          timedOutCount: '{count} timed out'
+        },
+        summary: {
+          scheduledTasks: {
+            label: 'Scheduled Tasks',
+            desc: 'Inspection jobs currently registered'
+          },
+          successRate: {
+            label: 'Success Rate',
+            desc: 'Calculated live from the current task list'
+          },
+          needsAttention: {
+            label: 'Needs Attention',
+            desc: 'Tasks with failed, timed-out or partial-success results'
+          }
+        },
+        table: {
+          title: 'Task Queue',
+          task: 'Task',
+          target: 'Target',
+          schedule: 'Schedule',
+          lastRun: 'Last Run',
+          result: 'Result'
+        }
+      },
+      monitorMetric: {
+        hero: {
+          title: 'Metric Snapshot',
+          description: 'Show the latest reported host facts for a fixed host to validate the monitor data path.'
+        },
+        tags: {
+          host: 'Host #{id}'
+        },
+        summary: {
+          cpuCores: {
+            label: 'CPU Cores',
+            desc: 'CPU capacity from the latest fact snapshot'
+          },
+          memory: {
+            label: 'Memory',
+            desc: 'Memory capacity from the latest fact snapshot'
+          },
+          osName: {
+            label: 'Operating System',
+            desc: 'OS version reported by the latest host fact snapshot'
+          },
+          agentVersion: {
+            label: 'Agent Version',
+            desc: 'Agent version used by the latest host report'
+          }
+        },
+        detail: {
+          title: 'Fact Details',
+          item: 'Item',
+          value: 'Value',
+          hostname: 'Hostname',
+          osName: 'Operating System',
+          kernel: 'Kernel Version',
+          cpuCores: 'CPU Cores',
+          memory: 'Memory',
+          agentVersion: 'Agent Version',
+          collectedAt: 'Collected At'
+        }
+      },
+      appDefinition: {
+        hero: {
+          title: 'Application Definitions',
+          description: 'Define application ownership, runtimes and delivery metadata before release automation takes over.'
+        },
+        tags: {
+          definitionSyncEnabled: 'Definition sync enabled',
+          draftsAwaitingReview: '2 drafts awaiting review'
+        },
+        summary: {
+          applications: {
+            label: 'Applications',
+            desc: 'Business services currently registered in EnvOps'
+          },
+          runtimeProfiles: {
+            label: 'Runtime Profiles',
+            desc: 'Reusable build and release templates'
+          },
+          teamsCovered: {
+            label: 'Teams Covered',
+            desc: 'Owning teams mapped to app definitions'
+          }
+        },
+        table: {
+          title: 'Definition Catalog',
+          application: 'Application',
+          owner: 'Owner',
+          runtime: 'Runtime',
+          repository: 'Repository',
+          currentVersion: 'Current Version',
+          status: 'Status'
+        }
+      },
+      deployTask: {
+        hero: {
+          title: 'Deployment Tasks',
+          description: 'Track approvals, rollout batches and execution results for the first delivery pipeline slice.'
+        },
+        tags: {
+          runningCanary: '1 running canary',
+          rollbackRequired: 'Rollback required'
+        },
+        summary: {
+          pendingApproval: {
+            label: 'Pending Approval',
+            desc: 'Release tasks waiting for manual confirmation'
+          },
+          inProgress: {
+            label: 'In Progress',
+            desc: 'Tasks currently executing across target clusters'
+          },
+          failedIn24h: {
+            label: 'Failed in 24h',
+            desc: 'Tasks that need rollback analysis or retry'
+          }
+        },
+        table: {
+          title: 'Release Queue',
+          taskId: 'Task ID',
+          application: 'Application',
+          environment: 'Environment',
+          batch: 'Batch',
+          operator: 'Operator',
+          status: 'Status'
+        },
+        actions: {
+          detail: 'Detail',
+          execute: 'Execute',
+          retry: 'Retry',
+          rollback: 'Rollback',
+          cancel: 'Cancel Task'
+        },
+        detail: {
+          title: 'Task Detail',
+          manualRefresh: 'Manual Refresh',
+          taskId: 'Task ID',
+          taskName: 'Task Name',
+          taskType: 'Task Type',
+          originTaskId: 'Origin Task ID',
+          application: 'Application',
+          version: 'Version',
+          environment: 'Environment',
+          batch: 'Batch',
+          operator: 'Operator',
+          status: 'Status',
+          approvalOperator: 'Approval Operator',
+          approvalComment: 'Approval Comment',
+          approvalAt: 'Approval Time',
+          startedAt: 'Started At',
+          finishedAt: 'Finished At',
+          createdAt: 'Created At',
+          updatedAt: 'Updated At'
+        },
+        hosts: {
+          title: 'Host Details',
+          hostName: 'Host Name',
+          ipAddress: 'IP Address',
+          status: 'Status',
+          currentStep: 'Current Step',
+          startedAt: 'Started At',
+          finishedAt: 'Finished At',
+          errorMsg: 'Error Message'
+        },
+        logs: {
+          title: 'Execution Logs',
+          createdAt: 'Time',
+          taskHostId: 'Task Host ID',
+          logLevel: 'Log Level',
+          content: 'Log Content'
+        }
+      },
+      taskCenter: {
+        hero: {
+          title: 'Task Center',
+          description: 'A unified work queue for orchestration, execution visibility and cross-domain task tracing.'
+        },
+        tags: {
+          queueBalanced: 'Queue balanced',
+          jobsNearingSla: '2 jobs nearing SLA'
+        },
+        summary: {
+          queued: {
+            label: 'Queued',
+            desc: 'Tasks waiting for workers or approval signals'
+          },
+          running: {
+            label: 'Running',
+            desc: 'Active jobs across deploy, inspection and traffic domains'
+          },
+          slaBreachRisk: {
+            label: 'SLA Breach Risk',
+            desc: 'Long-running tasks close to configured timeout limits'
+          }
+        },
+        table: {
+          title: 'Unified Queue',
+          taskId: 'Task ID',
+          type: 'Type',
+          source: 'Source',
+          executor: 'Executor',
+          priority: 'Priority',
+          status: 'Status'
+        }
+      },
+      trafficController: {
+        hero: {
+          title: 'Traffic Controller',
+          description: 'Manage progressive delivery policies, traffic splits and rollback-ready gateway rules.'
+        },
+        tags: {
+          policiesLive: '3 policies live',
+          previewPolicy: '1 preview policy'
+        },
+        summary: {
+          policiesEnabled: {
+            label: 'Policies Enabled',
+            desc: 'Routing strategies currently active across gateways'
+          },
+          canaryReleases: {
+            label: 'Canary Releases',
+            desc: 'Traffic splits under observation in production'
+          },
+          rollbackReady: {
+            label: 'Rollback Ready',
+            desc: 'Policies with a captured previous version for fallback'
+          }
+        },
+        table: {
+          title: 'Policy Snapshot',
+          application: 'Application',
+          strategy: 'Strategy',
+          scope: 'Scope',
+          trafficRatio: 'Traffic Ratio',
+          owner: 'Owner',
+          status: 'Status'
+        }
+      },
+      systemUser: {
+        hero: {
+          title: 'User Management',
+          description: 'Maintain platform operators, team permissions and login posture for the EnvOps shell.'
+        },
+        tags: {
+          rbacEnabled: 'RBAC enabled',
+          userUnderReview: '1 user under review'
+        },
+        summary: {
+          users: {
+            label: 'Users',
+            desc: 'Platform operators and product teams with access'
+          },
+          admins: {
+            label: 'Admins',
+            desc: 'Users with elevated routing and release permissions'
+          },
+          activeToday: {
+            label: 'Active Today',
+            desc: 'Users who logged in during the last 24 hours'
+          }
+        },
+        table: {
+          title: 'Access Snapshot',
+          user: 'User',
+          role: 'Role',
+          team: 'Team',
+          loginType: 'Login Type',
+          lastLogin: 'Last Login',
+          status: 'Status'
+        }
+      }
+    }
+  },
+  form: {
+    required: 'Cannot be empty',
+    userName: {
+      required: 'Please enter user name',
+      invalid: 'User name format is incorrect'
+    },
+    phone: {
+      required: 'Please enter phone number',
+      invalid: 'Phone number format is incorrect'
+    },
+    pwd: {
+      required: 'Please enter password',
+      invalid: '6-18 characters, including letters, numbers, underscores, and {\'@\'}'
+    },
+    confirmPwd: {
+      required: 'Please enter password again',
+      invalid: 'The two passwords are inconsistent'
+    },
+    code: {
+      required: 'Please enter verification code',
+      invalid: 'Verification code format is incorrect'
+    },
+    email: {
+      required: 'Please enter email',
+      invalid: 'Email format is incorrect'
+    }
+  },
+  dropdown: {
+    closeCurrent: 'Close Current',
+    closeOther: 'Close Other',
+    closeLeft: 'Close Left',
+    closeRight: 'Close Right',
+    closeAll: 'Close All',
+    pin: 'Pin Tab',
+    unpin: 'Unpin Tab'
+  },
+  icon: {
+    themeConfig: 'Theme Configuration',
+    themeSchema: 'Theme Schema',
+    lang: 'Switch Language',
+    fullscreen: 'Fullscreen',
+    fullscreenExit: 'Exit Fullscreen',
+    reload: 'Reload Page',
+    collapse: 'Collapse Menu',
+    expand: 'Expand Menu',
+    pin: 'Pin',
+    unpin: 'Unpin'
+  },
+  datatable: {
+    itemCount: 'Total {total} items',
+    fixed: {
+      left: 'Left Fixed',
+      right: 'Right Fixed',
+      unFixed: 'Unfixed'
+    }
+  }
+};
+
+export default local;
