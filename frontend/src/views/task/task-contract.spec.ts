@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { createApp, defineComponent, h, nextTick } from 'vue';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatLocalDateTimeRange } from './shared/query';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const deployTaskPage = readFileSync(path.resolve(__dirname, '../deploy/task/index.vue'), 'utf8');
@@ -13,7 +15,934 @@ const apiIndexSource = readFileSync(path.resolve(__dirname, '../../service/api/i
 const zhLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/zh-cn.ts'), 'utf8');
 const enLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/en-us.ts'), 'utf8');
 
+const mocks = vi.hoisted(() => {
+  const route = { query: {} as Record<string, unknown> };
+  const routerPushByKey = vi.fn(async (_key: string, payload?: { query?: Record<string, string> }) => {
+    mocks.route.query = payload?.query ?? {};
+  });
+  const fetchGetApps = vi.fn();
+  const fetchGetDeployTasks = vi.fn();
+  const fetchGetDeployTask = vi.fn();
+  const fetchGetDeployTaskHosts = vi.fn();
+  const fetchGetDeployTaskLogs = vi.fn();
+  const fetchGetTaskCenterTasks = vi.fn();
+  const fetchPostExecuteDeployTask = vi.fn();
+  const fetchPostRetryDeployTask = vi.fn();
+  const fetchPostRollbackDeployTask = vi.fn();
+  const fetchPostCancelDeployTask = vi.fn();
+  const warning = vi.fn();
+  const success = vi.fn();
+
+  return {
+    route,
+    routerPushByKey,
+    fetchGetApps,
+    fetchGetDeployTasks,
+    fetchGetDeployTask,
+    fetchGetDeployTaskHosts,
+    fetchGetDeployTaskLogs,
+    fetchGetTaskCenterTasks,
+    fetchPostExecuteDeployTask,
+    fetchPostRetryDeployTask,
+    fetchPostRollbackDeployTask,
+    fetchPostCancelDeployTask,
+    warning,
+    success
+  };
+});
+
+vi.mock('vue-router', async () => {
+  const { reactive } = await import('vue');
+  const route = reactive(mocks.route);
+  mocks.route = route;
+
+  return {
+    useRoute: () => route
+  };
+});
+
+const passthroughStub = defineComponent({
+  inheritAttrs: false,
+  setup(_props, { attrs, slots }) {
+    return () => h('div', attrs, slots.default?.());
+  }
+});
+
+const drawerStub = defineComponent({
+  inheritAttrs: false,
+  props: {
+    show: {
+      type: Boolean,
+      default: true
+    }
+  },
+  setup(props, { attrs, slots }) {
+    return () => (props.show ? h('div', attrs, slots.default?.()) : null);
+  }
+});
+
+const buttonStub = defineComponent({
+  inheritAttrs: false,
+  props: {
+    loading: {
+      type: Boolean,
+      default: false
+    },
+    disabled: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['click'],
+  setup(props, { attrs, slots, emit }) {
+    return () =>
+      h(
+        'button',
+        {
+          ...attrs,
+          disabled: props.disabled,
+          'data-loading': String(props.loading),
+          onClick: (event: MouseEvent) => emit('click', event)
+        },
+        slots.default?.()
+      );
+  }
+});
+
+const tableStub = defineComponent({
+  inheritAttrs: false,
+  setup(_props, { attrs, slots }) {
+    return () => h('table', attrs, slots.default?.());
+  }
+});
+
+vi.mock('naive-ui', () => ({
+  NAlert: passthroughStub,
+  NTabPane: passthroughStub
+}));
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key
+  })
+}));
+
+vi.mock('@/hooks/common/router', () => ({
+  useRouterPush: () => ({
+    routerPushByKey: mocks.routerPushByKey
+  })
+}));
+
+vi.mock('@/service/api', () => ({
+  fetchGetApps: mocks.fetchGetApps,
+  fetchGetDeployTasks: mocks.fetchGetDeployTasks,
+  fetchGetDeployTask: mocks.fetchGetDeployTask,
+  fetchGetDeployTaskHosts: mocks.fetchGetDeployTaskHosts,
+  fetchGetDeployTaskLogs: mocks.fetchGetDeployTaskLogs,
+  fetchGetTaskCenterTasks: mocks.fetchGetTaskCenterTasks,
+  fetchPostExecuteDeployTask: mocks.fetchPostExecuteDeployTask,
+  fetchPostRetryDeployTask: mocks.fetchPostRetryDeployTask,
+  fetchPostRollbackDeployTask: mocks.fetchPostRollbackDeployTask,
+  fetchPostCancelDeployTask: mocks.fetchPostCancelDeployTask
+}));
+
+function flushPromises() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(nextResolve => {
+    resolve = nextResolve;
+  });
+
+  return { promise, resolve };
+}
+
+function createDeployTaskRecord(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    taskNo: `TASK-${id}`,
+    taskName: `Deploy service-${id}`,
+    taskType: 'INSTALL',
+    appId: 100 + id,
+    appName: `service-${id}`,
+    versionId: 200 + id,
+    versionNo: `v1.0.${id}`,
+    status: 'RUNNING',
+    batchStrategy: 'ALL',
+    batchSize: 1,
+    targetCount: 1,
+    successCount: 0,
+    failCount: 0,
+    operatorName: `operator-${id}`,
+    createdAt: `2026-04-18T10:0${id}:00`,
+    updatedAt: `2026-04-18T10:0${id}:30`,
+    params: { environment: 'production' },
+    ...overrides
+  };
+}
+
+function createDeployTaskDetailRecord(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    ...createDeployTaskRecord(id),
+    totalHosts: 1,
+    pendingHosts: 0,
+    runningHosts: 1,
+    successHosts: 0,
+    failedHosts: 0,
+    cancelledHosts: 0,
+    ...overrides
+  };
+}
+
+async function settleRender() {
+  await flushPromises();
+  await nextTick();
+}
+
+function getDeployTaskRow(container: HTMLElement, taskId: number) {
+  return container.querySelector(`tr[data-task-id="${taskId}"]`);
+}
+
+function getSummaryCard(container: HTMLElement, summaryKey: string) {
+  return container.querySelector(`[data-summary-key="${summaryKey}"]`);
+}
+
+function getTaskRowActionButton(container: HTMLElement, taskId: number, actionKey: string) {
+  const row = getDeployTaskRow(container, taskId);
+
+  if (!row) {
+    return null;
+  }
+
+  return (
+    Array.from(row.querySelectorAll('button')).find(button =>
+      button.textContent?.includes(`page.envops.deployTask.actions.${actionKey}`)
+    ) ?? null
+  );
+}
+
+function createTaskCenterRecord(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    sourceType: 'DEPLOY',
+    taskNo: `TC-${id}`,
+    taskName: `Task center item ${id}`,
+    taskType: 'INSTALL',
+    status: 'PENDING',
+    appId: 100 + id,
+    appName: `service-${id}`,
+    versionId: 200 + id,
+    versionNo: `v1.0.${id}`,
+    priority: 'P3',
+    targetCount: 1,
+    successCount: 0,
+    failCount: 0,
+    operatorName: `operator-${id}`,
+    createdAt: `2026-04-18T11:0${id}:00`,
+    updatedAt: `2026-04-18T11:0${id}:30`,
+    ...overrides
+  };
+}
+
+async function mountTaskCenterPage() {
+  const { default: TaskCenterPage } = await import('./center/index.vue');
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const app = createApp(TaskCenterPage);
+  [
+    'NSpace',
+    'NCard',
+    'NGrid',
+    'NGi',
+    'NStatistic',
+    'NInput',
+    'NSelect',
+    'NButton',
+    'NSpin',
+    'NTable',
+    'NEmpty',
+    'NPagination',
+    'NTag'
+  ].forEach(name => {
+    app.component(name, name === 'NButton' ? buttonStub : name === 'NTable' ? tableStub : passthroughStub);
+  });
+  app.mount(container);
+  await nextTick();
+  await flushPromises();
+  await nextTick();
+
+  return {
+    container,
+    unmount() {
+      app.unmount();
+      container.remove();
+    }
+  };
+}
+
+async function mountDeployTaskPage() {
+  const { default: DeployTaskPage } = await import('../deploy/task/index.vue');
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const app = createApp(DeployTaskPage);
+  [
+    'NSpace',
+    'NCard',
+    'NGrid',
+    'NGi',
+    'NStatistic',
+    'NInput',
+    'NSelect',
+    'NButton',
+    'NSpin',
+    'NTable',
+    'NEmpty',
+    'NPagination',
+    'NDrawer',
+    'NDrawerContent',
+    'NTabs',
+    'NDescriptions',
+    'NDescriptionsItem',
+    'NTag',
+    'NDatePicker'
+  ].forEach(name => {
+    app.component(
+      name,
+      name === 'NButton'
+        ? buttonStub
+        : name === 'NDrawer'
+          ? drawerStub
+          : name === 'NTable'
+            ? tableStub
+            : passthroughStub
+    );
+  });
+  app.mount(container);
+  await nextTick();
+  await flushPromises();
+  await nextTick();
+
+  return {
+    container,
+    unmount() {
+      app.unmount();
+      container.remove();
+    }
+  };
+}
+
 describe('task pages contract wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.route.query = {};
+    document.body.innerHTML = '';
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true
+    });
+    window.$message = {
+      warning: mocks.warning,
+      success: mocks.success
+    } as unknown as typeof window.$message;
+
+    mocks.fetchGetApps.mockResolvedValue({ data: [], error: null });
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        records: [
+          {
+            id: 1,
+            taskNo: 'TASK-1',
+            taskName: 'Deploy order-service',
+            taskType: 'INSTALL',
+            appId: 101,
+            appName: 'order-service',
+            versionId: 201,
+            versionNo: 'v1.0.0',
+            status: 'RUNNING',
+            batchStrategy: 'ALL',
+            batchSize: 1,
+            targetCount: 1,
+            successCount: 0,
+            failCount: 0,
+            operatorName: 'alice',
+            createdAt: '2026-04-18T10:00:00',
+            updatedAt: '2026-04-18T10:05:00',
+            params: { environment: 'production' }
+          }
+        ]
+      }
+    });
+    mocks.fetchGetDeployTask.mockResolvedValue({
+      error: null,
+      data: {
+        id: 1,
+        taskNo: 'TASK-1',
+        taskName: 'Deploy order-service',
+        taskType: 'INSTALL',
+        appId: 101,
+        appName: 'order-service',
+        versionId: 201,
+        versionNo: 'v1.0.0',
+        status: 'RUNNING',
+        batchStrategy: 'ALL',
+        batchSize: 1,
+        targetCount: 1,
+        successCount: 0,
+        failCount: 0,
+        operatorName: 'alice',
+        createdAt: '2026-04-18T10:00:00',
+        updatedAt: '2026-04-18T10:05:00',
+        totalHosts: 1,
+        pendingHosts: 0,
+        runningHosts: 1,
+        successHosts: 0,
+        failedHosts: 0,
+        cancelledHosts: 0,
+        params: { environment: 'production' }
+      }
+    });
+    mocks.fetchGetDeployTaskLogs.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        records: []
+      }
+    });
+    mocks.fetchGetTaskCenterTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        records: [createTaskCenterRecord(1)]
+      }
+    });
+    mocks.fetchGetDeployTaskHosts.mockImplementation(
+      async (_id: number, params: { page: number; pageSize: number }) => {
+        if (params.pageSize === 100) {
+          return {
+            error: null,
+            data: {
+              page: params.page,
+              pageSize: params.pageSize,
+              total: 1,
+              records: [
+                {
+                  id: 1,
+                  taskId: 1,
+                  hostId: 11,
+                  hostName: 'host-a',
+                  ipAddress: '10.0.0.1',
+                  status: 'RUNNING',
+                  currentStep: 'deploy',
+                  startedAt: '2026-04-18T10:01:00',
+                  finishedAt: null,
+                  errorMsg: null
+                }
+              ]
+            }
+          };
+        }
+
+        return {
+          error: null,
+          data: {
+            page: params.page,
+            pageSize: params.pageSize,
+            total: 1,
+            records: [
+              {
+                id: 1,
+                taskId: 1,
+                hostId: 11,
+                hostName: 'host-a',
+                ipAddress: '10.0.0.1',
+                status: 'RUNNING',
+                currentStep: 'deploy',
+                startedAt: '2026-04-18T10:01:00',
+                finishedAt: null,
+                errorMsg: null
+              }
+            ]
+          }
+        };
+      }
+    );
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  it('retries loading log host options on manual refresh after an initial dedicated-host load failure', async () => {
+    mocks.route.query = { taskId: '1' };
+
+    let dedicatedHostLoadAttempts = 0;
+    mocks.fetchGetDeployTaskHosts.mockImplementation(
+      async (_id: number, params: { page: number; pageSize: number }) => {
+        if (params.pageSize === 100) {
+          dedicatedHostLoadAttempts += 1;
+
+          if (dedicatedHostLoadAttempts === 1) {
+            return { error: { message: 'temporary failure' }, data: null };
+          }
+        }
+
+        return {
+          error: null,
+          data: {
+            page: params.page,
+            pageSize: params.pageSize,
+            total: 1,
+            records: [
+              {
+                id: 1,
+                taskId: 1,
+                hostId: 11,
+                hostName: 'host-a',
+                ipAddress: '10.0.0.1',
+                status: 'RUNNING',
+                currentStep: 'deploy',
+                startedAt: '2026-04-18T10:01:00',
+                finishedAt: null,
+                errorMsg: null
+              }
+            ]
+          }
+        };
+      }
+    );
+
+    const page = await mountDeployTaskPage();
+
+    expect(dedicatedHostLoadAttempts).toBe(1);
+
+    const manualRefreshButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.deployTask.detail.manualRefresh')
+    );
+
+    expect(manualRefreshButton).toBeTruthy();
+
+    manualRefreshButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    await nextTick();
+
+    expect(dedicatedHostLoadAttempts).toBe(2);
+
+    page.unmount();
+  });
+
+  it('keeps detail loading active while a newer task detail request is still in flight', async () => {
+    const firstDetail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+    const secondDetail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+
+    mocks.route.query = { taskId: '1' };
+    mocks.fetchGetDeployTask.mockImplementation((id: number) => {
+      if (id === 1) {
+        return firstDetail.promise;
+      }
+
+      if (id === 2) {
+        return secondDetail.promise;
+      }
+
+      return Promise.resolve({ error: null, data: null });
+    });
+
+    const page = await mountDeployTaskPage();
+    const manualRefreshButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.deployTask.detail.manualRefresh')
+    );
+
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('true');
+
+    mocks.route.query = { taskId: '2' };
+    await nextTick();
+    await nextTick();
+
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('true');
+
+    firstDetail.resolve({
+      error: null,
+      data: {
+        id: 1,
+        taskNo: 'TASK-1',
+        taskName: 'Deploy order-service',
+        taskType: 'INSTALL',
+        appId: 101,
+        appName: 'order-service',
+        versionId: 201,
+        versionNo: 'v1.0.0',
+        status: 'RUNNING',
+        batchStrategy: 'ALL',
+        batchSize: 1,
+        targetCount: 1,
+        successCount: 0,
+        failCount: 0,
+        operatorName: 'alice',
+        createdAt: '2026-04-18T10:00:00',
+        updatedAt: '2026-04-18T10:05:00',
+        totalHosts: 1,
+        pendingHosts: 0,
+        runningHosts: 1,
+        successHosts: 0,
+        failedHosts: 0,
+        cancelledHosts: 0,
+        params: { environment: 'production' }
+      }
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('true');
+
+    secondDetail.resolve({
+      error: null,
+      data: {
+        id: 2,
+        taskNo: 'TASK-2',
+        taskName: 'Deploy billing-service',
+        taskType: 'INSTALL',
+        appId: 102,
+        appName: 'billing-service',
+        versionId: 202,
+        versionNo: 'v1.0.1',
+        status: 'RUNNING',
+        batchStrategy: 'ALL',
+        batchSize: 1,
+        targetCount: 1,
+        successCount: 0,
+        failCount: 0,
+        operatorName: 'bob',
+        createdAt: '2026-04-18T10:06:00',
+        updatedAt: '2026-04-18T10:07:00',
+        totalHosts: 1,
+        pendingHosts: 0,
+        runningHosts: 1,
+        successHosts: 0,
+        failedHosts: 0,
+        cancelledHosts: 0,
+        params: { environment: 'production' }
+      }
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('false');
+
+    page.unmount();
+  });
+
+  it('keeps manual refresh loading active until dedicated log-host refresh completes', async () => {
+    const slowLogHosts = createDeferred<{
+      error: null;
+      data: {
+        page: number;
+        pageSize: number;
+        total: number;
+        records: Array<Record<string, unknown>>;
+      };
+    }>();
+
+    mocks.route.query = { taskId: '1' };
+
+    let dedicatedHostLoadAttempts = 0;
+    mocks.fetchGetDeployTaskHosts.mockImplementation(
+      async (_id: number, params: { page: number; pageSize: number }) => {
+        if (params.pageSize === 100) {
+          dedicatedHostLoadAttempts += 1;
+
+          if (dedicatedHostLoadAttempts === 2) {
+            return slowLogHosts.promise;
+          }
+        }
+
+        return {
+          error: null,
+          data: {
+            page: params.page,
+            pageSize: params.pageSize,
+            total: 1,
+            records: [
+              {
+                id: 1,
+                taskId: 1,
+                hostId: 11,
+                hostName: 'host-a',
+                ipAddress: '10.0.0.1',
+                status: 'RUNNING',
+                currentStep: 'deploy',
+                startedAt: '2026-04-18T10:01:00',
+                finishedAt: null,
+                errorMsg: null
+              }
+            ]
+          }
+        };
+      }
+    );
+
+    const page = await mountDeployTaskPage();
+    const manualRefreshButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.deployTask.detail.manualRefresh')
+    );
+
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('false');
+
+    manualRefreshButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    await nextTick();
+
+    expect(dedicatedHostLoadAttempts).toBe(2);
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('true');
+
+    slowLogHosts.resolve({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 100,
+        total: 1,
+        records: [
+          {
+            id: 1,
+            taskId: 1,
+            hostId: 11,
+            hostName: 'host-a',
+            ipAddress: '10.0.0.1',
+            status: 'RUNNING',
+            currentStep: 'deploy',
+            startedAt: '2026-04-18T10:01:00',
+            finishedAt: null,
+            errorMsg: null
+          }
+        ]
+      }
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(manualRefreshButton?.getAttribute('data-loading')).toBe('false');
+
+    page.unmount();
+  });
+
+  it('does not start a stale dedicated log-host load after switching to a newer task', async () => {
+    const task1Detail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+    const task2Detail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+    const dedicatedLogHostTaskIds: number[] = [];
+
+    mocks.route.query = { taskId: '1' };
+    mocks.fetchGetDeployTask.mockImplementation((id: number) => {
+      if (id === 1) {
+        return task1Detail.promise;
+      }
+
+      if (id === 2) {
+        return task2Detail.promise;
+      }
+
+      return Promise.resolve({ error: null, data: null });
+    });
+    mocks.fetchGetDeployTaskHosts.mockImplementation(async (id: number, params: { page: number; pageSize: number }) => {
+      if (params.pageSize === 100) {
+        dedicatedLogHostTaskIds.push(id);
+      }
+
+      return {
+        error: null,
+        data: {
+          page: params.page,
+          pageSize: params.pageSize,
+          total: 1,
+          records: [
+            {
+              id,
+              taskId: id,
+              hostId: id * 10,
+              hostName: `host-${id}`,
+              ipAddress: `10.0.0.${id}`,
+              status: 'RUNNING',
+              currentStep: 'deploy',
+              startedAt: '2026-04-18T10:01:00',
+              finishedAt: null,
+              errorMsg: null
+            }
+          ]
+        }
+      };
+    });
+
+    const page = await mountDeployTaskPage();
+
+    mocks.route.query = { taskId: '2' };
+    await nextTick();
+    await nextTick();
+
+    task2Detail.resolve({
+      error: null,
+      data: {
+        id: 2,
+        taskNo: 'TASK-2',
+        taskName: 'Deploy billing-service',
+        taskType: 'INSTALL',
+        appId: 102,
+        appName: 'billing-service',
+        versionId: 202,
+        versionNo: 'v1.0.1',
+        status: 'RUNNING',
+        batchStrategy: 'ALL',
+        batchSize: 1,
+        targetCount: 1,
+        successCount: 0,
+        failCount: 0,
+        operatorName: 'bob',
+        createdAt: '2026-04-18T10:06:00',
+        updatedAt: '2026-04-18T10:07:00',
+        totalHosts: 1,
+        pendingHosts: 0,
+        runningHosts: 1,
+        successHosts: 0,
+        failedHosts: 0,
+        cancelledHosts: 0,
+        params: { environment: 'production' }
+      }
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(dedicatedLogHostTaskIds).toEqual([2]);
+
+    task1Detail.resolve({
+      error: null,
+      data: {
+        id: 1,
+        taskNo: 'TASK-1',
+        taskName: 'Deploy order-service',
+        taskType: 'INSTALL',
+        appId: 101,
+        appName: 'order-service',
+        versionId: 201,
+        versionNo: 'v1.0.0',
+        status: 'RUNNING',
+        batchStrategy: 'ALL',
+        batchSize: 1,
+        targetCount: 1,
+        successCount: 0,
+        failCount: 0,
+        operatorName: 'alice',
+        createdAt: '2026-04-18T10:00:00',
+        updatedAt: '2026-04-18T10:05:00',
+        totalHosts: 1,
+        pendingHosts: 0,
+        runningHosts: 1,
+        successHosts: 0,
+        failedHosts: 0,
+        cancelledHosts: 0,
+        params: { environment: 'production' }
+      }
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(dedicatedLogHostTaskIds).toEqual([2]);
+
+    page.unmount();
+  });
+
+  it('task row highlight marks the deep-linked active task row', async () => {
+    mocks.route.query = { taskId: '1' };
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 2,
+        records: [createDeployTaskRecord(1), createDeployTaskRecord(2)]
+      }
+    });
+    mocks.fetchGetDeployTask.mockImplementation(async (id: number) => ({
+      error: null,
+      data: createDeployTaskDetailRecord(id)
+    }));
+
+    const page = await mountDeployTaskPage();
+    const activeRow = getDeployTaskRow(page.container, 1);
+    const inactiveRow = getDeployTaskRow(page.container, 2);
+
+    expect(activeRow).toBeTruthy();
+    expect(activeRow?.classList.contains('deploy-task-row--active')).toBe(true);
+    expect(inactiveRow?.classList.contains('deploy-task-row--active')).toBe(false);
+
+    page.unmount();
+  });
+
+  it('task row highlight switches to the newly selected task row when route taskId changes', async () => {
+    mocks.route.query = { taskId: '1' };
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 2,
+        records: [createDeployTaskRecord(1), createDeployTaskRecord(2)]
+      }
+    });
+    mocks.fetchGetDeployTask.mockImplementation(async (id: number) => ({
+      error: null,
+      data: createDeployTaskDetailRecord(id)
+    }));
+
+    const page = await mountDeployTaskPage();
+
+    expect(getDeployTaskRow(page.container, 1)?.classList.contains('deploy-task-row--active')).toBe(true);
+    expect(getDeployTaskRow(page.container, 2)?.classList.contains('deploy-task-row--active')).toBe(false);
+
+    mocks.route.query = { taskId: '2' };
+    await settleRender();
+
+    expect(getDeployTaskRow(page.container, 1)?.classList.contains('deploy-task-row--active')).toBe(false);
+    expect(getDeployTaskRow(page.container, 2)?.classList.contains('deploy-task-row--active')).toBe(true);
+
+    page.unmount();
+  });
+
+  it('task row highlight clears after closing the detail drawer via route query', async () => {
+    mocks.route.query = { taskId: '1' };
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 2,
+        records: [createDeployTaskRecord(1), createDeployTaskRecord(2)]
+      }
+    });
+    mocks.fetchGetDeployTask.mockImplementation(async (id: number) => ({
+      error: null,
+      data: createDeployTaskDetailRecord(id)
+    }));
+
+    const page = await mountDeployTaskPage();
+
+    expect(getDeployTaskRow(page.container, 1)?.classList.contains('deploy-task-row--active')).toBe(true);
+
+    mocks.route.query = {};
+    await settleRender();
+
+    expect(getDeployTaskRow(page.container, 1)?.classList.contains('deploy-task-row--active')).toBe(false);
+    expect(page.container.querySelectorAll('tr.deploy-task-row--active')).toHaveLength(0);
+
+    page.unmount();
+  });
+
   it('exposes task api fetchers through the shared api barrel', () => {
     expect(taskApiSource).toMatch(/export function fetchGetDeployTasks\s*\(/);
     expect(taskApiSource).toMatch(/url:\s*['"]\/api\/deploy\/tasks['"]/);
@@ -36,18 +965,67 @@ describe('task pages contract wiring', () => {
 
   it('defines frontend task typings for deploy and task center rows', () => {
     expect(taskTypingSource).toContain('namespace Task');
+    expect(taskTypingSource).toContain('type TaskSortBy');
+    expect(taskTypingSource).toContain("'createdAt' | 'updatedAt' | 'taskNo' | 'status'");
+    expect(taskTypingSource).toContain("type TaskSortOrder = 'asc' | 'desc'");
+    expect(taskTypingSource).toContain('interface DeployTaskListQuery');
+    expect(taskTypingSource).toContain('interface DeployTaskPage');
+    expect(taskTypingSource).toContain('interface DeployTaskDetailRecord extends DeployTaskRecord');
     expect(taskTypingSource).toContain('interface DeployTaskRecord');
     expect(taskTypingSource).toContain('originTaskId?: number | null');
+    expect(taskTypingSource).toContain('interface DeployTaskHostQuery');
+    expect(taskTypingSource).toContain('interface DeployTaskHostPage');
     expect(taskTypingSource).toContain('interface DeployTaskHostRecord');
+    expect(taskTypingSource).toContain('interface DeployTaskLogQuery');
+    expect(taskTypingSource).toContain('interface DeployTaskLogPage');
     expect(taskTypingSource).toContain('interface DeployTaskLogRecord');
+    expect(taskTypingSource).toContain('interface TaskCenterListQuery');
+    expect(taskTypingSource).toContain('interface TaskCenterPage');
     expect(taskTypingSource).toContain('interface TaskCenterRecord');
   });
 
-  it('loads deploy task page from real api data instead of static mock arrays', () => {
-    expect(deployTaskPage).toContain('fetchGetDeployTasks');
-    expect(deployTaskPage).toContain('await fetchGetDeployTasks(');
+  it('exposes paginated task api fetchers with params', () => {
+    expect(taskApiSource).toMatch(/export function fetchGetDeployTasks\s*\(params: Api\.Task\.DeployTaskListQuery\)/);
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskPage>\(\{\s*url:\s*['"]\/api\/deploy\/tasks['"],\s*params\s*\}/s
+    );
+    expect(taskApiSource).toMatch(/export function fetchGetDeployTask\s*\(id: number\)/);
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskDetailRecord>\(\{\s*url:\s*`\/api\/deploy\/tasks\/\$\{id\}`\s*\}/s
+    );
+    expect(taskApiSource).toMatch(
+      /export function fetchGetDeployTaskHosts\s*\(id: number, params: Api\.Task\.DeployTaskHostQuery\)/
+    );
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskHostPage>\(\{\s*url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/hosts`,\s*params\s*\}/s
+    );
+    expect(taskApiSource).toMatch(
+      /export function fetchGetDeployTaskLogs\s*\(id: number, params: Api\.Task\.DeployTaskLogQuery\)/
+    );
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskLogPage>\(\{\s*url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/logs`,\s*params\s*\}/s
+    );
+    expect(taskApiSource).toMatch(
+      /export function fetchGetTaskCenterTasks\s*\(params: Api\.Task\.TaskCenterListQuery\)/
+    );
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.TaskCenterPage>\(\{\s*url:\s*['"]\/api\/task-center\/tasks['"],\s*params\s*\}/s
+    );
+  });
+
+  it('loads deploy task page from route query and real api data instead of static mock arrays', () => {
+    expect(deployTaskPage).toContain('useRoute(');
+    expect(deployTaskPage).toContain('routerPushByKey');
+    expect(deployTaskPage).toContain('normalizeDeployTaskRouteQuery');
+    expect(deployTaskPage).toContain('toDeployTaskApiQuery');
+    expect(deployTaskPage).toContain('route.query');
+    expect(deployTaskPage).toContain('fetchGetDeployTask');
+    expect(deployTaskPage).toContain('fetchGetDeployTasks(toDeployTaskApiQuery(query))');
     expect(deployTaskPage).toContain('const taskList = ref');
     expect(deployTaskPage).toContain('taskList.value =');
+    expect(deployTaskPage).toContain('pageSize');
+    expect(deployTaskPage).toContain('sortBy');
+    expect(deployTaskPage).toContain('taskId');
     expect(deployTaskPage).toContain('handleExecuteTask');
     expect(deployTaskPage).toContain('handleRetryTask');
     expect(deployTaskPage).toContain('handleRollbackTask');
@@ -56,8 +1034,10 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain('const taskHosts = ref<Api.Task.DeployTaskHostRecord[]>');
     expect(deployTaskPage).toContain('const taskLogs = ref<Api.Task.DeployTaskLogRecord[]>');
     expect(deployTaskPage).toContain('NDrawer');
+    expect(deployTaskPage).toContain('NPagination');
     expect(deployTaskPage).toContain('common.refresh');
     expect(deployTaskPage).toContain('NEmpty');
+    expect(deployTaskPage).not.toContain('fetchGetDeployTasks()');
     expect(deployTaskPage).not.toContain('const deployTasks = computed(() => [');
   });
 
@@ -70,6 +1050,53 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).not.toContain('const taskList = computed(() => [');
   });
 
+  it('drives task center list from route query pagination and deploy-detail navigation', () => {
+    expect(taskCenterPage).toContain('useRoute(');
+    expect(taskCenterPage).toContain('routerPushByKey');
+    expect(taskCenterPage).toContain('normalizeTaskCenterRouteQuery');
+    expect(taskCenterPage).toContain('toTaskCenterApiQuery');
+    expect(taskCenterPage).toContain('route.query');
+    expect(taskCenterPage).toContain('fetchGetTaskCenterTasks(toTaskCenterApiQuery(query))');
+    expect(taskCenterPage).toContain('filterForm.keyword = query.keyword');
+    expect(taskCenterPage).toContain('filterForm.status = query.status || null');
+    expect(taskCenterPage).toContain('filterForm.sourceType = query.sourceType || null');
+    expect(taskCenterPage).toContain('filterForm.taskType = query.taskType');
+    expect(taskCenterPage).toContain('filterForm.priority = query.priority || null');
+    expect(taskCenterPage).toContain(
+      'const pendingTaskCenterRouteQuery = ref<TaskCenterRouteQuery>(normalizedRouteQuery.value)'
+    );
+    expect(taskCenterPage).toContain('pendingTaskCenterRouteQuery.value = query');
+    expect(taskCenterPage).toContain(
+      'const currentQuery = stringifyTaskCenterRouteQuery(pendingTaskCenterRouteQuery.value)'
+    );
+    expect(taskCenterPage).toContain(
+      'const nextPendingQuery = { ...pendingTaskCenterRouteQuery.value, ...partialQuery }'
+    );
+    expect(taskCenterPage).toContain('pendingTaskCenterRouteQuery.value = nextPendingQuery');
+    expect(taskCenterPage).toContain('pushTaskCenterRouteQuery');
+    expect(taskCenterPage).toContain('handleSearch');
+    expect(taskCenterPage).toContain('handleResetFilters');
+    expect(taskCenterPage).toContain('handlePageChange');
+    expect(taskCenterPage).toContain('handlePageSizeChange');
+    expect(taskCenterPage).toContain('NPagination');
+    expect(taskCenterPage).toContain("routerPushByKey('deploy_task', { query: { taskId: String(taskId) } })");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openDeployDetail')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.keyword')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.status')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.sourceType')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.taskType')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.priority')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.search')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.reset')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.createdAt')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.updatedAt')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.taskNo')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.status')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.asc')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.desc')");
+    expect(taskCenterPage).not.toContain('fetchGetTaskCenterTasks()');
+  });
+
   it('maps upgrade and rollback task types into deploy task labels', () => {
     expect(taskCenterPage).toContain("normalizedValue.includes('upgrade')");
     expect(taskCenterPage).toContain("normalizedValue.includes('rollback')");
@@ -79,6 +1106,47 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain("normalizedStatus.includes('cancel')");
     expect(taskCenterPage).toContain("cancelled: t('page.envops.common.status.cancelled')");
     expect(taskCenterPage).toContain("cancelled: 'warning'");
+  });
+
+  it('treats cancel requested task center status as running-like instead of cancelled', () => {
+    expect(taskCenterPage).toContain("normalizedStatus.includes('cancel_requested')");
+    expect(taskCenterPage.indexOf("normalizedStatus.includes('cancel_requested')")).toBeLessThan(
+      taskCenterPage.indexOf("normalizedStatus.includes('cancel')")
+    );
+    expect(taskCenterPage).toContain("return 'running'");
+    expect(taskCenterPage).toContain("if (!['queued', 'running'].includes(statusKey)) {");
+  });
+
+  it('renders cancel requested task center rows with running status and fallback p2 priority', async () => {
+    mocks.fetchGetTaskCenterTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        records: [
+          createTaskCenterRecord(7, {
+            status: 'CANCEL_REQUESTED',
+            priority: null,
+            failCount: 0,
+            targetCount: 1
+          })
+        ]
+      }
+    });
+
+    const page = await mountTaskCenterPage();
+    const row = page.container.querySelector('tbody tr');
+
+    expect(row).toBeTruthy();
+
+    const cells = row ? Array.from(row.querySelectorAll('td')).map(cell => cell.textContent?.trim() ?? '') : [];
+
+    expect(cells[4]).toBe('P2');
+    expect(cells[5]).toContain('page.envops.common.status.running');
+    expect(cells[5]).not.toContain('page.envops.common.status.cancelled');
+
+    page.unmount();
   });
 
   it('maps cancelled deploy task status into cancelled label instead of pending', () => {
@@ -101,9 +1169,11 @@ describe('task pages contract wiring', () => {
   });
 
   it('allows cancel only for pending or running deploy tasks', () => {
-    expect(deployTaskPage).toContain("function canCancelTask(statusKey: DeployTaskStatusKey)");
-    expect(deployTaskPage).toContain("return statusKey === 'running' || statusKey === 'pending'");
-    expect(deployTaskPage).not.toContain("return statusKey === 'running' || statusKey === 'pending' || statusKey === 'pendingApproval'");
+    expect(deployTaskPage).toContain('function canCancelTask(status: string | null | undefined)');
+    expect(deployTaskPage).toContain("return normalizedStatus === 'RUNNING' || normalizedStatus === 'PENDING'");
+    expect(deployTaskPage).not.toContain(
+      "return statusKey === 'running' || statusKey === 'pending' || statusKey === 'pendingApproval'"
+    );
   });
 
   it('prevents duplicate row mutations and rollback-of-rollback actions', () => {
@@ -111,13 +1181,17 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain('function isTaskMutating(taskId: number)');
     expect(deployTaskPage).toContain('actionLoadingTaskIds.value.includes(taskId)');
     expect(deployTaskPage).toContain('actionLoadingTaskIds.value = [...actionLoadingTaskIds.value, taskId]');
-    expect(deployTaskPage).toContain('actionLoadingTaskIds.value = actionLoadingTaskIds.value.filter(id => id !== taskId)');
+    expect(deployTaskPage).toContain(
+      'actionLoadingTaskIds.value = actionLoadingTaskIds.value.filter(id => id !== taskId)'
+    );
     expect(deployTaskPage).toContain('if (isTaskMutating(taskId)) {');
     expect(deployTaskPage).toContain("return taskType !== 'ROLLBACK'");
-    expect(deployTaskPage).toContain(":disabled=\"isTaskMutating(item.key) || !canExecuteTask(item.statusKey)\"");
-    expect(deployTaskPage).toContain(":disabled=\"isTaskMutating(item.key) || !canRetryTask(item.statusKey)\"");
-    expect(deployTaskPage).toContain(":disabled=\"isTaskMutating(item.key) || !canRollbackTask(item.statusKey, item.taskType)\"");
-    expect(deployTaskPage).toContain(":disabled=\"isTaskMutating(item.key) || !canCancelTask(item.statusKey)\"");
+    expect(deployTaskPage).toContain(':disabled="isTaskMutating(item.key) || !canExecuteTask(item.statusKey)"');
+    expect(deployTaskPage).toContain(':disabled="isTaskMutating(item.key) || !canRetryTask(item.statusKey)"');
+    expect(deployTaskPage).toContain(
+      ':disabled="isTaskMutating(item.key) || !canRollbackTask(item.statusKey, item.taskType)"'
+    );
+    expect(deployTaskPage).toContain(':disabled="isTaskMutating(item.key) || !canCancelTask(item.rawStatus)"');
   });
 
   it('clears stale task detail state before loading a different task', () => {
@@ -134,10 +1208,20 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain('const listRequestToken = ref(0)');
     expect(deployTaskPage).toContain('const requestToken = ++listRequestToken.value');
     expect(deployTaskPage).toContain('if (requestToken !== listRequestToken.value) {');
-    expect(deployTaskPage).toContain('const listToken = refreshList ? ++listRequestToken.value : listRequestToken.value');
-    expect(deployTaskPage).toContain('const currentTaskList = refreshList && listToken === listRequestToken.value ? nextTaskList : taskList.value');
+    expect(deployTaskPage).toContain(
+      'const listToken = refreshList ? ++listRequestToken.value : listRequestToken.value'
+    );
+    expect(deployTaskPage).toContain(
+      'const currentTaskList = refreshList && listToken === listRequestToken.value ? nextTaskList : taskList.value'
+    );
     expect(deployTaskPage).toContain('if (refreshList && listToken === listRequestToken.value) {');
-    expect(deployTaskPage).toContain('activeTask.value = currentTaskList.find(item => item.id === taskId) ?? null;');
+    expect(deployTaskPage).toContain('const taskDetailResponse = await fetchGetDeployTask(taskId);');
+    expect(deployTaskPage).toContain(
+      'activeTask.value = taskDetailResponse.error ? null : (taskDetailResponse.data ?? null);'
+    );
+    expect(deployTaskPage).not.toContain(
+      'activeTask.value = currentTaskList.find(item => item.id === taskId) ?? null;'
+    );
     expect(deployTaskPage.indexOf('if (requestToken !== listRequestToken.value) {')).toBeLessThan(
       deployTaskPage.indexOf('taskList.value = nextTaskList;')
     );
@@ -151,13 +1235,306 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).not.toContain("t('common.success')");
   });
 
+  it('wires deploy task application and created range filters through route query', () => {
+    expect(deployTaskPage).toContain('fetchGetApps');
+    expect(deployTaskPage).toContain('const apps = ref<Api.App.AppDefinition[]>([])');
+    expect(deployTaskPage).toContain('appId: null as number | null');
+    expect(deployTaskPage).toContain('createdRange: null as [number, number] | null');
+    expect(deployTaskPage).toContain('filterForm.appId = query.appId');
+    expect(deployTaskPage).toContain(
+      'filterForm.createdRange = getCreatedRangeValue(query.createdFrom, query.createdTo)'
+    );
+    expect(deployTaskPage).toContain('const createdRange = getCreatedRangeQueryValue(filterForm.createdRange)');
+    expect(deployTaskPage).toContain('appId: filterForm.appId');
+    expect(deployTaskPage).toContain('createdFrom: createdRange[0]');
+    expect(deployTaskPage).toContain('createdTo: createdRange[1]');
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.filters.application')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.filters.createdRange')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.filters.search')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.filters.reset')");
+    expect(deployTaskPage).toContain('NDatePicker');
+  });
+
   it('maps cancel requested deploy task status explicitly', () => {
     expect(deployTaskPage).toContain("normalizedStatus.includes('cancel_requested')");
     expect(deployTaskPage).toContain("return 'running'");
   });
 
+  it('disables cancel action for cancel requested rows while keeping running rows cancellable', async () => {
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 2,
+        records: [
+          createDeployTaskRecord(1, { status: 'CANCEL_REQUESTED' }),
+          createDeployTaskRecord(2, { status: 'RUNNING' })
+        ]
+      }
+    });
+
+    const page = await mountDeployTaskPage();
+    const cancelRequestedCancelButton = getTaskRowActionButton(page.container, 1, 'cancel');
+    const runningCancelButton = getTaskRowActionButton(page.container, 2, 'cancel');
+
+    expect(cancelRequestedCancelButton).toBeTruthy();
+    expect(cancelRequestedCancelButton?.hasAttribute('disabled')).toBe(true);
+    expect(runningCancelButton).toBeTruthy();
+    expect(runningCancelButton?.hasAttribute('disabled')).toBe(false);
+
+    page.unmount();
+  });
+
   it('counts pending approval tasks in task center queued summary', () => {
     expect(taskCenterPage).toContain("item.statusKey === 'queued' || item.statusKey === 'pendingApproval'");
+  });
+
+  it('keeps running filter options sending RUNNING for deploy task and task center pages', () => {
+    expect(deployTaskPage).toContain("{ label: t('page.envops.common.status.running'), value: 'RUNNING' }");
+    expect(taskCenterPage).toContain("{ label: t('page.envops.common.status.running'), value: 'RUNNING' }");
+    expect(deployTaskPage).not.toContain("value: 'RUNNING_LIKE'");
+    expect(taskCenterPage).not.toContain("value: 'RUNNING_LIKE'");
+  });
+
+  it('clicking pending approval summary card pushes pending approval query and reloads deploy tasks', async () => {
+    mocks.route.query = {
+      keyword: 'order-service',
+      appId: '101',
+      taskType: 'UPGRADE',
+      environment: 'production',
+      createdFrom: '2026-04-17T08:00:00',
+      createdTo: '2026-04-18T08:00:00',
+      page: '3',
+      pageSize: '20'
+    };
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 3,
+        pageSize: 20,
+        total: 2,
+        records: [
+          createDeployTaskRecord(1, { status: 'PENDING_APPROVAL' }),
+          createDeployTaskRecord(2, { status: 'RUNNING' })
+        ]
+      }
+    });
+
+    const page = await mountDeployTaskPage();
+
+    mocks.fetchGetDeployTasks.mockClear();
+    mocks.routerPushByKey.mockClear();
+
+    const pendingApprovalCard = getSummaryCard(page.container, 'pendingApproval');
+
+    expect(pendingApprovalCard).toBeTruthy();
+
+    pendingApprovalCard?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.routerPushByKey).toHaveBeenCalledWith('deploy_task', {
+      query: {
+        keyword: 'order-service',
+        appId: '101',
+        taskType: 'UPGRADE',
+        environment: 'production',
+        status: 'PENDING_APPROVAL',
+        page: '1',
+        pageSize: '20',
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      }
+    });
+    expect(mocks.route.query).toEqual({
+      keyword: 'order-service',
+      appId: '101',
+      taskType: 'UPGRADE',
+      environment: 'production',
+      status: 'PENDING_APPROVAL',
+      page: '1',
+      pageSize: '20',
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+    expect(mocks.fetchGetDeployTasks).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchGetDeployTasks).toHaveBeenCalledWith({
+      keyword: 'order-service',
+      appId: 101,
+      taskType: 'UPGRADE',
+      environment: 'production',
+      status: 'PENDING_APPROVAL',
+      page: 1,
+      pageSize: 20,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+
+    page.unmount();
+  });
+
+  it('clicking running summary card pushes RUNNING query and reloads deploy tasks without inventing new status values', async () => {
+    mocks.route.query = {
+      keyword: 'billing-service',
+      environment: 'staging',
+      createdFrom: '2026-04-16T08:00:00',
+      createdTo: '2026-04-18T08:00:00',
+      page: '4'
+    };
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 4,
+        pageSize: 10,
+        total: 2,
+        records: [createDeployTaskRecord(1, { status: 'RUNNING' }), createDeployTaskRecord(2, { status: 'RUNNING' })]
+      }
+    });
+
+    const page = await mountDeployTaskPage();
+
+    mocks.fetchGetDeployTasks.mockClear();
+    mocks.routerPushByKey.mockClear();
+
+    const runningCard = getSummaryCard(page.container, 'inProgress');
+
+    expect(runningCard).toBeTruthy();
+
+    runningCard?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.routerPushByKey).toHaveBeenCalledWith('deploy_task', {
+      query: {
+        keyword: 'billing-service',
+        environment: 'staging',
+        status: 'RUNNING',
+        page: '1',
+        pageSize: '10',
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      }
+    });
+    expect(mocks.route.query).toEqual({
+      keyword: 'billing-service',
+      environment: 'staging',
+      status: 'RUNNING',
+      page: '1',
+      pageSize: '10',
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+    expect(mocks.fetchGetDeployTasks).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchGetDeployTasks).toHaveBeenCalledWith({
+      keyword: 'billing-service',
+      environment: 'staging',
+      status: 'RUNNING',
+      page: 1,
+      pageSize: 10,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+    expect(mocks.routerPushByKey.mock.calls[0]?.[1]?.query?.status).toBe('RUNNING');
+    expect(mocks.routerPushByKey.mock.calls[0]?.[1]?.query?.status).not.toBe('RUNNING_LIKE');
+
+    page.unmount();
+  });
+
+  it('clicking failed in 24h summary card pushes failed query with last 24 hours range and reloads deploy tasks', async () => {
+    const fixedNow = new Date('2026-04-18T12:30:45').getTime();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(fixedNow);
+    const expectedRange = formatLocalDateTimeRange([fixedNow - 24 * 60 * 60 * 1000, fixedNow]);
+
+    mocks.route.query = {
+      keyword: 'gateway',
+      appId: '301',
+      taskType: 'ROLLBACK',
+      environment: 'sandbox',
+      page: '2',
+      pageSize: '50'
+    };
+    mocks.fetchGetDeployTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 2,
+        pageSize: 50,
+        total: 2,
+        records: [
+          createDeployTaskRecord(1, { status: 'FAILED', updatedAt: '2026-04-18T10:30:45' }),
+          createDeployTaskRecord(2, { status: 'SUCCESS', updatedAt: '2026-04-18T09:30:45' })
+        ]
+      }
+    });
+
+    const page = await mountDeployTaskPage();
+
+    mocks.fetchGetDeployTasks.mockClear();
+    mocks.routerPushByKey.mockClear();
+
+    const failedIn24hCard = getSummaryCard(page.container, 'failedIn24h');
+
+    expect(failedIn24hCard).toBeTruthy();
+
+    failedIn24hCard?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.routerPushByKey).toHaveBeenCalledWith('deploy_task', {
+      query: {
+        keyword: 'gateway',
+        appId: '301',
+        taskType: 'ROLLBACK',
+        environment: 'sandbox',
+        status: 'FAILED',
+        createdFrom: expectedRange[0],
+        createdTo: expectedRange[1],
+        page: '1',
+        pageSize: '50',
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      }
+    });
+    expect(mocks.route.query).toEqual({
+      keyword: 'gateway',
+      appId: '301',
+      taskType: 'ROLLBACK',
+      environment: 'sandbox',
+      status: 'FAILED',
+      createdFrom: expectedRange[0],
+      createdTo: expectedRange[1],
+      page: '1',
+      pageSize: '50',
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+    expect(mocks.fetchGetDeployTasks).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchGetDeployTasks).toHaveBeenCalledWith({
+      keyword: 'gateway',
+      appId: 301,
+      taskType: 'ROLLBACK',
+      environment: 'sandbox',
+      status: 'FAILED',
+      createdFrom: expectedRange[0],
+      createdTo: expectedRange[1],
+      page: 1,
+      pageSize: 50,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+
+    nowSpy.mockRestore();
+    page.unmount();
+  });
+
+  it('uses pending backend status for the queued task center filter option', () => {
+    expect(taskCenterPage).toContain("{ label: t('page.envops.common.status.queued'), value: 'PENDING' }");
+    expect(taskCenterPage).not.toContain("{ label: t('page.envops.common.status.queued'), value: 'QUEUED' }");
+  });
+
+  it('restricts task center deploy-detail action to exact deploy source type', () => {
+    expect(taskCenterPage).toContain("const normalizedValue = String(value || '')");
+    expect(taskCenterPage).toContain('.trim()');
+    expect(taskCenterPage).toContain('.toLowerCase()');
+    expect(taskCenterPage).toContain("return normalizedValue === 'deploy'");
+    expect(taskCenterPage).not.toContain("return String(value || '').toLowerCase().includes('deploy')");
   });
 
   it('declares deploy task detail i18n keys in locale schema and messages', () => {
@@ -179,5 +1556,184 @@ describe('task pages contract wiring', () => {
     expect(enLocaleSource).toContain('rollback');
     expect(appTypingSource).toContain('cancelled: string');
     expect(appTypingSource).toContain('rejected: string');
+  });
+
+  it('declares task center locale schema for actions filters and sorting', () => {
+    expect(appTypingSource).toMatch(/taskCenter:\s*\{[\s\S]*?actions:\s*\{[\s\S]*?openDeployDetail: string/s);
+    expect(appTypingSource).toMatch(
+      /taskCenter:\s*\{[\s\S]*?filters:\s*\{[\s\S]*?keyword: string[\s\S]*?status: string[\s\S]*?sourceType: string[\s\S]*?taskType: string[\s\S]*?priority: string[\s\S]*?search: string[\s\S]*?reset: string/s
+    );
+    expect(appTypingSource).toMatch(
+      /taskCenter:\s*\{[\s\S]*?sorting:\s*\{[\s\S]*?createdAt: string[\s\S]*?updatedAt: string[\s\S]*?taskNo: string[\s\S]*?status: string[\s\S]*?asc: string[\s\S]*?desc: string/s
+    );
+    expect(zhLocaleSource).toContain('openDeployDetail');
+    expect(zhLocaleSource).toContain('sourceType');
+    expect(zhLocaleSource).toContain('priority');
+    expect(zhLocaleSource).toContain('createdAt');
+    expect(zhLocaleSource).toContain('updatedAt');
+    expect(zhLocaleSource).toContain('taskNo');
+    expect(zhLocaleSource).toContain('asc');
+    expect(zhLocaleSource).toContain('desc');
+    expect(enLocaleSource).toContain('openDeployDetail');
+    expect(enLocaleSource).toContain('sourceType');
+    expect(enLocaleSource).toContain('priority');
+    expect(enLocaleSource).toContain('createdAt');
+    expect(enLocaleSource).toContain('updatedAt');
+    expect(enLocaleSource).toContain('taskNo');
+    expect(enLocaleSource).toContain('asc');
+    expect(enLocaleSource).toContain('desc');
+  });
+
+  it('adds deploy task detail tabs local filters and guarded auto refresh wiring', () => {
+    expect(deployTaskPage).toContain('activeDetailTab');
+    expect(deployTaskPage).toContain('fetchGetDeployTask(');
+    expect(deployTaskPage).toContain('fetchGetDeployTaskHosts(');
+    expect(deployTaskPage).toContain('fetchGetDeployTaskLogs(');
+    expect(deployTaskPage).toContain('const hostsPage = ref<Api.Task.DeployTaskHostPage>');
+    expect(deployTaskPage).toContain('const logsPage = ref<Api.Task.DeployTaskLogPage>');
+    expect(deployTaskPage).toContain('const hostQuery = reactive');
+    expect(deployTaskPage).toContain('const logQuery = reactive');
+    expect(deployTaskPage).toContain('const detailRefreshTimer = ref');
+    expect(deployTaskPage).toContain('const detailRequestInFlight = ref(false)');
+    expect(deployTaskPage).toContain('const hostsRequestInFlight = ref(false)');
+    expect(deployTaskPage).toContain('const logsRequestInFlight = ref(false)');
+    expect(deployTaskPage).toContain('document.visibilityState');
+    expect(deployTaskPage).toContain('window.setInterval');
+    expect(deployTaskPage).toContain('window.clearInterval');
+    expect(deployTaskPage).toContain('hostsError');
+    expect(deployTaskPage).toContain('logsError');
+    expect(deployTaskPage).toContain('NTabPane');
+  });
+
+  it('uses latest-only hosts/logs refresh strict polling status boundaries and 10-item detail paging defaults', () => {
+    expect(deployTaskPage).toContain('const DETAIL_PAGE_SIZE = 10');
+    expect(deployTaskPage).toContain('const hostsRequestToken = ref(0)');
+    expect(deployTaskPage).toContain('const hostsLoadingToken = ref(0)');
+    expect(deployTaskPage).toContain('const logsRequestToken = ref(0)');
+    expect(deployTaskPage).toContain('const logsLoadingToken = ref(0)');
+    expect(deployTaskPage).toContain('const requestToken = ++hostsRequestToken.value');
+    expect(deployTaskPage).toContain('const loadingToken = ++hostsLoadingToken.value');
+    expect(deployTaskPage).toContain('const requestToken = ++logsRequestToken.value');
+    expect(deployTaskPage).toContain('const loadingToken = ++logsLoadingToken.value');
+    expect(deployTaskPage).toContain(
+      'if (requestToken !== hostsRequestToken.value || activeTaskId.value !== taskId) {'
+    );
+    expect(deployTaskPage).toContain('if (requestToken !== logsRequestToken.value || activeTaskId.value !== taskId) {');
+    expect(deployTaskPage).toContain(
+      "return normalizedStatus === 'RUNNING' || normalizedStatus === 'CANCEL_REQUESTED'"
+    );
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.progress.totalHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.progress.pendingHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.progress.runningHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.progress.successHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.progress.failedHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.progress.cancelledHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.error.detailLoadFailed')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.error.hostsLoadFailed')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.error.logsLoadFailed')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.error.autoRefreshFailed')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.empty.taskNotFound')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.empty.noHosts')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.empty.noLogs')");
+    expect(deployTaskPage).toMatch(
+      /const hostQuery = reactive\(\{[\s\S]*?page: DETAIL_PAGE,[\s\S]*?pageSize: DETAIL_PAGE_SIZE[\s\S]*?\}\)/s
+    );
+    expect(deployTaskPage).toMatch(
+      /const logQuery = reactive\(\{[\s\S]*?page: DETAIL_PAGE,[\s\S]*?pageSize: DETAIL_PAGE_SIZE[\s\S]*?\}\)/s
+    );
+    expect(deployTaskPage).not.toContain('if (hostsRequestInFlight.value && !force) {');
+    expect(deployTaskPage).not.toContain('if (logsRequestInFlight.value && !force) {');
+  });
+
+  it('loads log host filter options from dedicated paged task hosts', () => {
+    expect(deployTaskPage).toMatch(/const LOG_HOST_OPTIONS_PAGE_SIZE = \d+/);
+    expect(deployTaskPage).toContain('const logHosts = ref<Api.Task.DeployTaskHostRecord[]>([])');
+    expect(deployTaskPage).toContain('const logHostsRequestToken = ref(0)');
+    expect(deployTaskPage).toContain('logHosts.value.forEach(item => {');
+    expect(deployTaskPage).not.toContain('taskHosts.value.forEach(item => {');
+    expect(deployTaskPage).toContain('async function loadLogHosts(taskId: number)');
+    expect(deployTaskPage).toContain('const nextLogHosts: Api.Task.DeployTaskHostRecord[] = []');
+    expect(deployTaskPage).toContain('let page = DETAIL_PAGE');
+    expect(deployTaskPage).toContain('while (true) {');
+    expect(deployTaskPage).toContain('fetchGetDeployTaskHosts(taskId, { page, pageSize: LOG_HOST_OPTIONS_PAGE_SIZE })');
+    expect(deployTaskPage).toContain(
+      'if (requestToken !== logHostsRequestToken.value || activeTaskId.value !== taskId) {'
+    );
+    expect(deployTaskPage).toContain('const records = getDeployTaskHostRecords(nextLogHostsPage)');
+    expect(deployTaskPage).toContain('if (!records.length) {');
+    expect(deployTaskPage).toContain('nextLogHosts.push(...records)');
+    expect(deployTaskPage).toContain(
+      'const loadedAllLogHosts = nextLogHostsPage.total > 0 && nextLogHosts.length >= nextLogHostsPage.total'
+    );
+    expect(deployTaskPage).toContain('const reachedLastLogHostsPage = records.length < nextLogHostsPage.pageSize');
+    expect(deployTaskPage).toContain('page = nextLogHostsPage.page + 1');
+    expect(deployTaskPage).toContain('logHosts.value = nextLogHosts');
+    expect(deployTaskPage).toContain('logHosts.value = []');
+    expect(deployTaskPage).toContain('loadLogHosts(taskId)');
+    expect(deployTaskPage).not.toContain(
+      'const pageSize = Math.max(activeTask.value?.totalHosts ?? 0, DETAIL_PAGE_SIZE)'
+    );
+    expect(deployTaskPage).not.toContain('fetchGetDeployTaskHosts(taskId, { page: DETAIL_PAGE, pageSize })');
+  });
+
+  it('declares deploy task task-5 locale schema for tabs progress errors and empty states', () => {
+    expect(appTypingSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?tabs:\s*\{[\s\S]*?overview: string[\s\S]*?hosts: string[\s\S]*?logs: string/s
+    );
+    expect(appTypingSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?progress:\s*\{[\s\S]*?totalHosts: string[\s\S]*?pendingHosts: string[\s\S]*?runningHosts: string[\s\S]*?successHosts: string[\s\S]*?failedHosts: string[\s\S]*?cancelledHosts: string/s
+    );
+    expect(appTypingSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?error:\s*\{[\s\S]*?detailLoadFailed: string[\s\S]*?hostsLoadFailed: string[\s\S]*?logsLoadFailed: string[\s\S]*?autoRefreshFailed: string/s
+    );
+    expect(appTypingSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?empty:\s*\{[\s\S]*?taskNotFound: string[\s\S]*?noHosts: string[\s\S]*?noLogs: string/s
+    );
+    expect(zhLocaleSource).toMatch(/deployTask:\s*\{[\s\S]*?tabs:\s*\{[\s\S]*?overview:[\s\S]*?hosts:[\s\S]*?logs:/s);
+    expect(zhLocaleSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?progress:\s*\{[\s\S]*?totalHosts:[\s\S]*?pendingHosts:[\s\S]*?runningHosts:[\s\S]*?successHosts:[\s\S]*?failedHosts:[\s\S]*?cancelledHosts:/s
+    );
+    expect(zhLocaleSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?error:\s*\{[\s\S]*?detailLoadFailed:[\s\S]*?hostsLoadFailed:[\s\S]*?logsLoadFailed:[\s\S]*?autoRefreshFailed:/s
+    );
+    expect(zhLocaleSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?empty:\s*\{[\s\S]*?taskNotFound:[\s\S]*?noHosts:[\s\S]*?noLogs:/s
+    );
+    expect(enLocaleSource).toMatch(/deployTask:\s*\{[\s\S]*?tabs:\s*\{[\s\S]*?overview:[\s\S]*?hosts:[\s\S]*?logs:/s);
+    expect(enLocaleSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?progress:\s*\{[\s\S]*?totalHosts:[\s\S]*?pendingHosts:[\s\S]*?runningHosts:[\s\S]*?successHosts:[\s\S]*?failedHosts:[\s\S]*?cancelledHosts:/s
+    );
+    expect(enLocaleSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?error:\s*\{[\s\S]*?detailLoadFailed:[\s\S]*?hostsLoadFailed:[\s\S]*?logsLoadFailed:[\s\S]*?autoRefreshFailed:/s
+    );
+    expect(enLocaleSource).toMatch(
+      /deployTask:\s*\{[\s\S]*?empty:\s*\{[\s\S]*?taskNotFound:[\s\S]*?noHosts:[\s\S]*?noLogs:/s
+    );
+  });
+
+  it('keeps deploy task locale schema aligned with planned filters and sorting structure', () => {
+    expect(appTypingSource).toContain('filters: {');
+    expect(appTypingSource).toContain('application: string');
+    expect(appTypingSource).toContain('createdRange: string');
+    expect(appTypingSource).toContain('search: string');
+    expect(appTypingSource).toContain('reset: string');
+    expect(appTypingSource).toContain('sorting: {');
+    expect(appTypingSource).toContain('createdAt: string');
+    expect(appTypingSource).toContain('updatedAt: string');
+    expect(appTypingSource).toContain('taskNo: string');
+    expect(appTypingSource).toContain('keyword: string');
+    expect(appTypingSource).not.toContain('keywordPlaceholder: string');
+    expect(appTypingSource).not.toContain('sortByCreatedAt: string');
+    expect(appTypingSource).not.toContain('sortByUpdatedAt: string');
+    expect(appTypingSource).not.toContain('sortByTaskId: string');
+    expect(appTypingSource).not.toContain('sortByStatus: string');
+    expect(appTypingSource).not.toContain('sortOrderAsc: string');
+    expect(appTypingSource).not.toContain('sortOrderDesc: string');
+    expect(zhLocaleSource).toContain('application');
+    expect(zhLocaleSource).toContain('createdRange');
+    expect(zhLocaleSource).toContain('sorting');
+    expect(enLocaleSource).toContain('application');
+    expect(enLocaleSource).toContain('createdRange');
+    expect(enLocaleSource).toContain('sorting');
   });
 });

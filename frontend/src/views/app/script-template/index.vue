@@ -1,16 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import {
-  NButton,
-  NCard,
-  NDivider,
-  NEmpty,
-  NForm,
-  NFormItem,
-  NInput,
-  NSelect,
-  NSpace
-} from 'naive-ui';
+import { NButton, NCard, NDivider, NEmpty, NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui';
 import {
   fetchCreateScriptTemplate,
   fetchDeleteScriptTemplate,
@@ -191,7 +181,11 @@ onMounted(() => {
       v-if="formVisible"
       :bordered="false"
       class="card-wrapper"
-      :title="editingTemplateId === null ? $t('page.app.scriptTemplate.formTitleCreate') : $t('page.app.scriptTemplate.formTitleEdit')"
+      :title="
+        editingTemplateId === null
+          ? $t('page.app.scriptTemplate.formTitleCreate')
+          : $t('page.app.scriptTemplate.formTitleEdit')
+      "
     >
       <NForm label-placement="top">
         <div class="grid gap-16px md:grid-cols-2">

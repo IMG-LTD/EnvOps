@@ -3,13 +3,16 @@ package com.img.envops.modules.deploy.interfaces;
 import com.img.envops.common.response.R;
 import com.img.envops.modules.deploy.application.DeployTaskApplicationService;
 import com.img.envops.modules.deploy.application.DeployTaskExecutionApplicationService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -25,12 +28,34 @@ public class DeployTaskController {
   }
 
   @GetMapping("/api/deploy/tasks")
-  public R<List<DeployTaskApplicationService.DeployTaskRecord>> getDeployTasks() {
-    return R.ok(deployTaskApplicationService.getDeployTasks());
+  public R<DeployTaskApplicationService.DeployTaskPage> getDeployTasks(
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String taskType,
+      @RequestParam(required = false) Long appId,
+      @RequestParam(required = false) String environment,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdFrom,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime createdTo,
+      @RequestParam(defaultValue = "1") Integer page,
+      @RequestParam(defaultValue = "10") Integer pageSize,
+      @RequestParam(defaultValue = "createdAt") String sortBy,
+      @RequestParam(defaultValue = "desc") String sortOrder) {
+    return R.ok(deployTaskApplicationService.getDeployTasks(new DeployTaskApplicationService.DeployTaskQuery(
+        keyword,
+        status,
+        taskType,
+        appId,
+        environment,
+        createdFrom,
+        createdTo,
+        page,
+        pageSize,
+        sortBy,
+        sortOrder)));
   }
 
   @GetMapping("/api/deploy/tasks/{id}")
-  public R<DeployTaskApplicationService.DeployTaskRecord> getDeployTask(@PathVariable Long id) {
+  public R<DeployTaskApplicationService.DeployTaskDetailRecord> getDeployTask(@PathVariable Long id) {
     return R.ok(deployTaskApplicationService.getDeployTask(id));
   }
 
@@ -95,18 +120,52 @@ public class DeployTaskController {
   }
 
   @GetMapping("/api/task-center/tasks")
-  public R<List<DeployTaskApplicationService.TaskCenterRecord>> getTaskCenterTasks() {
-    return R.ok(deployTaskApplicationService.getTaskCenterTasks());
+  public R<DeployTaskApplicationService.TaskCenterPage> getTaskCenterTasks(
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String sourceType,
+      @RequestParam(required = false) String taskType,
+      @RequestParam(required = false) String priority,
+      @RequestParam(defaultValue = "1") Integer page,
+      @RequestParam(defaultValue = "10") Integer pageSize,
+      @RequestParam(defaultValue = "createdAt") String sortBy,
+      @RequestParam(defaultValue = "desc") String sortOrder) {
+    return R.ok(deployTaskApplicationService.getTaskCenterTasks(new DeployTaskApplicationService.TaskCenterQuery(
+        keyword,
+        status,
+        sourceType,
+        taskType,
+        priority,
+        page,
+        pageSize,
+        sortBy,
+        sortOrder)));
   }
 
   @GetMapping("/api/deploy/tasks/{id}/hosts")
-  public R<List<DeployTaskApplicationService.DeployTaskHostRecord>> getDeployTaskHosts(@PathVariable Long id) {
-    return R.ok(deployTaskApplicationService.getDeployTaskHosts(id));
+  public R<DeployTaskApplicationService.DeployTaskHostPage> getDeployTaskHosts(@PathVariable Long id,
+                                                                                @RequestParam(required = false) String status,
+                                                                                @RequestParam(required = false) String keyword,
+                                                                                @RequestParam(required = false) Integer page,
+                                                                                @RequestParam(required = false) Integer pageSize) {
+    return R.ok(deployTaskApplicationService.getDeployTaskHosts(id, new DeployTaskApplicationService.DeployTaskHostQuery(
+        status,
+        keyword,
+        page,
+        pageSize)));
   }
 
   @GetMapping("/api/deploy/tasks/{id}/logs")
-  public R<List<DeployTaskApplicationService.DeployTaskLogRecord>> getDeployTaskLogs(@PathVariable Long id) {
-    return R.ok(deployTaskApplicationService.getDeployTaskLogs(id));
+  public R<DeployTaskApplicationService.DeployTaskLogPage> getDeployTaskLogs(@PathVariable Long id,
+                                                                              @RequestParam(required = false) Long hostId,
+                                                                              @RequestParam(required = false) String keyword,
+                                                                              @RequestParam(required = false) Integer page,
+                                                                              @RequestParam(required = false) Integer pageSize) {
+    return R.ok(deployTaskApplicationService.getDeployTaskLogs(id, new DeployTaskApplicationService.DeployTaskLogQuery(
+        hostId,
+        keyword,
+        page,
+        pageSize)));
   }
 
   public record CreateDeployTaskRequest(String taskName,

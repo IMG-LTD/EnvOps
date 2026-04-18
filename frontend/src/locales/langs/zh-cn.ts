@@ -786,6 +786,25 @@ const local: App.I18n.Schema = {
             desc: '需要回滚分析或重试的任务'
           }
         },
+        filters: {
+          status: '任务状态',
+          taskType: '任务类型',
+          application: '应用',
+          environment: '发布环境',
+          keyword: '关键词',
+          createdRange: '创建时间范围',
+          search: '搜索',
+          reset: '重置',
+          taskTypeInstall: '安装',
+          taskTypeUpgrade: '升级',
+          taskTypeRollback: '回滚'
+        },
+        sorting: {
+          createdAt: '创建时间',
+          updatedAt: '更新时间',
+          taskNo: '任务 ID',
+          status: '状态'
+        },
         table: {
           title: '发布队列',
           taskId: '任务 ID',
@@ -801,6 +820,19 @@ const local: App.I18n.Schema = {
           retry: '重试',
           rollback: '回滚',
           cancel: '取消任务'
+        },
+        tabs: {
+          overview: '概览',
+          hosts: '主机',
+          logs: '日志'
+        },
+        progress: {
+          totalHosts: '总主机数',
+          pendingHosts: '待处理主机',
+          runningHosts: '执行中主机',
+          successHosts: '成功主机',
+          failedHosts: '失败主机',
+          cancelledHosts: '已取消主机'
         },
         detail: {
           title: '任务详情',
@@ -822,6 +854,17 @@ const local: App.I18n.Schema = {
           finishedAt: '结束时间',
           createdAt: '创建时间',
           updatedAt: '更新时间'
+        },
+        error: {
+          detailLoadFailed: '任务详情加载失败，请稍后重试。',
+          hostsLoadFailed: '主机明细加载失败，请稍后重试。',
+          logsLoadFailed: '执行日志加载失败，请稍后重试。',
+          autoRefreshFailed: '自动刷新失败，请稍后手动重试。'
+        },
+        empty: {
+          taskNotFound: '未找到任务详情',
+          noHosts: '暂无主机明细',
+          noLogs: '暂无执行日志'
         },
         hosts: {
           title: '主机明细',
@@ -864,6 +907,23 @@ const local: App.I18n.Schema = {
             desc: '接近超时阈值的长耗时任务'
           }
         },
+        filters: {
+          keyword: '关键词',
+          status: '状态',
+          sourceType: '来源类型',
+          taskType: '任务类型',
+          priority: '优先级',
+          search: '搜索',
+          reset: '重置'
+        },
+        sorting: {
+          createdAt: '创建时间',
+          updatedAt: '更新时间',
+          taskNo: '任务 ID',
+          status: '状态',
+          asc: '升序',
+          desc: '降序'
+        },
         table: {
           title: '统一队列',
           taskId: '任务 ID',
@@ -872,6 +932,9 @@ const local: App.I18n.Schema = {
           executor: '执行器',
           priority: '优先级',
           status: '状态'
+        },
+        actions: {
+          openDeployDetail: '打开发布详情'
         }
       },
       trafficController: {
@@ -954,7 +1017,7 @@ const local: App.I18n.Schema = {
     },
     pwd: {
       required: '请输入密码',
-      invalid: '密码格式不正确，6-18位字符，包含字母、数字、下划线、{\'@\'}'
+      invalid: "密码格式不正确，6-18位字符，包含字母、数字、下划线、{'@'}"
     },
     confirmPwd: {
       required: '请输入确认密码',

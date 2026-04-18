@@ -4,11 +4,13 @@ import com.img.envops.common.exception.ConflictException;
 import com.img.envops.common.exception.NotFoundException;
 import com.img.envops.common.exception.UnauthorizedException;
 import com.img.envops.common.response.R;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -36,6 +38,19 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(DataIntegrityViolationException.class)
   public ResponseEntity<R<Void>> handleDataIntegrityViolationException(DataIntegrityViolationException exception) {
     return ResponseEntity.status(HttpStatus.CONFLICT).body(R.fail("409", "Resource already exists or is still referenced"));
+  }
+
+  @ExceptionHandler({MethodArgumentTypeMismatchException.class, TypeMismatchException.class})
+  public ResponseEntity<R<Void>> handleTypeMismatchException(TypeMismatchException exception) {
+    String parameterName = exception instanceof MethodArgumentTypeMismatchException methodArgumentTypeMismatchException
+        ? methodArgumentTypeMismatchException.getName()
+        : null;
+    Object value = exception.getValue();
+    String renderedValue = value == null ? "null" : value.toString();
+    String message = parameterName == null
+        ? "Invalid request parameter value: " + renderedValue
+        : "Invalid value for parameter '" + parameterName + "': " + renderedValue;
+    return ResponseEntity.badRequest().body(R.fail("400", message));
   }
 
   @ExceptionHandler(Exception.class)

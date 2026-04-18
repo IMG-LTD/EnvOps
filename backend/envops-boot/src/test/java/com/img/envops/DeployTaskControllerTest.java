@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -161,11 +162,11 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(greaterThanOrEqualTo(1)))
-        .andExpect(jsonPath("$.data[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data[0].taskName").value("install-order-service-prod"))
-        .andExpect(jsonPath("$.data[0].status").value("PENDING_APPROVAL"))
-        .andExpect(jsonPath("$.data[0].params.accessToken").doesNotExist());
+        .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
+        .andExpect(jsonPath("$.data.records[0].taskName").value("install-order-service-prod"))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING_APPROVAL"))
+        .andExpect(jsonPath("$.data.records[0].params.accessToken").doesNotExist());
 
     mockMvc.perform(get("/api/deploy/tasks/{id}", taskId)
             .header("Authorization", "Bearer " + accessToken))
@@ -182,29 +183,741 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(greaterThanOrEqualTo(1)))
-        .andExpect(jsonPath("$.data[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data[0].sourceType").value("DEPLOY"))
-        .andExpect(jsonPath("$.data[0].taskName").value("install-order-service-prod"))
-        .andExpect(jsonPath("$.data[0].taskType").value("INSTALL"))
-        .andExpect(jsonPath("$.data[0].status").value("PENDING_APPROVAL"));
+        .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
+        .andExpect(jsonPath("$.data.records[0].sourceType").value("DEPLOY"))
+        .andExpect(jsonPath("$.data.records[0].taskName").value("install-order-service-prod"))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("INSTALL"))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING_APPROVAL"));
 
     mockMvc.perform(get("/api/deploy/tasks/{id}/hosts", taskId)
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(2))
-        .andExpect(jsonPath("$.data[0].hostId").value(1))
-        .andExpect(jsonPath("$.data[0].status").value("PENDING"))
-        .andExpect(jsonPath("$.data[1].hostId").value(2));
+        .andExpect(jsonPath("$.data.page").value(1))
+        .andExpect(jsonPath("$.data.pageSize").value(10))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(2))
+        .andExpect(jsonPath("$.data.records[0].hostId").value(1))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"))
+        .andExpect(jsonPath("$.data.records[1].hostId").value(2));
 
     mockMvc.perform(get("/api/deploy/tasks/{id}/logs", taskId)
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(1))
-        .andExpect(jsonPath("$.data[0].logLevel").value("INFO"))
-        .andExpect(jsonPath("$.data[0].logContent").value("Task created"));
+        .andExpect(jsonPath("$.data.page").value(1))
+        .andExpect(jsonPath("$.data.pageSize").value(10))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].logLevel").value("INFO"))
+        .andExpect(jsonPath("$.data.records[0].logContent").value("Task created"));
+  }
+
+  @Test
+  void getDeployTaskDetailReturnsProgressSummary() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long taskId = createDeployTask(
+        accessToken,
+        "detail-progress-summary",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L, 2L, 3L),
+        "ALL",
+        0,
+        Map.of("deployDir", "/data/apps/order-service"));
+
+    jdbcTemplate.update("UPDATE deploy_task_host SET status = 'CANCEL_REQUESTED' WHERE task_id = ? AND host_id = ?", taskId, 2L);
+    jdbcTemplate.update("UPDATE deploy_task_host SET status = 'FAILED' WHERE task_id = ? AND host_id = ?", taskId, 3L);
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}", taskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.id").value((int) taskId))
+        .andExpect(jsonPath("$.data.totalHosts").value(3))
+        .andExpect(jsonPath("$.data.pendingHosts").value(1))
+        .andExpect(jsonPath("$.data.runningHosts").value(1))
+        .andExpect(jsonPath("$.data.successHosts").value(0))
+        .andExpect(jsonPath("$.data.failedHosts").value(1))
+        .andExpect(jsonPath("$.data.cancelledHosts").value(0));
+  }
+
+  @Test
+  void getDeployTaskHostsSupportsStatusKeywordAndPaging() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long taskId = createDeployTask(
+        accessToken,
+        "hosts-filter-paging",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L, 2L, 3L),
+        "ALL",
+        0,
+        Map.of("deployDir", "/data/apps/order-service"));
+
+    jdbcTemplate.update("UPDATE deploy_task_host SET status = 'FAILED' WHERE task_id = ? AND host_id = ?", taskId, 3L);
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}/hosts", taskId)
+            .param("status", "PENDING")
+            .param("keyword", "host-prd")
+            .param("page", "2")
+            .param("pageSize", "1")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.page").value(2))
+        .andExpect(jsonPath("$.data.pageSize").value(1))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].hostId").value(2))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"));
+  }
+
+  @Test
+  void getDeployTaskHostsSupportsKeywordFilteringByIpAddress() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long taskId = createDeployTask(
+        accessToken,
+        "hosts-filter-ip-address",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L, 2L, 3L),
+        "ALL",
+        0,
+        Map.of("deployDir", "/data/apps/order-service"));
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}/hosts", taskId)
+            .param("keyword", "10.20.1.12")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].hostId").value(2))
+        .andExpect(jsonPath("$.data.records[0].hostName").value("host-prd-02"))
+        .andExpect(jsonPath("$.data.records[0].ipAddress").value("10.20.1.12"));
+  }
+
+  @Test
+  void getDeployTaskLogsSupportsHostKeywordAndPaging() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    createDeployTask(
+        accessToken,
+        "logs-filter-paging-seed",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L, 2L),
+        "ALL",
+        0,
+        Map.of("deployDir", "/data/apps/order-service"));
+    long taskId = createDeployTask(
+        accessToken,
+        "logs-filter-paging",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L, 2L),
+        "ALL",
+        0,
+        Map.of("deployDir", "/data/apps/order-service"));
+
+    long hostOneTaskHostId = jdbcTemplate.queryForObject(
+        "SELECT id FROM deploy_task_host WHERE task_id = ? AND host_id = ?",
+        Long.class,
+        taskId,
+        1L);
+    long hostTwoTaskHostId = jdbcTemplate.queryForObject(
+        "SELECT id FROM deploy_task_host WHERE task_id = ? AND host_id = ?",
+        Long.class,
+        taskId,
+        2L);
+
+    org.assertj.core.api.Assertions.assertThat(hostTwoTaskHostId).isNotEqualTo(2L);
+
+    jdbcTemplate.update(
+        "INSERT INTO deploy_task_log (task_id, task_host_id, log_level, log_content, created_at) VALUES (?, ?, ?, ?, ?)",
+        taskId,
+        hostOneTaskHostId,
+        "INFO",
+        "target log other host",
+        java.sql.Timestamp.valueOf("2026-04-18 10:00:00"));
+    jdbcTemplate.update(
+        "INSERT INTO deploy_task_log (task_id, task_host_id, log_level, log_content, created_at) VALUES (?, ?, ?, ?, ?)",
+        taskId,
+        hostTwoTaskHostId,
+        "INFO",
+        "target log page one",
+        java.sql.Timestamp.valueOf("2026-04-18 10:01:00"));
+    jdbcTemplate.update(
+        "INSERT INTO deploy_task_log (task_id, task_host_id, log_level, log_content, created_at) VALUES (?, ?, ?, ?, ?)",
+        taskId,
+        hostTwoTaskHostId,
+        "INFO",
+        "target log page two",
+        java.sql.Timestamp.valueOf("2026-04-18 10:02:00"));
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}/logs", taskId)
+            .param("hostId", "2")
+            .param("keyword", "target log")
+            .param("page", "2")
+            .param("pageSize", "1")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.page").value(2))
+        .andExpect(jsonPath("$.data.pageSize").value(1))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].taskHostId").value((int) hostTwoTaskHostId))
+        .andExpect(jsonPath("$.data.records[0].logContent").value("target log page two"));
+  }
+
+  @Test
+  void actionEndpointsDoNotExposeDetailOnlyHostSummaryFields() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long taskId = createDeployTask(accessToken, "action-response-no-detail-fields");
+    approveDeployTask(accessToken, taskId, "approved for action response test");
+
+    mockMvc.perform(post("/api/deploy/tasks/{id}/cancel", taskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.id").value((int) taskId))
+        .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+        .andExpect(jsonPath("$.data.totalHosts").doesNotExist())
+        .andExpect(jsonPath("$.data.pendingHosts").doesNotExist())
+        .andExpect(jsonPath("$.data.runningHosts").doesNotExist())
+        .andExpect(jsonPath("$.data.successHosts").doesNotExist())
+        .andExpect(jsonPath("$.data.failedHosts").doesNotExist())
+        .andExpect(jsonPath("$.data.cancelledHosts").doesNotExist());
+  }
+
+  @Test
+  void getDeployTaskHostsRejectsNonPositivePage() throws Exception {
+    String accessToken = login();
+    long taskId = createDeployTask(accessToken, "hosts-invalid-page");
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}/hosts", taskId)
+            .param("page", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("page must be greater than 0"));
+  }
+
+  @Test
+  void getDeployTaskLogsRejectsNonPositivePageSize() throws Exception {
+    String accessToken = login();
+    long taskId = createDeployTask(accessToken, "logs-invalid-page-size");
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}/logs", taskId)
+            .param("pageSize", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("pageSize must be greater than 0"));
+  }
+
+  @Test
+  void getDeployTasksSupportsFilteringPaginationAndSorting() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long matchedOlderTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-prod-alpha",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/alpha",
+            "profile", "prod"));
+    long matchedNewerTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-prod-beta",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(2L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/beta",
+            "namespace", "production"));
+    long differentAppTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-prod-gateway",
+        "INSTALL",
+        1002L,
+        1402L,
+        List.of(3L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/gateway",
+            "environment", "prod"));
+    long differentTaskTypeId = createDeployTask(
+        accessToken,
+        "deploy-filter-prod-upgrade",
+        "UPGRADE",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/upgrade",
+            "env", "prod"));
+    long differentEnvironmentTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-sandbox",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/sandbox",
+            "environment", "sandbox"));
+
+    approveDeployTask(accessToken, matchedOlderTaskId, "approve alpha");
+    approveDeployTask(accessToken, matchedNewerTaskId, "approve beta");
+    approveDeployTask(accessToken, differentAppTaskId, "approve gateway");
+    approveDeployTask(accessToken, differentTaskTypeId, "approve upgrade");
+    approveDeployTask(accessToken, differentEnvironmentTaskId, "approve sandbox");
+
+    updateDeployTaskTimestamps(matchedOlderTaskId, "2026-04-16 10:00:00", "2026-04-16 10:00:00");
+    updateDeployTaskTimestamps(matchedNewerTaskId, "2026-04-16 11:00:00", "2026-04-16 11:00:00");
+    updateDeployTaskTimestamps(differentAppTaskId, "2026-04-16 10:30:00", "2026-04-16 10:30:00");
+    updateDeployTaskTimestamps(differentTaskTypeId, "2026-04-16 10:45:00", "2026-04-16 10:45:00");
+    updateDeployTaskTimestamps(differentEnvironmentTaskId, "2026-04-16 11:15:00", "2026-04-16 11:15:00");
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-filter-prod")
+            .param("status", "PENDING")
+            .param("taskType", "INSTALL")
+            .param("appId", "1001")
+            .param("environment", "production")
+            .param("createdFrom", "2026-04-16T09:30:00")
+            .param("createdTo", "2026-04-16T11:30:00")
+            .param("page", "2")
+            .param("pageSize", "1")
+            .param("sortBy", "createdAt")
+            .param("sortOrder", "desc")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.page").value(2))
+        .andExpect(jsonPath("$.data.pageSize").value(1))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) matchedOlderTaskId))
+        .andExpect(jsonPath("$.data.records[0].taskName").value("deploy-filter-prod-alpha"))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("INSTALL"))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"))
+        .andExpect(jsonPath("$.data.records[0].params.profile").value("prod"));
+  }
+
+  @Test
+  void getDeployTasksSupportsCanonicalEnvironmentAliasesAcrossEnvironmentGroups() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long stagingTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-stage-preprod",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/stage",
+            "profile", "preprod"));
+    long sandboxTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-sandbox-dev",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(2L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/dev",
+            "env", "dev"));
+    long unmatchedTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-unmatched-production",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(3L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/prod",
+            "environment", "prod"));
+
+    approveDeployTask(accessToken, stagingTaskId, "approve staging");
+    approveDeployTask(accessToken, sandboxTaskId, "approve sandbox");
+    approveDeployTask(accessToken, unmatchedTaskId, "approve production");
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-filter-")
+            .param("status", "PENDING")
+            .param("environment", "staging")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) stagingTaskId))
+        .andExpect(jsonPath("$.data.records[0].params.profile").value("preprod"));
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-filter-")
+            .param("status", "PENDING")
+            .param("environment", "sandbox")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) sandboxTaskId))
+        .andExpect(jsonPath("$.data.records[0].params.env").value("dev"));
+  }
+
+  @Test
+  void getDeployTasksEnvironmentFilterUsesFirstMeaningfulParamPriorityForConflicts() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long conflictTaskId = createDeployTask(
+        accessToken,
+        "deploy-filter-conflict-priority",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        Map.of(
+            "deployDir", "/data/apps/conflict",
+            "environment", "dev",
+            "profile", "prod"));
+
+    approveDeployTask(accessToken, conflictTaskId, "approve conflicting environment task");
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-filter-conflict-priority")
+            .param("status", "PENDING")
+            .param("environment", "sandbox")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) conflictTaskId))
+        .andExpect(jsonPath("$.data.records[0].params.environment").value("dev"))
+        .andExpect(jsonPath("$.data.records[0].params.profile").value("prod"));
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-filter-conflict-priority")
+            .param("status", "PENDING")
+            .param("environment", "production")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(0))
+        .andExpect(jsonPath("$.data.records.length()").value(0));
+  }
+
+  @Test
+  void getDeployTasksTreatsRunningStatusFilterAsRunningLikeIncludingCancelRequested() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long runningTaskId = createDeployTask(accessToken, "deploy-running-filter-running");
+    long cancelRequestedTaskId = createDeployTask(accessToken, "deploy-running-filter-cancel-requested");
+    long failedTaskId = createDeployTask(accessToken, "deploy-running-filter-failed");
+    long cancelledTaskId = createDeployTask(accessToken, "deploy-running-filter-cancelled");
+
+    updateTaskCenterTaskSnapshot(runningTaskId, "RUNNING", 1, 0, "2026-04-16 16:00:00");
+    updateTaskCenterTaskSnapshot(cancelRequestedTaskId, "CANCEL_REQUESTED", 1, 0, "2026-04-16 16:01:00");
+    updateTaskCenterTaskSnapshot(failedTaskId, "FAILED", 1, 1, "2026-04-16 16:02:00");
+    updateTaskCenterTaskSnapshot(cancelledTaskId, "CANCELLED", 1, 0, "2026-04-16 16:03:00");
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-running-filter-")
+            .param("status", "RUNNING")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(2))
+        .andExpect(jsonPath("$.data.records[*].id", containsInAnyOrder((int) runningTaskId, (int) cancelRequestedTaskId)))
+        .andExpect(jsonPath("$.data.records[*].status", containsInAnyOrder("RUNNING", "CANCEL_REQUESTED")));
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-running-filter-")
+            .param("status", "FAILED")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) failedTaskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("FAILED"));
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("keyword", "deploy-running-filter-")
+            .param("status", "CANCELLED")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) cancelledTaskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("CANCELLED"));
+  }
+
+  @Test
+  void getDeployTasksRejectsInvalidSortBy() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("sortBy", "taskName")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("sortBy must be one of createdAt, updatedAt, taskNo, status"));
+  }
+
+  @Test
+  void getDeployTasksRejectsInvalidSortOrder() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("sortOrder", "descending")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("sortOrder must be asc or desc"));
+  }
+
+  @Test
+  void getDeployTasksRejectsNonPositivePage() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("page", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("page must be greater than 0"));
+  }
+
+  @Test
+  void getDeployTasksRejectsNonPositivePageSize() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("pageSize", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("pageSize must be greater than 0"));
+  }
+
+  @Test
+  void getDeployTasksRejectsInvalidPage() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("page", "abc")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("Invalid value for parameter 'page': abc"));
+  }
+
+  @Test
+  void getDeployTasksRejectsInvalidAppId() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("appId", "x")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("Invalid value for parameter 'appId': x"));
+  }
+
+  @Test
+  void getDeployTasksRejectsInvalidCreatedFrom() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .param("createdFrom", "bad-date")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("Invalid value for parameter 'createdFrom': bad-date"));
+  }
+
+  @Test
+  void getTaskCenterTasksRejectsInvalidPage() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("page", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("page must be greater than 0"));
+  }
+
+  @Test
+  void getTaskCenterTasksSupportsFilteringPaginationAndSorting() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long p1OlderTaskId = createDeployTask(accessToken, "task-center-filter-pending-old");
+    long p1NewerTaskId = createDeployTask(accessToken, "task-center-filter-pending-new");
+    long upgradeTaskId = createDeployTask(
+        accessToken,
+        "task-center-filter-pending-upgrade",
+        "UPGRADE",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        Map.of("profile", "prod"));
+    long p3TaskId = createDeployTask(accessToken, "task-center-filter-pending-p3");
+    long p2TaskId = createDeployTask(accessToken, "task-center-filter-pending-p2");
+
+    updateTaskCenterTaskSnapshot(p1OlderTaskId, "PENDING", 1, 1, "2026-04-16 10:00:00");
+    updateTaskCenterTaskSnapshot(p1NewerTaskId, "PENDING", 1, 2, "2026-04-16 11:00:00");
+    updateTaskCenterTaskSnapshot(upgradeTaskId, "PENDING", 1, 3, "2026-04-16 12:00:00");
+    updateTaskCenterTaskSnapshot(p3TaskId, "PENDING", 1, 0, "2026-04-16 13:00:00");
+    updateTaskCenterTaskSnapshot(p2TaskId, "PENDING", 10, 0, "2026-04-16 14:00:00");
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("keyword", "task-center-filter-pending")
+            .param("status", "PENDING")
+            .param("sourceType", "DEPLOY")
+            .param("taskType", "INSTALL")
+            .param("priority", "P1")
+            .param("page", "2")
+            .param("pageSize", "1")
+            .param("sortBy", "updatedAt")
+            .param("sortOrder", "desc")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.page").value(2))
+        .andExpect(jsonPath("$.data.pageSize").value(1))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) p1OlderTaskId))
+        .andExpect(jsonPath("$.data.records[0].sourceType").value("DEPLOY"))
+        .andExpect(jsonPath("$.data.records[0].taskName").value("task-center-filter-pending-old"))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("INSTALL"))
+        .andExpect(jsonPath("$.data.records[0].priority").value("P1"))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"));
+  }
+
+  @Test
+  void getTaskCenterTasksRejectsInvalidSourceType() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("sourceType", "MANUAL")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("sourceType must be one of DEPLOY"));
+  }
+
+  @Test
+  void getTaskCenterTasksRejectsInvalidPriority() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("priority", "P0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("priority must be one of P1, P2, P3"));
+  }
+
+  @Test
+  void getTaskCenterTasksTreatsRunningStatusFilterAsRunningLikeIncludingCancelRequested() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long runningTaskId = createDeployTask(accessToken, "task-center-running-filter-running");
+    long cancelRequestedTaskId = createDeployTask(accessToken, "task-center-running-filter-cancel-requested");
+    long failedTaskId = createDeployTask(accessToken, "task-center-running-filter-failed");
+    long cancelledTaskId = createDeployTask(accessToken, "task-center-running-filter-cancelled");
+
+    updateTaskCenterTaskSnapshot(runningTaskId, "RUNNING", 1, 0, "2026-04-16 17:00:00");
+    updateTaskCenterTaskSnapshot(cancelRequestedTaskId, "CANCEL_REQUESTED", 1, 0, "2026-04-16 17:01:00");
+    updateTaskCenterTaskSnapshot(failedTaskId, "FAILED", 1, 1, "2026-04-16 17:02:00");
+    updateTaskCenterTaskSnapshot(cancelledTaskId, "CANCELLED", 1, 0, "2026-04-16 17:03:00");
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("keyword", "task-center-running-filter-")
+            .param("status", "RUNNING")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(2))
+        .andExpect(jsonPath("$.data.records[*].id", containsInAnyOrder((int) runningTaskId, (int) cancelRequestedTaskId)))
+        .andExpect(jsonPath("$.data.records[*].status", containsInAnyOrder("RUNNING", "CANCEL_REQUESTED")));
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("keyword", "task-center-running-filter-")
+            .param("status", "FAILED")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) failedTaskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("FAILED"));
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("keyword", "task-center-running-filter-")
+            .param("status", "CANCELLED")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) cancelledTaskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("CANCELLED"));
+  }
+
+  @Test
+  void getTaskCenterTasksTreatsCancelRequestedAsRunningLikePriorityP2() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long taskId = createDeployTask(accessToken, "task-center-cancel-requested-running-like");
+
+    updateTaskCenterTaskSnapshot(taskId, "CANCEL_REQUESTED", 1, 0, "2026-04-16 15:00:00");
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("keyword", "task-center-cancel-requested-running-like")
+            .param("priority", "P2")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records.length()").value(1))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("CANCEL_REQUESTED"))
+        .andExpect(jsonPath("$.data.records[0].priority").value("P2"));
   }
 
   @Test
@@ -254,11 +967,11 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data[0].status").value("PENDING"))
-        .andExpect(jsonPath("$.data[0].approvalOperatorName").value("release-admin"))
-        .andExpect(jsonPath("$.data[0].approvalComment").value("approved for release window"))
-        .andExpect(jsonPath("$.data[0].approvalAt", not(blankOrNullString())));
+        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"))
+        .andExpect(jsonPath("$.data.records[0].approvalOperatorName").value("release-admin"))
+        .andExpect(jsonPath("$.data.records[0].approvalComment").value("approved for release window"))
+        .andExpect(jsonPath("$.data.records[0].approvalAt", not(blankOrNullString())));
   }
 
   @Test
@@ -308,11 +1021,11 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data[0].status").value("REJECTED"))
-        .andExpect(jsonPath("$.data[0].approvalOperatorName").value("release-admin"))
-        .andExpect(jsonPath("$.data[0].approvalComment").value("missing maintenance approval"))
-        .andExpect(jsonPath("$.data[0].approvalAt", not(blankOrNullString())));
+        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
+        .andExpect(jsonPath("$.data.records[0].status").value("REJECTED"))
+        .andExpect(jsonPath("$.data.records[0].approvalOperatorName").value("release-admin"))
+        .andExpect(jsonPath("$.data.records[0].approvalComment").value("missing maintenance approval"))
+        .andExpect(jsonPath("$.data.records[0].approvalAt", not(blankOrNullString())));
   }
 
   @Test
@@ -648,7 +1361,7 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.code").value("0000"))
         .andReturn();
 
-    JsonNode tasks = objectMapper.readTree(listResult.getResponse().getContentAsString()).path("data");
+    JsonNode tasks = objectMapper.readTree(listResult.getResponse().getContentAsString()).path("data").path("records");
     JsonNode createdTask = null;
     for (JsonNode task : tasks) {
       if (task.path("id").asLong() == taskId) {
@@ -749,11 +1462,14 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(2))
-        .andExpect(jsonPath("$.data[0].hostId").value(1))
-        .andExpect(jsonPath("$.data[0].status").value("SUCCESS"))
-        .andExpect(jsonPath("$.data[1].hostId").value(2))
-        .andExpect(jsonPath("$.data[1].status").value("SUCCESS"));
+        .andExpect(jsonPath("$.data.page").value(1))
+        .andExpect(jsonPath("$.data.pageSize").value(10))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(2))
+        .andExpect(jsonPath("$.data.records[0].hostId").value(1))
+        .andExpect(jsonPath("$.data.records[0].status").value("SUCCESS"))
+        .andExpect(jsonPath("$.data.records[1].hostId").value(2))
+        .andExpect(jsonPath("$.data.records[1].status").value("SUCCESS"));
 
     org.assertj.core.api.Assertions.assertThat(
             jdbcTemplate.queryForObject("SELECT status FROM deploy_task WHERE id = ?", String.class, taskId))
@@ -827,11 +1543,14 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(2))
-        .andExpect(jsonPath("$.data[0].hostId").value(1))
-        .andExpect(jsonPath("$.data[0].status").value("SUCCESS"))
-        .andExpect(jsonPath("$.data[1].hostId").value(2))
-        .andExpect(jsonPath("$.data[1].status").value("CANCELLED"));
+        .andExpect(jsonPath("$.data.page").value(1))
+        .andExpect(jsonPath("$.data.pageSize").value(10))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(2))
+        .andExpect(jsonPath("$.data.records[0].hostId").value(1))
+        .andExpect(jsonPath("$.data.records[0].status").value("SUCCESS"))
+        .andExpect(jsonPath("$.data.records[1].hostId").value(2))
+        .andExpect(jsonPath("$.data.records[1].status").value("CANCELLED"));
 
     List<String> logContents = getDeployTaskLogContents(accessToken, taskId);
     org.assertj.core.api.Assertions.assertThat(logContents)
@@ -892,11 +1611,14 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.length()").value(2))
-        .andExpect(jsonPath("$.data[0].hostId").value(1))
-        .andExpect(jsonPath("$.data[0].status").value("SUCCESS"))
-        .andExpect(jsonPath("$.data[1].hostId").value(2))
-        .andExpect(jsonPath("$.data[1].status").value("SUCCESS"));
+        .andExpect(jsonPath("$.data.page").value(1))
+        .andExpect(jsonPath("$.data.pageSize").value(10))
+        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.records.length()").value(2))
+        .andExpect(jsonPath("$.data.records[0].hostId").value(1))
+        .andExpect(jsonPath("$.data.records[0].status").value("SUCCESS"))
+        .andExpect(jsonPath("$.data.records[1].hostId").value(2))
+        .andExpect(jsonPath("$.data.records[1].status").value("SUCCESS"));
 
     org.assertj.core.api.Assertions.assertThat(
             jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task", Integer.class))
@@ -971,9 +1693,9 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data[0].id").value((int) rollbackTaskId))
-        .andExpect(jsonPath("$.data[0].taskType").value("ROLLBACK"))
-        .andExpect(jsonPath("$.data[0].originTaskId").value((int) originalTaskId));
+        .andExpect(jsonPath("$.data.records[0].id").value((int) rollbackTaskId))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("ROLLBACK"))
+        .andExpect(jsonPath("$.data.records[0].originTaskId").value((int) originalTaskId));
 
     org.assertj.core.api.Assertions.assertThat(
             jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task", Integer.class))
@@ -1410,7 +2132,7 @@ class DeployTaskControllerTest {
   }
 
   private long createDeployTask(String accessToken, String taskName) throws Exception {
-    return createDeployTask(accessToken, taskName, 1401L, List.of(1L), Map.of("deployDir", "/data/apps/order-service"));
+    return createDeployTask(accessToken, taskName, "INSTALL", 1001L, 1401L, List.of(1L), "ALL", 0, Map.of("deployDir", "/data/apps/order-service"));
   }
 
   private long createDeployTask(String accessToken,
@@ -1418,11 +2140,23 @@ class DeployTaskControllerTest {
                                 Long versionId,
                                 List<Long> hostIds,
                                 Map<String, Object> params) throws Exception {
-    return createDeployTask(accessToken, taskName, versionId, hostIds, "ALL", 0, params);
+    return createDeployTask(accessToken, taskName, "INSTALL", 1001L, versionId, hostIds, "ALL", 0, params);
   }
 
   private long createDeployTask(String accessToken,
                                 String taskName,
+                                Long versionId,
+                                List<Long> hostIds,
+                                String batchStrategy,
+                                Integer batchSize,
+                                Map<String, Object> params) throws Exception {
+    return createDeployTask(accessToken, taskName, "INSTALL", 1001L, versionId, hostIds, batchStrategy, batchSize, params);
+  }
+
+  private long createDeployTask(String accessToken,
+                                String taskName,
+                                String taskType,
+                                Long appId,
                                 Long versionId,
                                 List<Long> hostIds,
                                 String batchStrategy,
@@ -1433,8 +2167,8 @@ class DeployTaskControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(Map.of(
                 "taskName", taskName,
-                "taskType", "INSTALL",
-                "appId", 1001,
+                "taskType", taskType,
+                "appId", appId,
                 "versionId", versionId,
                 "hostIds", hostIds,
                 "batchStrategy", batchStrategy,
@@ -1457,14 +2191,38 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.status").value("PENDING"));
   }
 
+  private void updateDeployTaskTimestamps(long taskId, String createdAt, String updatedAt) {
+    jdbcTemplate.update(
+        "UPDATE deploy_task SET created_at = ?, updated_at = ? WHERE id = ?",
+        java.sql.Timestamp.valueOf(createdAt),
+        java.sql.Timestamp.valueOf(updatedAt),
+        taskId);
+  }
+
+  private void updateTaskCenterTaskSnapshot(long taskId,
+                                            String status,
+                                            int targetCount,
+                                            int failCount,
+                                            String updatedAt) {
+    jdbcTemplate.update(
+        "UPDATE deploy_task SET status = ?, target_count = ?, fail_count = ?, success_count = ?, updated_at = ? WHERE id = ?",
+        status,
+        targetCount,
+        failCount,
+        Math.max(targetCount - failCount, 0),
+        java.sql.Timestamp.valueOf(updatedAt),
+        taskId);
+  }
+
   private List<String> getDeployTaskLogContents(String accessToken, long taskId) throws Exception {
     MvcResult result = mockMvc.perform(get("/api/deploy/tasks/{id}/logs", taskId)
+            .param("pageSize", "200")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
         .andReturn();
 
-    JsonNode logs = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    JsonNode logs = objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("records");
     List<String> contents = new ArrayList<>();
     for (JsonNode log : logs) {
       contents.add(log.path("logContent").asText());

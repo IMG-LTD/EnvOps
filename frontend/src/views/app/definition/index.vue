@@ -14,13 +14,7 @@ import {
   NSelect,
   NSpace
 } from 'naive-ui';
-import {
-  fetchCreateApp,
-  fetchDeleteApp,
-  fetchGetAppDetail,
-  fetchGetApps,
-  fetchUpdateApp
-} from '@/service/api';
+import { fetchCreateApp, fetchDeleteApp, fetchGetAppDetail, fetchGetApps, fetchUpdateApp } from '@/service/api';
 import { $t } from '@/locales';
 import {
   formatStatus,
@@ -160,9 +154,7 @@ async function handleSubmit() {
   const payload = buildPayload();
 
   const response =
-    editingAppId.value === null
-      ? await fetchCreateApp(payload)
-      : await fetchUpdateApp(editingAppId.value, payload);
+    editingAppId.value === null ? await fetchCreateApp(payload) : await fetchUpdateApp(editingAppId.value, payload);
 
   if (!response.error && response.data) {
     window.$message?.success($t(editingAppId.value === null ? 'common.addSuccess' : 'common.updateSuccess'));
@@ -311,7 +303,9 @@ onMounted(() => {
       v-if="formVisible"
       :bordered="false"
       class="card-wrapper"
-      :title="editingAppId === null ? $t('page.app.definition.formTitleCreate') : $t('page.app.definition.formTitleEdit')"
+      :title="
+        editingAppId === null ? $t('page.app.definition.formTitleCreate') : $t('page.app.definition.formTitleEdit')
+      "
     >
       <NForm label-placement="top">
         <NGrid responsive="screen" item-responsive :x-gap="16">

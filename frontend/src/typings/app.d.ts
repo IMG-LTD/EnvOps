@@ -1016,6 +1016,25 @@ declare namespace App {
                 desc: string;
               };
             };
+            filters: {
+              status: string;
+              taskType: string;
+              application: string;
+              environment: string;
+              keyword: string;
+              createdRange: string;
+              search: string;
+              reset: string;
+              taskTypeInstall: string;
+              taskTypeUpgrade: string;
+              taskTypeRollback: string;
+            };
+            sorting: {
+              createdAt: string;
+              updatedAt: string;
+              taskNo: string;
+              status: string;
+            };
             table: {
               title: string;
               taskId: string;
@@ -1031,6 +1050,19 @@ declare namespace App {
               retry: string;
               rollback: string;
               cancel: string;
+            };
+            tabs: {
+              overview: string;
+              hosts: string;
+              logs: string;
+            };
+            progress: {
+              totalHosts: string;
+              pendingHosts: string;
+              runningHosts: string;
+              successHosts: string;
+              failedHosts: string;
+              cancelledHosts: string;
             };
             detail: {
               title: string;
@@ -1052,6 +1084,17 @@ declare namespace App {
               finishedAt: string;
               createdAt: string;
               updatedAt: string;
+            };
+            error: {
+              detailLoadFailed: string;
+              hostsLoadFailed: string;
+              logsLoadFailed: string;
+              autoRefreshFailed: string;
+            };
+            empty: {
+              taskNotFound: string;
+              noHosts: string;
+              noLogs: string;
             };
             hosts: {
               title: string;
@@ -1094,6 +1137,23 @@ declare namespace App {
                 desc: string;
               };
             };
+            filters: {
+              keyword: string;
+              status: string;
+              sourceType: string;
+              taskType: string;
+              priority: string;
+              search: string;
+              reset: string;
+            };
+            sorting: {
+              createdAt: string;
+              updatedAt: string;
+              taskNo: string;
+              status: string;
+              asc: string;
+              desc: string;
+            };
             table: {
               title: string;
               taskId: string;
@@ -1102,6 +1162,9 @@ declare namespace App {
               executor: string;
               priority: string;
               status: string;
+            };
+            actions: {
+              openDeployDetail: string;
             };
           };
           trafficController: {

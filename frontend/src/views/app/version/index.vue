@@ -1,18 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import {
-  NButton,
-  NCard,
-  NDivider,
-  NEmpty,
-  NForm,
-  NFormItem,
-  NGrid,
-  NGi,
-  NInput,
-  NSelect,
-  NSpace
-} from 'naive-ui';
+import { NButton, NCard, NDivider, NEmpty, NForm, NFormItem, NGrid, NGi, NInput, NSelect, NSpace } from 'naive-ui';
 import {
   fetchCreateAppVersion,
   fetchDeleteAppVersion,
