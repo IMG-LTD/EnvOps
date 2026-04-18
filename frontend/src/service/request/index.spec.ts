@@ -4,12 +4,12 @@ const mocks = vi.hoisted(() => {
   const flatRequest = { state: {} as Record<string, unknown> };
   const createFlatRequest = vi.fn((_config?: unknown, options?: Record<string, any>) => {
     flatRequest.state = {
-      ...(options?.defaultState ?? {})
+      ...options?.defaultState
     };
 
     return flatRequest as any;
   });
-  const createRequest = vi.fn(() => ({ state: {} } as any));
+  const createRequest = vi.fn(() => ({ state: {} }) as any);
   const handleExpiredRequest = vi.fn();
   const getAuthorization = vi.fn(() => 'Bearer refreshed-token');
   const showErrorMsg = vi.fn();

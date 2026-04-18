@@ -21,4 +21,3 @@ export function fetchLogin(userName: string, password: string) {
 export function fetchGetUserInfo() {
   return request<Api.Auth.UserInfo>({ url: '/api/auth/getUserInfo' });
 }
-

@@ -13,12 +13,7 @@ import {
   NUpload,
   type UploadFileInfo
 } from 'naive-ui';
-import {
-  createPackageUploadFormData,
-  fetchDeletePackage,
-  fetchGetPackages,
-  fetchUploadPackage
-} from '@/service/api';
+import { createPackageUploadFormData, fetchDeletePackage, fetchGetPackages, fetchUploadPackage } from '@/service/api';
 import { $t } from '@/locales';
 import { formatFileSize, formatText, getPackageTypeOptions, getStorageTypeOptions } from '../shared';
 

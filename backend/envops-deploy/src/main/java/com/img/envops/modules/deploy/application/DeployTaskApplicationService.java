@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -27,9 +28,15 @@ public class DeployTaskApplicationService {
   private static final List<String> SUPPORTED_BATCH_STRATEGIES = List.of("ALL", "ROLLING");
   private static final String STATUS_PENDING_APPROVAL = "PENDING_APPROVAL";
   private static final String STATUS_PENDING = "PENDING";
+  private static final String STATUS_RUNNING = "RUNNING";
+  private static final String STATUS_FAILED = "FAILED";
   private static final String STATUS_REJECTED = "REJECTED";
   private static final String STATUS_CANCEL_REQUESTED = "CANCEL_REQUESTED";
-  private static final List<String> SUPPORTED_STATUSES = List.of("INIT", STATUS_PENDING_APPROVAL, STATUS_PENDING, "RUNNING", "SUCCESS", "FAILED", STATUS_REJECTED, STATUS_CANCEL_REQUESTED, "CANCELLED");
+  private static final List<String> SUPPORTED_STATUSES = List.of("INIT", STATUS_PENDING_APPROVAL, STATUS_PENDING, STATUS_RUNNING, "SUCCESS", STATUS_FAILED, STATUS_REJECTED, STATUS_CANCEL_REQUESTED, "CANCELLED");
+  private static final List<String> SUPPORTED_SORT_FIELDS = List.of("createdAt", "updatedAt", "taskNo", "status");
+  private static final List<String> SUPPORTED_SORT_ORDERS = List.of("asc", "desc");
+  private static final List<String> SUPPORTED_SOURCE_TYPES = List.of("DEPLOY");
+  private static final List<String> SUPPORTED_PRIORITIES = List.of("P1", "P2", "P3");
   private static final List<String> SECRET_PARAM_KEYS = List.of("token", "secret", "password", "credential", "privatekey", "accesskey", "secretkey", "apikey", "sshkey", "rollbackcommand");
   private static final DateTimeFormatter TASK_NO_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -57,14 +64,42 @@ public class DeployTaskApplicationService {
     this.assetHostMapper = assetHostMapper;
   }
 
-  public List<DeployTaskRecord> getDeployTasks() {
-    return deployTaskMapper.findAllActive().stream()
+  public DeployTaskPage getDeployTasks(DeployTaskQuery query) {
+    NormalizedDeployTaskQuery normalized = normalizeDeployTaskQuery(query);
+    long total = deployTaskMapper.countByQuery(
+        normalized.keyword(),
+        normalized.status(),
+        normalized.taskType(),
+        normalized.appId(),
+        normalized.environment(),
+        normalized.createdFrom(),
+        normalized.createdTo());
+    List<DeployTaskRecord> records = deployTaskMapper.findByQuery(
+            normalized.keyword(),
+            normalized.status(),
+            normalized.taskType(),
+            normalized.appId(),
+            normalized.environment(),
+            normalized.createdFrom(),
+            normalized.createdTo(),
+            normalized.sortBy(),
+            normalized.sortOrder(),
+            normalized.pageSize(),
+            normalized.offset())
+        .stream()
         .map(row -> toDeployTaskRecord(row, loadParams(row.getId())))
         .toList();
+    return new DeployTaskPage(normalized.page(), normalized.pageSize(), total, records);
   }
 
-  public DeployTaskRecord getDeployTask(Long id) {
-    return toDeployTaskRecord(requireTask(id), loadParams(id));
+  public DeployTaskDetailRecord getDeployTask(Long id) {
+    DeployTaskMapper.DeployTaskRow row = requireTask(id);
+    return toDeployTaskDetailRecord(row, loadParams(id), loadHostSummary(id));
+  }
+
+  public DeployTaskRecord getDeployTaskRecord(Long id) {
+    DeployTaskMapper.DeployTaskRow row = requireTask(id);
+    return toDeployTaskRecord(row, loadParams(id));
   }
 
   @Transactional
@@ -118,7 +153,7 @@ public class DeployTaskApplicationService {
     logEntity.setCreatedAt(now);
     deployTaskLogMapper.insertLog(logEntity);
 
-    return getDeployTask(entity.getId());
+    return toDeployTaskRecord(requireTask(entity.getId()), loadParams(entity.getId()));
   }
 
   @Transactional
@@ -131,38 +166,57 @@ public class DeployTaskApplicationService {
     return decideApproval(taskId, STATUS_REJECTED, comment, operatorName, "Task rejected");
   }
 
-  public List<DeployTaskHostRecord> getDeployTaskHosts(Long taskId) {
+  public DeployTaskHostPage getDeployTaskHosts(Long taskId, DeployTaskHostQuery query) {
     requireTask(taskId);
-    return deployTaskHostMapper.findByTaskId(taskId).stream()
-        .map(row -> new DeployTaskHostRecord(
-            row.getId(),
-            row.getTaskId(),
-            row.getHostId(),
-            row.getHostName(),
-            row.getIpAddress(),
-            row.getStatus(),
-            row.getCurrentStep(),
-            row.getStartedAt(),
-            row.getFinishedAt(),
-            row.getErrorMsg()))
+    NormalizedDeployTaskHostQuery normalized = normalizeDeployTaskHostQuery(query);
+    long total = deployTaskHostMapper.countByTaskIdAndQuery(taskId, normalized.status(), normalized.keyword());
+    List<DeployTaskHostRecord> records = deployTaskHostMapper.findByTaskIdAndQuery(
+            taskId,
+            normalized.status(),
+            normalized.keyword(),
+            normalized.pageSize(),
+            normalized.offset())
+        .stream()
+        .map(this::toDeployTaskHostRecord)
         .toList();
+    return new DeployTaskHostPage(normalized.page(), normalized.pageSize(), total, records);
   }
 
-  public List<DeployTaskLogRecord> getDeployTaskLogs(Long taskId) {
+  public DeployTaskLogPage getDeployTaskLogs(Long taskId, DeployTaskLogQuery query) {
     requireTask(taskId);
-    return deployTaskLogMapper.findByTaskId(taskId).stream()
-        .map(row -> new DeployTaskLogRecord(
-            row.getId(),
-            row.getTaskId(),
-            row.getTaskHostId(),
-            row.getLogLevel(),
-            row.getLogContent(),
-            row.getCreatedAt()))
+    NormalizedDeployTaskLogQuery normalized = normalizeDeployTaskLogQuery(query);
+    long total = deployTaskLogMapper.countByTaskIdAndQuery(taskId, normalized.hostId(), normalized.keyword());
+    List<DeployTaskLogRecord> records = deployTaskLogMapper.findByTaskIdAndQuery(
+            taskId,
+            normalized.hostId(),
+            normalized.keyword(),
+            normalized.pageSize(),
+            normalized.offset())
+        .stream()
+        .map(this::toDeployTaskLogRecord)
         .toList();
+    return new DeployTaskLogPage(normalized.page(), normalized.pageSize(), total, records);
   }
 
-  public List<TaskCenterRecord> getTaskCenterTasks() {
-    return deployTaskMapper.findAllActive().stream()
+  public TaskCenterPage getTaskCenterTasks(TaskCenterQuery query) {
+    NormalizedTaskCenterQuery normalized = normalizeTaskCenterQuery(query);
+    long total = deployTaskMapper.countTaskCenterByQuery(
+        normalized.keyword(),
+        normalized.status(),
+        normalized.sourceType(),
+        normalized.taskType(),
+        normalized.priority());
+    List<TaskCenterRecord> records = deployTaskMapper.findTaskCenterByQuery(
+            normalized.keyword(),
+            normalized.status(),
+            normalized.sourceType(),
+            normalized.taskType(),
+            normalized.priority(),
+            normalized.sortBy(),
+            normalized.sortOrder(),
+            normalized.pageSize(),
+            normalized.offset())
+        .stream()
         .map(row -> new TaskCenterRecord(
             row.getId(),
             "DEPLOY",
@@ -174,6 +228,7 @@ public class DeployTaskApplicationService {
             row.getAppName(),
             row.getVersionId(),
             row.getVersionNo(),
+            resolvePriority(row),
             row.getTargetCount(),
             row.getSuccessCount(),
             row.getFailCount(),
@@ -184,6 +239,159 @@ public class DeployTaskApplicationService {
             row.getCreatedAt(),
             row.getUpdatedAt()))
         .toList();
+    return new TaskCenterPage(normalized.page(), normalized.pageSize(), total, records);
+  }
+
+  private NormalizedDeployTaskQuery normalizeDeployTaskQuery(DeployTaskQuery query) {
+    int page = query == null ? 1 : normalizePage(query.page());
+    int pageSize = query == null ? 10 : normalizePageSize(query.pageSize());
+    return new NormalizedDeployTaskQuery(
+        query == null ? null : trimToNull(query.keyword()),
+        query == null ? null : normalizeOptionalUppercase(query.status()),
+        query == null ? null : normalizeOptionalUppercase(query.taskType()),
+        query == null ? null : query.appId(),
+        normalizeDeployEnvironment(query == null ? null : query.environment()),
+        query == null ? null : query.createdFrom(),
+        query == null ? null : query.createdTo(),
+        page,
+        pageSize,
+        normalizeSortBy(query == null ? null : query.sortBy()),
+        normalizeSortOrder(query == null ? null : query.sortOrder()),
+        (page - 1) * pageSize);
+  }
+
+  private NormalizedTaskCenterQuery normalizeTaskCenterQuery(TaskCenterQuery query) {
+    int page = query == null ? 1 : normalizePage(query.page());
+    int pageSize = query == null ? 10 : normalizePageSize(query.pageSize());
+    return new NormalizedTaskCenterQuery(
+        query == null ? null : trimToNull(query.keyword()),
+        query == null ? null : normalizeOptionalUppercase(query.status()),
+        normalizeSourceType(query == null ? null : query.sourceType()),
+        query == null ? null : normalizeOptionalUppercase(query.taskType()),
+        normalizePriority(query == null ? null : query.priority()),
+        page,
+        pageSize,
+        normalizeSortBy(query == null ? null : query.sortBy()),
+        normalizeSortOrder(query == null ? null : query.sortOrder()),
+        (page - 1) * pageSize);
+  }
+
+  private NormalizedDeployTaskHostQuery normalizeDeployTaskHostQuery(DeployTaskHostQuery query) {
+    int page = query == null ? 1 : normalizePage(query.page());
+    int pageSize = query == null ? 10 : normalizePageSize(query.pageSize());
+    return new NormalizedDeployTaskHostQuery(
+        query == null ? null : normalizeOptionalUppercase(query.status()),
+        query == null ? null : trimToNull(query.keyword()),
+        page,
+        pageSize,
+        (page - 1) * pageSize);
+  }
+
+  private NormalizedDeployTaskLogQuery normalizeDeployTaskLogQuery(DeployTaskLogQuery query) {
+    int page = query == null ? 1 : normalizePage(query.page());
+    int pageSize = query == null ? 10 : normalizePageSize(query.pageSize());
+    return new NormalizedDeployTaskLogQuery(
+        query == null ? null : query.hostId(),
+        query == null ? null : trimToNull(query.keyword()),
+        page,
+        pageSize,
+        (page - 1) * pageSize);
+  }
+
+  private int normalizePage(Integer page) {
+    if (page == null) {
+      return 1;
+    }
+    if (page < 1) {
+      throw new IllegalArgumentException("page must be greater than 0");
+    }
+    return page;
+  }
+
+  private int normalizePageSize(Integer pageSize) {
+    if (pageSize == null) {
+      return 10;
+    }
+    if (pageSize < 1) {
+      throw new IllegalArgumentException("pageSize must be greater than 0");
+    }
+    return pageSize;
+  }
+
+  private String normalizeSortBy(String sortBy) {
+    String normalized = StringUtils.hasText(sortBy) ? sortBy.trim() : "createdAt";
+    if (!SUPPORTED_SORT_FIELDS.contains(normalized)) {
+      throw new IllegalArgumentException("sortBy must be one of createdAt, updatedAt, taskNo, status");
+    }
+    return normalized;
+  }
+
+  private String normalizeSortOrder(String sortOrder) {
+    String normalized = StringUtils.hasText(sortOrder) ? sortOrder.trim().toLowerCase(Locale.ROOT) : "desc";
+    if (!SUPPORTED_SORT_ORDERS.contains(normalized)) {
+      throw new IllegalArgumentException("sortOrder must be asc or desc");
+    }
+    return normalized;
+  }
+
+  private String normalizeSourceType(String sourceType) {
+    String normalized = normalizeOptionalUppercase(sourceType);
+    if (normalized == null) {
+      return null;
+    }
+    if (!SUPPORTED_SOURCE_TYPES.contains(normalized)) {
+      throw new IllegalArgumentException("sourceType must be one of DEPLOY");
+    }
+    return normalized;
+  }
+
+  private String normalizePriority(String priority) {
+    String normalized = normalizeOptionalUppercase(priority);
+    if (normalized == null) {
+      return null;
+    }
+    if (!SUPPORTED_PRIORITIES.contains(normalized)) {
+      throw new IllegalArgumentException("priority must be one of P1, P2, P3");
+    }
+    return normalized;
+  }
+
+  private String normalizeDeployEnvironment(String environment) {
+    String normalized = trimToNull(environment);
+    if (normalized == null) {
+      return null;
+    }
+
+    return switch (normalized.toLowerCase(Locale.ROOT)) {
+      case "prod", "production" -> "production";
+      case "stage", "staging", "pre", "preprod", "uat" -> "staging";
+      case "sandbox", "test", "testing", "dev", "development" -> "sandbox";
+      default -> null;
+    };
+  }
+
+  private String normalizeOptionalUppercase(String value) {
+    String normalized = trimToNull(value);
+    return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
+  }
+
+  private String trimToNull(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    return value.trim();
+  }
+
+  private String resolvePriority(DeployTaskMapper.DeployTaskRow row) {
+    int failCount = row.getFailCount() == null ? 0 : row.getFailCount();
+    int targetCount = row.getTargetCount() == null ? 0 : row.getTargetCount();
+    if (STATUS_FAILED.equals(row.getStatus()) || failCount > 0) {
+      return "P1";
+    }
+    if (STATUS_RUNNING.equals(row.getStatus()) || STATUS_CANCEL_REQUESTED.equals(row.getStatus()) || targetCount >= 10) {
+      return "P2";
+    }
+    return "P3";
   }
 
   private ValidatedCreateCommand validateCreateCommand(CreateDeployTaskCommand command) {
@@ -288,6 +496,24 @@ public class DeployTaskApplicationService {
     return params;
   }
 
+  private HostSummary loadHostSummary(Long taskId) {
+    DeployTaskHostMapper.DeployTaskHostSummaryRow row = deployTaskHostMapper.summarizeByTaskId(taskId);
+    if (row == null) {
+      return new HostSummary(0, 0, 0, 0, 0, 0);
+    }
+    return new HostSummary(
+        defaultZero(row.getTotalHosts()),
+        defaultZero(row.getPendingHosts()),
+        defaultZero(row.getRunningHosts()),
+        defaultZero(row.getSuccessHosts()),
+        defaultZero(row.getFailedHosts()),
+        defaultZero(row.getCancelledHosts()));
+  }
+
+  private int defaultZero(Integer value) {
+    return value == null ? 0 : value;
+  }
+
   private DeployTaskRecord decideApproval(Long taskId,
                                           String targetStatus,
                                           String comment,
@@ -321,7 +547,7 @@ public class DeployTaskApplicationService {
     logEntity.setCreatedAt(now);
     deployTaskLogMapper.insertLog(logEntity);
 
-    return getDeployTask(taskId);
+    return toDeployTaskRecord(requireTask(taskId), loadParams(taskId));
   }
 
   private String generateTaskNo(LocalDateTime now) {
@@ -354,10 +580,7 @@ public class DeployTaskApplicationService {
   }
 
   private DeployTaskRecord toDeployTaskRecord(DeployTaskMapper.DeployTaskRow row, Map<String, String> params) {
-    if (!SUPPORTED_STATUSES.contains(row.getStatus())) {
-      throw new IllegalStateException("unsupported deploy task status: " + row.getStatus());
-    }
-
+    ensureSupportedStatus(row.getStatus());
     return new DeployTaskRecord(
         row.getId(),
         row.getTaskNo(),
@@ -385,6 +608,73 @@ public class DeployTaskApplicationService {
         params);
   }
 
+  private DeployTaskDetailRecord toDeployTaskDetailRecord(DeployTaskMapper.DeployTaskRow row,
+                                                          Map<String, String> params,
+                                                          HostSummary summary) {
+    ensureSupportedStatus(row.getStatus());
+    return new DeployTaskDetailRecord(
+        row.getId(),
+        row.getTaskNo(),
+        row.getTaskName(),
+        row.getTaskType(),
+        row.getAppId(),
+        row.getAppName(),
+        row.getVersionId(),
+        row.getVersionNo(),
+        row.getOriginTaskId(),
+        row.getStatus(),
+        row.getBatchStrategy(),
+        row.getBatchSize(),
+        row.getTargetCount(),
+        row.getSuccessCount(),
+        row.getFailCount(),
+        row.getOperatorName(),
+        row.getApprovalOperatorName(),
+        row.getApprovalComment(),
+        row.getApprovalAt(),
+        row.getStartedAt(),
+        row.getFinishedAt(),
+        row.getCreatedAt(),
+        row.getUpdatedAt(),
+        params,
+        summary.totalHosts(),
+        summary.pendingHosts(),
+        summary.runningHosts(),
+        summary.successHosts(),
+        summary.failedHosts(),
+        summary.cancelledHosts());
+  }
+
+  private DeployTaskHostRecord toDeployTaskHostRecord(DeployTaskHostMapper.DeployTaskHostRow row) {
+    return new DeployTaskHostRecord(
+        row.getId(),
+        row.getTaskId(),
+        row.getHostId(),
+        row.getHostName(),
+        row.getIpAddress(),
+        row.getStatus(),
+        row.getCurrentStep(),
+        row.getStartedAt(),
+        row.getFinishedAt(),
+        row.getErrorMsg());
+  }
+
+  private DeployTaskLogRecord toDeployTaskLogRecord(DeployTaskLogMapper.DeployTaskLogRow row) {
+    return new DeployTaskLogRecord(
+        row.getId(),
+        row.getTaskId(),
+        row.getTaskHostId(),
+        row.getLogLevel(),
+        row.getLogContent(),
+        row.getCreatedAt());
+  }
+
+  private void ensureSupportedStatus(String status) {
+    if (!SUPPORTED_STATUSES.contains(status)) {
+      throw new IllegalStateException("unsupported deploy task status: " + status);
+    }
+  }
+
   public record CreateDeployTaskCommand(String taskName,
                                         String taskType,
                                         Long appId,
@@ -395,30 +685,209 @@ public class DeployTaskApplicationService {
                                         Map<String, Object> params) {
   }
 
-  public record DeployTaskRecord(Long id,
-                                 String taskNo,
-                                 String taskName,
-                                 String taskType,
-                                 Long appId,
-                                 String appName,
-                                 Long versionId,
-                                 String versionNo,
-                                 Long originTaskId,
-                                 String status,
-                                 String batchStrategy,
-                                 Integer batchSize,
-                                 Integer targetCount,
-                                 Integer successCount,
-                                 Integer failCount,
-                                 String operatorName,
-                                 String approvalOperatorName,
-                                 String approvalComment,
-                                 LocalDateTime approvalAt,
-                                 LocalDateTime startedAt,
-                                 LocalDateTime finishedAt,
-                                 LocalDateTime createdAt,
-                                 LocalDateTime updatedAt,
-                                 Map<String, String> params) {
+  public record DeployTaskQuery(String keyword,
+                                String status,
+                                String taskType,
+                                Long appId,
+                                String environment,
+                                LocalDateTime createdFrom,
+                                LocalDateTime createdTo,
+                                Integer page,
+                                Integer pageSize,
+                                String sortBy,
+                                String sortOrder) {
+  }
+
+  public record DeployTaskPage(int page, int pageSize, long total, List<DeployTaskRecord> records) {
+  }
+
+  public static class DeployTaskRecord {
+    private final Long id;
+    private final String taskNo;
+    private final String taskName;
+    private final String taskType;
+    private final Long appId;
+    private final String appName;
+    private final Long versionId;
+    private final String versionNo;
+    private final Long originTaskId;
+    private final String status;
+    private final String batchStrategy;
+    private final Integer batchSize;
+    private final Integer targetCount;
+    private final Integer successCount;
+    private final Integer failCount;
+    private final String operatorName;
+    private final String approvalOperatorName;
+    private final String approvalComment;
+    private final LocalDateTime approvalAt;
+    private final LocalDateTime startedAt;
+    private final LocalDateTime finishedAt;
+    private final LocalDateTime createdAt;
+    private final LocalDateTime updatedAt;
+    private final Map<String, String> params;
+
+    public DeployTaskRecord(Long id,
+                            String taskNo,
+                            String taskName,
+                            String taskType,
+                            Long appId,
+                            String appName,
+                            Long versionId,
+                            String versionNo,
+                            Long originTaskId,
+                            String status,
+                            String batchStrategy,
+                            Integer batchSize,
+                            Integer targetCount,
+                            Integer successCount,
+                            Integer failCount,
+                            String operatorName,
+                            String approvalOperatorName,
+                            String approvalComment,
+                            LocalDateTime approvalAt,
+                            LocalDateTime startedAt,
+                            LocalDateTime finishedAt,
+                            LocalDateTime createdAt,
+                            LocalDateTime updatedAt,
+                            Map<String, String> params) {
+      this.id = id;
+      this.taskNo = taskNo;
+      this.taskName = taskName;
+      this.taskType = taskType;
+      this.appId = appId;
+      this.appName = appName;
+      this.versionId = versionId;
+      this.versionNo = versionNo;
+      this.originTaskId = originTaskId;
+      this.status = status;
+      this.batchStrategy = batchStrategy;
+      this.batchSize = batchSize;
+      this.targetCount = targetCount;
+      this.successCount = successCount;
+      this.failCount = failCount;
+      this.operatorName = operatorName;
+      this.approvalOperatorName = approvalOperatorName;
+      this.approvalComment = approvalComment;
+      this.approvalAt = approvalAt;
+      this.startedAt = startedAt;
+      this.finishedAt = finishedAt;
+      this.createdAt = createdAt;
+      this.updatedAt = updatedAt;
+      this.params = params;
+    }
+
+    public Long getId() { return id; }
+    public String getTaskNo() { return taskNo; }
+    public String getTaskName() { return taskName; }
+    public String getTaskType() { return taskType; }
+    public Long getAppId() { return appId; }
+    public String getAppName() { return appName; }
+    public Long getVersionId() { return versionId; }
+    public String getVersionNo() { return versionNo; }
+    public Long getOriginTaskId() { return originTaskId; }
+    public String getStatus() { return status; }
+    public String getBatchStrategy() { return batchStrategy; }
+    public Integer getBatchSize() { return batchSize; }
+    public Integer getTargetCount() { return targetCount; }
+    public Integer getSuccessCount() { return successCount; }
+    public Integer getFailCount() { return failCount; }
+    public String getOperatorName() { return operatorName; }
+    public String getApprovalOperatorName() { return approvalOperatorName; }
+    public String getApprovalComment() { return approvalComment; }
+    public LocalDateTime getApprovalAt() { return approvalAt; }
+    public LocalDateTime getStartedAt() { return startedAt; }
+    public LocalDateTime getFinishedAt() { return finishedAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public Map<String, String> getParams() { return params; }
+  }
+
+  public static class DeployTaskDetailRecord extends DeployTaskRecord {
+    private final int totalHosts;
+    private final int pendingHosts;
+    private final int runningHosts;
+    private final int successHosts;
+    private final int failedHosts;
+    private final int cancelledHosts;
+
+    public DeployTaskDetailRecord(Long id,
+                                  String taskNo,
+                                  String taskName,
+                                  String taskType,
+                                  Long appId,
+                                  String appName,
+                                  Long versionId,
+                                  String versionNo,
+                                  Long originTaskId,
+                                  String status,
+                                  String batchStrategy,
+                                  Integer batchSize,
+                                  Integer targetCount,
+                                  Integer successCount,
+                                  Integer failCount,
+                                  String operatorName,
+                                  String approvalOperatorName,
+                                  String approvalComment,
+                                  LocalDateTime approvalAt,
+                                  LocalDateTime startedAt,
+                                  LocalDateTime finishedAt,
+                                  LocalDateTime createdAt,
+                                  LocalDateTime updatedAt,
+                                  Map<String, String> params,
+                                  int totalHosts,
+                                  int pendingHosts,
+                                  int runningHosts,
+                                  int successHosts,
+                                  int failedHosts,
+                                  int cancelledHosts) {
+      super(id,
+          taskNo,
+          taskName,
+          taskType,
+          appId,
+          appName,
+          versionId,
+          versionNo,
+          originTaskId,
+          status,
+          batchStrategy,
+          batchSize,
+          targetCount,
+          successCount,
+          failCount,
+          operatorName,
+          approvalOperatorName,
+          approvalComment,
+          approvalAt,
+          startedAt,
+          finishedAt,
+          createdAt,
+          updatedAt,
+          params);
+      this.totalHosts = totalHosts;
+      this.pendingHosts = pendingHosts;
+      this.runningHosts = runningHosts;
+      this.successHosts = successHosts;
+      this.failedHosts = failedHosts;
+      this.cancelledHosts = cancelledHosts;
+    }
+
+    public int getTotalHosts() { return totalHosts; }
+    public int getPendingHosts() { return pendingHosts; }
+    public int getRunningHosts() { return runningHosts; }
+    public int getSuccessHosts() { return successHosts; }
+    public int getFailedHosts() { return failedHosts; }
+    public int getCancelledHosts() { return cancelledHosts; }
+  }
+
+  public record DeployTaskHostQuery(String status,
+                                    String keyword,
+                                    Integer page,
+                                    Integer pageSize) {
+  }
+
+  public record DeployTaskHostPage(int page, int pageSize, long total, List<DeployTaskHostRecord> records) {
   }
 
   public record DeployTaskHostRecord(Long id,
@@ -433,12 +902,35 @@ public class DeployTaskApplicationService {
                                      String errorMsg) {
   }
 
+  public record DeployTaskLogQuery(Long hostId,
+                                   String keyword,
+                                   Integer page,
+                                   Integer pageSize) {
+  }
+
+  public record DeployTaskLogPage(int page, int pageSize, long total, List<DeployTaskLogRecord> records) {
+  }
+
   public record DeployTaskLogRecord(Long id,
                                     Long taskId,
                                     Long taskHostId,
                                     String logLevel,
                                     String logContent,
                                     LocalDateTime createdAt) {
+  }
+
+  public record TaskCenterQuery(String keyword,
+                                String status,
+                                String sourceType,
+                                String taskType,
+                                String priority,
+                                Integer page,
+                                Integer pageSize,
+                                String sortBy,
+                                String sortOrder) {
+  }
+
+  public record TaskCenterPage(int page, int pageSize, long total, List<TaskCenterRecord> records) {
   }
 
   public record TaskCenterRecord(Long id,
@@ -451,6 +943,7 @@ public class DeployTaskApplicationService {
                                  String appName,
                                  Long versionId,
                                  String versionNo,
+                                 String priority,
                                  Integer targetCount,
                                  Integer successCount,
                                  Integer failCount,
@@ -470,5 +963,53 @@ public class DeployTaskApplicationService {
                                         String batchStrategy,
                                         Integer batchSize,
                                         Map<String, String> params) {
+  }
+
+  private record NormalizedDeployTaskQuery(String keyword,
+                                           String status,
+                                           String taskType,
+                                           Long appId,
+                                           String environment,
+                                           LocalDateTime createdFrom,
+                                           LocalDateTime createdTo,
+                                           int page,
+                                           int pageSize,
+                                           String sortBy,
+                                           String sortOrder,
+                                           int offset) {
+  }
+
+  private record NormalizedTaskCenterQuery(String keyword,
+                                           String status,
+                                           String sourceType,
+                                           String taskType,
+                                           String priority,
+                                           int page,
+                                           int pageSize,
+                                           String sortBy,
+                                           String sortOrder,
+                                           int offset) {
+  }
+
+  private record NormalizedDeployTaskHostQuery(String status,
+                                               String keyword,
+                                               int page,
+                                               int pageSize,
+                                               int offset) {
+  }
+
+  private record NormalizedDeployTaskLogQuery(Long hostId,
+                                              String keyword,
+                                              int page,
+                                              int pageSize,
+                                              int offset) {
+  }
+
+  private record HostSummary(int totalHosts,
+                             int pendingHosts,
+                             int runningHosts,
+                             int successHosts,
+                             int failedHosts,
+                             int cancelledHosts) {
   }
 }

@@ -36,7 +36,7 @@ export const request = createFlatRequest(
       // to change this logic by yourself, you can modify the `VITE_SERVICE_SUCCESS_CODE` in `.env` file
       return String(response.data.code) === import.meta.env.VITE_SERVICE_SUCCESS_CODE;
     },
-    async onBackendFail(response, instance) {
+    async onBackendFail(response, _instance) {
       const authStore = useAuthStore();
       const responseCode = String(response.data.code);
 

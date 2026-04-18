@@ -56,7 +56,10 @@ onMounted(() => {
               <td>{{ item.name }}</td>
               <td>
                 <div class="flex items-center gap-8px">
-                  <span class="inline-block h-12px w-12px rounded-full" :style="{ backgroundColor: item.color || '#d9d9d9' }" />
+                  <span
+                    class="inline-block h-12px w-12px rounded-full"
+                    :style="{ backgroundColor: item.color || '#d9d9d9' }"
+                  />
                   <span>{{ item.color || '-' }}</span>
                 </div>
               </td>

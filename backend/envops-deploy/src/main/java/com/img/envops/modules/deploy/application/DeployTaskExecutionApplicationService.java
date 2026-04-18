@@ -88,7 +88,7 @@ public class DeployTaskExecutionApplicationService {
     String resolvedOperatorName = requireOperatorName(operatorName);
     runInTransaction(() -> markTaskRunning(taskId, resolvedOperatorName));
     deployTaskExecutor.execute(() -> runTask(taskId, resolvedOperatorName));
-    return deployTaskApplicationService.getDeployTask(taskId);
+    return deployTaskApplicationService.getDeployTaskRecord(taskId);
   }
 
   public DeployTaskApplicationService.DeployTaskRecord cancelDeployTask(Long taskId, String operatorName) {
@@ -97,7 +97,7 @@ public class DeployTaskExecutionApplicationService {
     if (!cancelledImmediately) {
       runInTransaction(() -> requestTaskCancellation(taskId, resolvedOperatorName));
     }
-    return deployTaskApplicationService.getDeployTask(taskId);
+    return deployTaskApplicationService.getDeployTaskRecord(taskId);
   }
 
   public DeployTaskApplicationService.DeployTaskRecord retryDeployTask(Long taskId, String operatorName) {

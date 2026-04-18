@@ -31,6 +31,47 @@ public interface DeployTaskLogMapper {
   @Options(useGeneratedKeys = true, keyProperty = "id")
   int insertLog(DeployTaskLogEntity entity);
 
+  @Select({
+      "<script>",
+      "SELECT COUNT(*)",
+      "FROM deploy_task_log dtl",
+      "LEFT JOIN deploy_task_host dth ON dth.id = dtl.task_host_id",
+      "<where>",
+      "  dtl.task_id = #{taskId}",
+      "  <if test='hostId != null'>AND dth.host_id = #{hostId}</if>",
+      "  <if test='keyword != null'>AND dtl.log_content LIKE CONCAT('%', #{keyword}, '%')</if>",
+      "</where>",
+      "</script>"
+  })
+  long countByTaskIdAndQuery(@Param("taskId") Long taskId,
+                             @Param("hostId") Long hostId,
+                             @Param("keyword") String keyword);
+
+  @Select({
+      "<script>",
+      "SELECT dtl.id,",
+      "       dtl.task_id AS taskId,",
+      "       dtl.task_host_id AS taskHostId,",
+      "       dtl.log_level AS logLevel,",
+      "       dtl.log_content AS logContent,",
+      "       dtl.created_at AS createdAt",
+      "FROM deploy_task_log dtl",
+      "LEFT JOIN deploy_task_host dth ON dth.id = dtl.task_host_id",
+      "<where>",
+      "  dtl.task_id = #{taskId}",
+      "  <if test='hostId != null'>AND dth.host_id = #{hostId}</if>",
+      "  <if test='keyword != null'>AND dtl.log_content LIKE CONCAT('%', #{keyword}, '%')</if>",
+      "</where>",
+      "ORDER BY dtl.id",
+      "LIMIT #{limit} OFFSET #{offset}",
+      "</script>"
+  })
+  List<DeployTaskLogRow> findByTaskIdAndQuery(@Param("taskId") Long taskId,
+                                              @Param("hostId") Long hostId,
+                                              @Param("keyword") String keyword,
+                                              @Param("limit") int limit,
+                                              @Param("offset") int offset);
+
   @Select("""
       SELECT id,
              task_id AS taskId,

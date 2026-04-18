@@ -37,6 +37,69 @@ public interface DeployTaskHostMapper {
   int insertTaskHost(DeployTaskHostEntity entity);
 
   @Select("""
+      SELECT COUNT(*) AS totalHosts,
+             COALESCE(SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END), 0) AS pendingHosts,
+             COALESCE(SUM(CASE WHEN status IN ('RUNNING', 'CANCEL_REQUESTED') THEN 1 ELSE 0 END), 0) AS runningHosts,
+             COALESCE(SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS successHosts,
+             COALESCE(SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END), 0) AS failedHosts,
+             COALESCE(SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END), 0) AS cancelledHosts
+      FROM deploy_task_host
+      WHERE task_id = #{taskId}
+      """)
+  DeployTaskHostSummaryRow summarizeByTaskId(@Param("taskId") Long taskId);
+
+  @Select({
+      "<script>",
+      "SELECT COUNT(*)",
+      "FROM deploy_task_host dth",
+      "JOIN asset_host ah ON ah.id = dth.host_id",
+      "<where>",
+      "  dth.task_id = #{taskId}",
+      "  <if test='status != null'>AND dth.status = #{status}</if>",
+      "  <if test='keyword != null'>",
+      "    AND (ah.host_name LIKE CONCAT('%', #{keyword}, '%')",
+      "      OR ah.ip_address LIKE CONCAT('%', #{keyword}, '%'))",
+      "  </if>",
+      "</where>",
+      "</script>"
+  })
+  long countByTaskIdAndQuery(@Param("taskId") Long taskId,
+                             @Param("status") String status,
+                             @Param("keyword") String keyword);
+
+  @Select({
+      "<script>",
+      "SELECT dth.id,",
+      "       dth.task_id AS taskId,",
+      "       dth.host_id AS hostId,",
+      "       ah.host_name AS hostName,",
+      "       ah.ip_address AS ipAddress,",
+      "       dth.status,",
+      "       dth.current_step AS currentStep,",
+      "       dth.started_at AS startedAt,",
+      "       dth.finished_at AS finishedAt,",
+      "       dth.error_msg AS errorMsg",
+      "FROM deploy_task_host dth",
+      "JOIN asset_host ah ON ah.id = dth.host_id",
+      "<where>",
+      "  dth.task_id = #{taskId}",
+      "  <if test='status != null'>AND dth.status = #{status}</if>",
+      "  <if test='keyword != null'>",
+      "    AND (ah.host_name LIKE CONCAT('%', #{keyword}, '%')",
+      "      OR ah.ip_address LIKE CONCAT('%', #{keyword}, '%'))",
+      "  </if>",
+      "</where>",
+      "ORDER BY dth.id",
+      "LIMIT #{limit} OFFSET #{offset}",
+      "</script>"
+  })
+  List<DeployTaskHostRow> findByTaskIdAndQuery(@Param("taskId") Long taskId,
+                                               @Param("status") String status,
+                                               @Param("keyword") String keyword,
+                                               @Param("limit") int limit,
+                                               @Param("offset") int offset);
+
+  @Select("""
       SELECT dth.id,
              dth.task_id AS taskId,
              dth.host_id AS hostId,
@@ -93,6 +156,28 @@ public interface DeployTaskHostMapper {
         AND status <> 'SUCCESS'
       """)
   int resetForRetry(@Param("taskId") Long taskId);
+
+  class DeployTaskHostSummaryRow {
+    private Integer totalHosts;
+    private Integer pendingHosts;
+    private Integer runningHosts;
+    private Integer successHosts;
+    private Integer failedHosts;
+    private Integer cancelledHosts;
+
+    public Integer getTotalHosts() { return totalHosts; }
+    public void setTotalHosts(Integer totalHosts) { this.totalHosts = totalHosts; }
+    public Integer getPendingHosts() { return pendingHosts; }
+    public void setPendingHosts(Integer pendingHosts) { this.pendingHosts = pendingHosts; }
+    public Integer getRunningHosts() { return runningHosts; }
+    public void setRunningHosts(Integer runningHosts) { this.runningHosts = runningHosts; }
+    public Integer getSuccessHosts() { return successHosts; }
+    public void setSuccessHosts(Integer successHosts) { this.successHosts = successHosts; }
+    public Integer getFailedHosts() { return failedHosts; }
+    public void setFailedHosts(Integer failedHosts) { this.failedHosts = failedHosts; }
+    public Integer getCancelledHosts() { return cancelledHosts; }
+    public void setCancelledHosts(Integer cancelledHosts) { this.cancelledHosts = cancelledHosts; }
+  }
 
   class DeployTaskHostRow {
     private Long id;

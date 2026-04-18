@@ -122,9 +122,15 @@ onMounted(() => {
         </div>
         <NSpace>
           <NTag type="info">{{ t('page.envops.assetCredential.tags.total', { count: credentialSummary.total }) }}</NTag>
-          <NTag type="warning">{{ t('page.envops.assetCredential.tags.passwords', { count: credentialSummary.sshPassword }) }}</NTag>
-          <NTag type="success">{{ t('page.envops.assetCredential.tags.keys', { count: credentialSummary.sshKey }) }}</NTag>
-          <NTag type="primary">{{ t('page.envops.assetCredential.tags.tokens', { count: credentialSummary.apiToken }) }}</NTag>
+          <NTag type="warning">
+            {{ t('page.envops.assetCredential.tags.passwords', { count: credentialSummary.sshPassword }) }}
+          </NTag>
+          <NTag type="success">
+            {{ t('page.envops.assetCredential.tags.keys', { count: credentialSummary.sshKey }) }}
+          </NTag>
+          <NTag type="primary">
+            {{ t('page.envops.assetCredential.tags.tokens', { count: credentialSummary.apiToken }) }}
+          </NTag>
         </NSpace>
       </div>
     </NCard>

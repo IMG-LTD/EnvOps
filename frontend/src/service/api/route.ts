@@ -9,4 +9,3 @@ export function fetchGetConstantRoutes() {
 export function fetchGetUserRoutes() {
   return request<Api.Route.UserRoute>({ url: '/api/routes/getUserRoutes' });
 }
-

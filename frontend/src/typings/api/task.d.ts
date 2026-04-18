@@ -5,6 +5,31 @@ declare namespace Api {
    * backend api module: "task"
    */
   namespace Task {
+    type TaskSortBy = 'createdAt' | 'updatedAt' | 'taskNo' | 'status';
+
+    type TaskSortOrder = 'asc' | 'desc';
+
+    interface DeployTaskListQuery {
+      keyword?: string;
+      status?: string;
+      taskType?: string;
+      appId?: number;
+      environment?: string;
+      createdFrom?: string;
+      createdTo?: string;
+      page: number;
+      pageSize: number;
+      sortBy: TaskSortBy;
+      sortOrder: TaskSortOrder;
+    }
+
+    interface DeployTaskPage {
+      page: number;
+      pageSize: number;
+      total: number;
+      records: DeployTaskRecord[];
+    }
+
     interface DeployTaskRecord {
       id: number;
       taskNo: string;
@@ -32,6 +57,29 @@ declare namespace Api {
       params?: Record<string, string> | null;
     }
 
+    interface DeployTaskDetailRecord extends DeployTaskRecord {
+      totalHosts: number;
+      pendingHosts: number;
+      runningHosts: number;
+      successHosts: number;
+      failedHosts: number;
+      cancelledHosts: number;
+    }
+
+    interface DeployTaskHostQuery {
+      status?: string;
+      keyword?: string;
+      page?: number;
+      pageSize?: number;
+    }
+
+    interface DeployTaskHostPage {
+      page: number;
+      pageSize: number;
+      total: number;
+      records: DeployTaskHostRecord[];
+    }
+
     interface DeployTaskHostRecord {
       id: number;
       taskId: number;
@@ -45,6 +93,20 @@ declare namespace Api {
       errorMsg?: string | null;
     }
 
+    interface DeployTaskLogQuery {
+      hostId?: number;
+      keyword?: string;
+      page?: number;
+      pageSize?: number;
+    }
+
+    interface DeployTaskLogPage {
+      page: number;
+      pageSize: number;
+      total: number;
+      records: DeployTaskLogRecord[];
+    }
+
     interface DeployTaskLogRecord {
       id: number;
       taskId: number;
@@ -52,6 +114,25 @@ declare namespace Api {
       logLevel?: string | null;
       logContent?: string | null;
       createdAt?: string | null;
+    }
+
+    interface TaskCenterListQuery {
+      keyword?: string;
+      status?: string;
+      sourceType?: string;
+      taskType?: string;
+      priority?: string;
+      page: number;
+      pageSize: number;
+      sortBy: TaskSortBy;
+      sortOrder: TaskSortOrder;
+    }
+
+    interface TaskCenterPage {
+      page: number;
+      pageSize: number;
+      total: number;
+      records: TaskCenterRecord[];
     }
 
     interface TaskCenterRecord {
@@ -65,6 +146,7 @@ declare namespace Api {
       appName?: string | null;
       versionId?: number | null;
       versionNo?: string | null;
+      priority?: string | null;
       targetCount?: number | null;
       successCount?: number | null;
       failCount?: number | null;

@@ -35,7 +35,9 @@ const detectTasks = computed(() =>
 const metrics = computed(() => {
   const total = detectTasks.value.length;
   const successCount = detectTasks.value.filter(item => item.statusKey === 'success').length;
-  const needsAttentionCount = detectTasks.value.filter(item => ['warning', 'timeout', 'failed'].includes(item.statusKey)).length;
+  const needsAttentionCount = detectTasks.value.filter(item =>
+    ['warning', 'timeout', 'failed'].includes(item.statusKey)
+  ).length;
   const successRate = total ? `${((successCount / total) * 100).toFixed(1)}%` : '0%';
 
   return [
@@ -173,8 +175,12 @@ onMounted(() => {
           <p class="mt-8px text-14px text-#666">{{ t('page.envops.monitorDetectTask.hero.description') }}</p>
         </div>
         <NSpace>
-          <NTag type="success">{{ t('page.envops.monitorDetectTask.tags.healthyCount', { count: successTaskCount }) }}</NTag>
-          <NTag type="error">{{ t('page.envops.monitorDetectTask.tags.timedOutCount', { count: timedOutTaskCount }) }}</NTag>
+          <NTag type="success">
+            {{ t('page.envops.monitorDetectTask.tags.healthyCount', { count: successTaskCount }) }}
+          </NTag>
+          <NTag type="error">
+            {{ t('page.envops.monitorDetectTask.tags.timedOutCount', { count: timedOutTaskCount }) }}
+          </NTag>
           <NButton secondary :loading="loading" @click="loadDetectTasks">
             {{ t('common.refresh') }}
           </NButton>

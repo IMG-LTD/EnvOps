@@ -481,8 +481,10 @@ const local: App.I18n.Schema = {
       home: {
         hero: {
           title: 'EnvOps Control Plane',
-          description: 'This is the first frontend shell for assets, release tasks, traffic policies and platform operations.',
-          descriptionWithUser: 'Welcome back, {userName}. This is the first frontend shell for assets, release tasks, traffic policies and platform operations.'
+          description:
+            'This is the first frontend shell for assets, release tasks, traffic policies and platform operations.',
+          descriptionWithUser:
+            'Welcome back, {userName}. This is the first frontend shell for assets, release tasks, traffic policies and platform operations.'
         },
         tags: {
           dynamicRoutesReady: 'Dynamic routes ready',
@@ -737,7 +739,8 @@ const local: App.I18n.Schema = {
       appDefinition: {
         hero: {
           title: 'Application Definitions',
-          description: 'Define application ownership, runtimes and delivery metadata before release automation takes over.'
+          description:
+            'Define application ownership, runtimes and delivery metadata before release automation takes over.'
         },
         tags: {
           definitionSyncEnabled: 'Definition sync enabled',
@@ -790,6 +793,25 @@ const local: App.I18n.Schema = {
             desc: 'Tasks that need rollback analysis or retry'
           }
         },
+        filters: {
+          status: 'Task Status',
+          taskType: 'Task Type',
+          application: 'Application',
+          environment: 'Environment',
+          keyword: 'Keyword',
+          createdRange: 'Created Range',
+          search: 'Search',
+          reset: 'Reset',
+          taskTypeInstall: 'Install',
+          taskTypeUpgrade: 'Upgrade',
+          taskTypeRollback: 'Rollback'
+        },
+        sorting: {
+          createdAt: 'Created At',
+          updatedAt: 'Updated At',
+          taskNo: 'Task ID',
+          status: 'Status'
+        },
         table: {
           title: 'Release Queue',
           taskId: 'Task ID',
@@ -805,6 +827,19 @@ const local: App.I18n.Schema = {
           retry: 'Retry',
           rollback: 'Rollback',
           cancel: 'Cancel Task'
+        },
+        tabs: {
+          overview: 'Overview',
+          hosts: 'Hosts',
+          logs: 'Logs'
+        },
+        progress: {
+          totalHosts: 'Total Hosts',
+          pendingHosts: 'Pending Hosts',
+          runningHosts: 'Running Hosts',
+          successHosts: 'Succeeded Hosts',
+          failedHosts: 'Failed Hosts',
+          cancelledHosts: 'Cancelled Hosts'
         },
         detail: {
           title: 'Task Detail',
@@ -826,6 +861,17 @@ const local: App.I18n.Schema = {
           finishedAt: 'Finished At',
           createdAt: 'Created At',
           updatedAt: 'Updated At'
+        },
+        error: {
+          detailLoadFailed: 'Failed to load task detail. Please try again later.',
+          hostsLoadFailed: 'Failed to load host details. Please try again later.',
+          logsLoadFailed: 'Failed to load execution logs. Please try again later.',
+          autoRefreshFailed: 'Auto refresh failed. Please retry manually later.'
+        },
+        empty: {
+          taskNotFound: 'Task detail was not found',
+          noHosts: 'No host details available',
+          noLogs: 'No execution logs available'
         },
         hosts: {
           title: 'Host Details',
@@ -868,6 +914,23 @@ const local: App.I18n.Schema = {
             desc: 'Long-running tasks close to configured timeout limits'
           }
         },
+        filters: {
+          keyword: 'Keyword',
+          status: 'Status',
+          sourceType: 'Source Type',
+          taskType: 'Task Type',
+          priority: 'Priority',
+          search: 'Search',
+          reset: 'Reset'
+        },
+        sorting: {
+          createdAt: 'Created At',
+          updatedAt: 'Updated At',
+          taskNo: 'Task ID',
+          status: 'Status',
+          asc: 'ASC',
+          desc: 'DESC'
+        },
         table: {
           title: 'Unified Queue',
           taskId: 'Task ID',
@@ -876,6 +939,9 @@ const local: App.I18n.Schema = {
           executor: 'Executor',
           priority: 'Priority',
           status: 'Status'
+        },
+        actions: {
+          openDeployDetail: 'Open Deploy Detail'
         }
       },
       trafficController: {
@@ -958,7 +1024,7 @@ const local: App.I18n.Schema = {
     },
     pwd: {
       required: 'Please enter password',
-      invalid: '6-18 characters, including letters, numbers, underscores, and {\'@\'}'
+      invalid: "6-18 characters, including letters, numbers, underscores, and {'@'}"
     },
     confirmPwd: {
       required: 'Please enter password again',
