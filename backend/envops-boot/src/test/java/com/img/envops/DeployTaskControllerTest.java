@@ -111,10 +111,15 @@ class DeployTaskControllerTest {
                     "deployDir": "/data/apps/order-service",
                     "port": 8080,
                     "profile": "prod",
+                    "sshUser": "deploy",
+                    "sshPort": 22,
+                    "privateKeyPath": "%s",
+                    "remoteBaseDir": "/opt/envops/releases",
+                    "rollbackCommand": "bash /opt/envops/bin/rollback.sh",
                     "accessToken": "prod-secret-token"
                   }
                 }
-                """))
+                """.formatted(TEST_PRIVATE_KEY_PATH)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
         .andExpect(jsonPath("$.data.id").isNumber())
@@ -133,6 +138,11 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.params.deployDir").value("/data/apps/order-service"))
         .andExpect(jsonPath("$.data.params.port").value("8080"))
         .andExpect(jsonPath("$.data.params.profile").value("prod"))
+        .andExpect(jsonPath("$.data.params.sshUser").value("deploy"))
+        .andExpect(jsonPath("$.data.params.sshPort").value("22"))
+        .andExpect(jsonPath("$.data.params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.params.privateKeyPath").doesNotExist())
+        .andExpect(jsonPath("$.data.params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.params.accessToken").doesNotExist())
         .andReturn();
 
@@ -153,7 +163,7 @@ class DeployTaskControllerTest {
         .isEqualTo(2);
     org.assertj.core.api.Assertions.assertThat(
             jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task_param WHERE task_id = ?", Integer.class, taskId))
-        .isEqualTo(4);
+        .isEqualTo(9);
     org.assertj.core.api.Assertions.assertThat(
             jdbcTemplate.queryForObject("SELECT secret_flag FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "accessToken"))
         .isEqualTo(1);
@@ -166,6 +176,11 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
         .andExpect(jsonPath("$.data.records[0].taskName").value("install-order-service-prod"))
         .andExpect(jsonPath("$.data.records[0].status").value("PENDING_APPROVAL"))
+        .andExpect(jsonPath("$.data.records[0].params.sshUser").value("deploy"))
+        .andExpect(jsonPath("$.data.records[0].params.sshPort").value("22"))
+        .andExpect(jsonPath("$.data.records[0].params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.records[0].params.privateKeyPath").doesNotExist())
+        .andExpect(jsonPath("$.data.records[0].params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.records[0].params.accessToken").doesNotExist());
 
     mockMvc.perform(get("/api/deploy/tasks/{id}", taskId)
@@ -177,6 +192,11 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.taskName").value("install-order-service-prod"))
         .andExpect(jsonPath("$.data.status").value("PENDING_APPROVAL"))
         .andExpect(jsonPath("$.data.params.deployDir").value("/data/apps/order-service"))
+        .andExpect(jsonPath("$.data.params.sshUser").value("deploy"))
+        .andExpect(jsonPath("$.data.params.sshPort").value("22"))
+        .andExpect(jsonPath("$.data.params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.params.privateKeyPath").doesNotExist())
+        .andExpect(jsonPath("$.data.params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.params.accessToken").doesNotExist());
 
     mockMvc.perform(get("/api/task-center/tasks")

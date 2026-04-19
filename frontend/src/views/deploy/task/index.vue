@@ -5,13 +5,18 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useRouterPush } from '@/hooks/common/router';
 import {
+  fetchGetAppVersions,
   fetchGetApps,
+  fetchGetAssetHosts,
+  fetchPostApproveDeployTask,
   fetchPostCancelDeployTask,
+  fetchPostCreateDeployTask,
   fetchPostExecuteDeployTask,
   fetchGetDeployTask,
   fetchGetDeployTaskHosts,
   fetchGetDeployTaskLogs,
   fetchGetDeployTasks,
+  fetchPostRejectDeployTask,
   fetchPostRetryDeployTask,
   fetchPostRollbackDeployTask
 } from '@/service/api';
@@ -28,13 +33,36 @@ defineOptions({
 type DeployTaskRouteQuery = ReturnType<typeof normalizeDeployTaskRouteQuery>;
 type DeployTaskStatusKey = 'success' | 'failed' | 'running' | 'pending' | 'pendingApproval' | 'cancelled' | 'rejected';
 type DeployTaskTagType = 'success' | 'error' | 'info' | 'default' | 'warning';
-type DeployTaskActionKey = 'execute' | 'retry' | 'rollback' | 'cancel';
+type DeployTaskActionKey = 'execute' | 'retry' | 'rollback' | 'cancel' | 'approve' | 'reject';
 type DeployTaskDetailTab = 'overview' | 'hosts' | 'logs';
 type DeployTaskSummaryKey = 'pendingApproval' | 'inProgress' | 'failedIn24h';
+type DeployTaskApprovalAction = 'approve' | 'reject';
+type DeployTaskCreateFormModel = {
+  taskName: string;
+  taskType: Api.Task.DeployTaskCreateTaskType;
+  appId: number | null;
+  versionId: number | null;
+  environment: string;
+  hostIds: number[];
+  batchStrategy: Api.Task.DeployTaskBatchStrategy;
+  batchSize: number | null;
+  deployDir: string;
+  sshUser: string;
+  sshPort: number | null;
+  privateKeyPath: string;
+  remoteBaseDir: string;
+  rollbackCommand: string;
+};
+type DeployTaskApprovalFormModel = {
+  taskId: number | null;
+  action: DeployTaskApprovalAction;
+  comment: string;
+};
 
 const DETAIL_PAGE = 1;
 const DETAIL_PAGE_SIZE = 10;
 const LOG_HOST_OPTIONS_PAGE_SIZE = 100;
+const CREATE_HOST_OPTIONS_PAGE_SIZE = 100;
 const DETAIL_REFRESH_INTERVAL = 5000;
 const SUMMARY_FAILED_RANGE_HOURS = 24;
 const DEFAULT_DEPLOY_TASK_ROUTE_QUERY = normalizeDeployTaskRouteQuery({});
@@ -78,6 +106,16 @@ const logHostsRequestInFlightToken = ref(0);
 const logsRequestInFlight = ref(false);
 const logsRequestToken = ref(0);
 const logsLoadingToken = ref(0);
+const createDrawerVisible = ref(false);
+const createSubmitting = ref(false);
+const createVersionsLoading = ref(false);
+const createHostsLoading = ref(false);
+const createVersionRequestToken = ref(0);
+const createHostRequestToken = ref(0);
+const createHosts = ref<Api.Asset.HostRecord[]>([]);
+const appVersions = ref<Api.App.AppVersion[]>([]);
+const approvalDrawerVisible = ref(false);
+const approvalSubmitting = ref(false);
 
 const filterForm = reactive({
   keyword: '',
@@ -101,6 +139,9 @@ const logQuery = reactive({
   page: DETAIL_PAGE,
   pageSize: DETAIL_PAGE_SIZE
 });
+
+const createForm = reactive<DeployTaskCreateFormModel>(createDefaultCreateFormModel());
+const approvalForm = reactive<DeployTaskApprovalFormModel>(createDefaultApprovalFormModel());
 
 const normalizedRouteQuery = computed(() => normalizeDeployTaskRouteQuery(route.query as Record<string, unknown>));
 const detailDrawerVisible = computed(() => normalizedRouteQuery.value.taskId !== null);
@@ -141,6 +182,66 @@ const appOptions = computed(() => {
     label: `${item.appName} (${item.appCode})`,
     value: Number(item.id)
   }));
+});
+
+const createTaskTypeOptions = computed(() => [
+  { label: t('page.envops.deployTask.filters.taskTypeInstall'), value: 'INSTALL' },
+  { label: t('page.envops.deployTask.filters.taskTypeUpgrade'), value: 'UPGRADE' }
+]);
+
+const createBatchStrategyOptions = computed(() => [
+  { label: t('page.envops.deployTask.create.batchStrategyAll'), value: 'ALL' },
+  { label: t('page.envops.deployTask.create.batchStrategyRolling'), value: 'ROLLING' }
+]);
+
+const createVersionOptions = computed(() => {
+  return appVersions.value
+    .map(item => {
+      const value = Number(item.id);
+
+      if (!Number.isInteger(value) || value <= 0) {
+        return null;
+      }
+
+      return {
+        label: item.versionNo,
+        value
+      };
+    })
+    .filter((item): item is { label: string; value: number } => item !== null);
+});
+
+const createHostOptions = computed(() => {
+  return createHosts.value
+    .map(item => {
+      const value = Number(item.id);
+
+      if (!Number.isInteger(value) || value <= 0) {
+        return null;
+      }
+
+      return {
+        label: `${item.hostName} (${item.ipAddress}) · ${getEnvironmentLabel(item.environment)}`,
+        value
+      };
+    })
+    .filter((item): item is { label: string; value: number } => item !== null);
+});
+
+const approvalDrawerTitle = computed(() => {
+  return t(
+    approvalForm.action === 'approve'
+      ? 'page.envops.deployTask.approval.approveTitle'
+      : 'page.envops.deployTask.approval.rejectTitle'
+  );
+});
+
+const approvalSubmitText = computed(() => {
+  return t(
+    approvalForm.action === 'approve'
+      ? 'page.envops.deployTask.actions.approve'
+      : 'page.envops.deployTask.actions.reject'
+  );
 });
 
 const logHostOptions = computed(() => {
@@ -227,6 +328,37 @@ watch(
     syncDetailRefreshTimer();
   },
   { immediate: true }
+);
+
+watch(
+  () => createForm.appId,
+  appId => {
+    if (!createDrawerVisible.value) {
+      return;
+    }
+
+    void loadCreateVersions(appId);
+  }
+);
+
+watch(
+  () => createForm.environment,
+  environment => {
+    if (!createDrawerVisible.value) {
+      return;
+    }
+
+    void loadCreateHosts(environment);
+  }
+);
+
+watch(
+  () => createForm.batchStrategy,
+  batchStrategy => {
+    if (batchStrategy === 'ALL') {
+      createForm.batchSize = null;
+    }
+  }
 );
 
 const deployTasks = computed(() =>
@@ -335,11 +467,107 @@ const progressSummary = computed(() => {
   ];
 });
 
+function createDefaultCreateFormModel(): DeployTaskCreateFormModel {
+  return {
+    taskName: '',
+    taskType: 'INSTALL',
+    appId: null,
+    versionId: null,
+    environment: 'production',
+    hostIds: [],
+    batchStrategy: 'ALL',
+    batchSize: null,
+    deployDir: '',
+    sshUser: 'deploy',
+    sshPort: 22,
+    privateKeyPath: '',
+    remoteBaseDir: '/opt/envops/releases',
+    rollbackCommand: ''
+  };
+}
+
+function createDefaultApprovalFormModel(): DeployTaskApprovalFormModel {
+  return {
+    taskId: null,
+    action: 'approve',
+    comment: ''
+  };
+}
+
+function resetCreateForm() {
+  Object.assign(createForm, createDefaultCreateFormModel());
+}
+
+function resetApprovalForm() {
+  Object.assign(approvalForm, createDefaultApprovalFormModel());
+}
+
 async function loadApps() {
   const { data, error } = await fetchGetApps();
 
   if (!error && data) {
     apps.value = data.filter(item => Number.isInteger(Number(item.id)) && Number(item.id) > 0);
+  }
+}
+
+async function loadCreateVersions(appId: number | null) {
+  const requestToken = ++createVersionRequestToken.value;
+
+  appVersions.value = [];
+  createForm.versionId = null;
+
+  if (appId === null) {
+    return;
+  }
+
+  createVersionsLoading.value = true;
+
+  try {
+    const { data, error } = await fetchGetAppVersions(appId);
+
+    if (requestToken !== createVersionRequestToken.value) {
+      return;
+    }
+
+    if (!error && data) {
+      appVersions.value = data.filter(item => Number.isInteger(Number(item.id)) && Number(item.id) > 0);
+    }
+  } finally {
+    if (requestToken === createVersionRequestToken.value) {
+      createVersionsLoading.value = false;
+    }
+  }
+}
+
+async function loadCreateHosts(environment: string) {
+  const requestToken = ++createHostRequestToken.value;
+
+  createHosts.value = [];
+  createForm.hostIds = [];
+  createHostsLoading.value = true;
+
+  try {
+    const { data, error } = await fetchGetAssetHosts({ current: DETAIL_PAGE, size: CREATE_HOST_OPTIONS_PAGE_SIZE });
+
+    if (requestToken !== createHostRequestToken.value) {
+      return;
+    }
+
+    if (!error && data) {
+      const normalizedEnvironment = environment.trim().toLowerCase();
+
+      createHosts.value = data.records.filter(item => {
+        const value = String(item.environment || '')
+          .trim()
+          .toLowerCase();
+
+        return !normalizedEnvironment || value === normalizedEnvironment;
+      });
+    }
+  } finally {
+    if (requestToken === createHostRequestToken.value) {
+      createHostsLoading.value = false;
+    }
   }
 }
 
@@ -718,6 +946,181 @@ function handleSummaryCardKeydown(event: KeyboardEvent, summaryKey: DeployTaskSu
 
 async function handleOpenTaskDetail(taskId: number) {
   await pushDeployTaskRouteQuery({ taskId });
+}
+
+async function handleOpenCreateDrawer() {
+  resetCreateForm();
+  createDrawerVisible.value = true;
+  await Promise.all([loadCreateVersions(createForm.appId), loadCreateHosts(createForm.environment)]);
+}
+
+function handleCreateDrawerVisibleChange(show: boolean) {
+  createDrawerVisible.value = show;
+
+  if (!show) {
+    resetCreateForm();
+    appVersions.value = [];
+    createHosts.value = [];
+  }
+}
+
+function buildCreateTaskPayload(): Api.Task.CreateDeployTaskPayload {
+  const normalizedBatchSize = createForm.batchStrategy === 'ROLLING' ? Number(createForm.batchSize) : null;
+  const normalizedSshPort = createForm.sshPort === null ? null : Number(createForm.sshPort);
+
+  return {
+    taskName: createForm.taskName.trim(),
+    taskType: createForm.taskType,
+    appId: Number(createForm.appId),
+    versionId: Number(createForm.versionId),
+    environment: createForm.environment,
+    hostIds: createForm.hostIds,
+    batchStrategy: createForm.batchStrategy,
+    batchSize: normalizedBatchSize,
+    deployDir: createForm.deployDir.trim(),
+    sshUser: createForm.sshUser.trim(),
+    sshPort: normalizedSshPort,
+    privateKeyPath: createForm.privateKeyPath.trim(),
+    remoteBaseDir: createForm.remoteBaseDir.trim(),
+    rollbackCommand: createForm.rollbackCommand.trim() || null
+  };
+}
+
+function validateCreateForm() {
+  if (!createForm.taskName.trim()) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.taskNameRequired'));
+    return false;
+  }
+
+  if (createForm.appId === null) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.appRequired'));
+    return false;
+  }
+
+  if (createForm.versionId === null) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.versionRequired'));
+    return false;
+  }
+
+  if (!createForm.environment.trim()) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.environmentRequired'));
+    return false;
+  }
+
+  if (!createForm.hostIds.length) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.hostsRequired'));
+    return false;
+  }
+
+  if (!createForm.deployDir.trim()) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.deployDirRequired'));
+    return false;
+  }
+
+  if (!createForm.sshUser.trim()) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.sshUserRequired'));
+    return false;
+  }
+
+  const normalizedSshPort = Number(createForm.sshPort);
+
+  if (createForm.sshPort !== null && (!Number.isFinite(normalizedSshPort) || normalizedSshPort <= 0)) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.sshPortInvalid'));
+    return false;
+  }
+
+  if (!createForm.privateKeyPath.trim()) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.privateKeyPathRequired'));
+    return false;
+  }
+
+  if (!createForm.remoteBaseDir.trim()) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.remoteBaseDirRequired'));
+    return false;
+  }
+
+  const normalizedBatchSize = Number(createForm.batchSize);
+
+  if (createForm.batchStrategy === 'ROLLING' && (!Number.isFinite(normalizedBatchSize) || normalizedBatchSize <= 0)) {
+    window.$message?.warning(t('page.envops.deployTask.create.validation.batchSizeRequired'));
+    return false;
+  }
+
+  return true;
+}
+
+async function handleCreateTask() {
+  if (createSubmitting.value || !validateCreateForm()) {
+    return;
+  }
+
+  createSubmitting.value = true;
+
+  try {
+    const { data, error } = await fetchPostCreateDeployTask(buildCreateTaskPayload());
+
+    if (!error) {
+      window.$message?.success(t('common.addSuccess'));
+      createDrawerVisible.value = false;
+      resetCreateForm();
+      appVersions.value = [];
+      createHosts.value = [];
+      await loadDeployTasks(normalizedRouteQuery.value);
+
+      if (data?.id) {
+        await pushDeployTaskRouteQuery({ taskId: data.id });
+      }
+    }
+  } finally {
+    createSubmitting.value = false;
+  }
+}
+
+function openApprovalDrawer(taskId: number, action: DeployTaskApprovalAction) {
+  resetApprovalForm();
+  approvalForm.taskId = taskId;
+  approvalForm.action = action;
+  approvalDrawerVisible.value = true;
+}
+
+function handleApprovalDrawerVisibleChange(show: boolean) {
+  approvalDrawerVisible.value = show;
+
+  if (!show) {
+    resetApprovalForm();
+  }
+}
+
+async function handleSubmitApproval() {
+  if (approvalSubmitting.value || approvalForm.taskId === null || isTaskMutating(approvalForm.taskId)) {
+    return;
+  }
+
+  const taskId = approvalForm.taskId;
+  const action = approvalForm.action;
+
+  actionLoadingTaskIds.value = [...actionLoadingTaskIds.value, taskId];
+  actionLoadingActions.value[taskId] = action;
+  approvalSubmitting.value = true;
+
+  try {
+    const payload = approvalForm.comment.trim() ? { comment: approvalForm.comment.trim() } : undefined;
+    const response =
+      action === 'approve'
+        ? await fetchPostApproveDeployTask(taskId, payload)
+        : await fetchPostRejectDeployTask(taskId, payload);
+
+    if (!response.error) {
+      window.$message?.success(t('common.updateSuccess'));
+      approvalDrawerVisible.value = false;
+      resetApprovalForm();
+      await refreshAfterTaskAction(response.data?.id ?? taskId);
+    }
+  } finally {
+    approvalSubmitting.value = false;
+    actionLoadingTaskIds.value = actionLoadingTaskIds.value.filter(id => id !== taskId);
+    actionLoadingActions.value[taskId] = undefined;
+  }
 }
 
 async function handleDetailDrawerVisibleChange(show: boolean) {
@@ -1151,6 +1554,10 @@ function canCancelTask(status: string | null | undefined) {
   return normalizedStatus === 'RUNNING' || normalizedStatus === 'PENDING';
 }
 
+function canApproveOrRejectTask(statusKey: DeployTaskStatusKey) {
+  return statusKey === 'pendingApproval';
+}
+
 function itemTaskTypeAllowsRollback(taskType: string | null | undefined) {
   return taskType !== 'ROLLBACK';
 }
@@ -1237,19 +1644,11 @@ function getDeployTaskTagType(statusKey: DeployTaskStatusKey): DeployTaskTagType
   return typeMap[statusKey];
 }
 
-function getDeployTaskEnvironment(item: Api.Task.DeployTaskRecord) {
-  const rawValue =
-    getFirstMeaningfulValue([
-      item.params?.['environment'],
-      item.params?.['env'],
-      item.params?.['profile'],
-      item.params?.['namespace'],
-      inferEnvironmentFromText(item.taskName),
-      inferEnvironmentFromText(item.taskNo)
-    ]) || '-';
+function getEnvironmentLabel(environment: string | null | undefined) {
+  const rawValue = String(environment || '').trim();
 
-  if (rawValue === '-') {
-    return rawValue;
+  if (!rawValue) {
+    return '-';
   }
 
   const normalizedValue = rawValue.toLowerCase();
@@ -1267,6 +1666,24 @@ function getDeployTaskEnvironment(item: Api.Task.DeployTaskRecord) {
   }
 
   return rawValue;
+}
+
+function getDeployTaskEnvironment(item: Api.Task.DeployTaskRecord) {
+  const rawValue =
+    getFirstMeaningfulValue([
+      item.params?.['environment'],
+      item.params?.['env'],
+      item.params?.['profile'],
+      item.params?.['namespace'],
+      inferEnvironmentFromText(item.taskName),
+      inferEnvironmentFromText(item.taskNo)
+    ]) || '-';
+
+  if (rawValue === '-') {
+    return rawValue;
+  }
+
+  return getEnvironmentLabel(rawValue);
 }
 
 function getDeployTaskBatch(item: Api.Task.DeployTaskRecord) {
@@ -1378,9 +1795,14 @@ onBeforeUnmount(() => {
           <h3 class="text-18px font-semibold">{{ t('page.envops.deployTask.hero.title') }}</h3>
           <p class="mt-8px text-14px text-#666">{{ t('page.envops.deployTask.hero.description') }}</p>
         </div>
-        <NButton secondary :loading="loading" @click="handleRefreshList">
-          {{ t('common.refresh') }}
-        </NButton>
+        <NSpace>
+          <NButton type="primary" @click="handleOpenCreateDrawer">
+            {{ t('page.envops.deployTask.actions.create') }}
+          </NButton>
+          <NButton secondary :loading="loading" @click="handleRefreshList">
+            {{ t('common.refresh') }}
+          </NButton>
+        </NSpace>
       </div>
     </NCard>
 
@@ -1539,6 +1961,26 @@ onBeforeUnmount(() => {
                   </NButton>
                   <NButton
                     text
+                    type="success"
+                    size="small"
+                    :disabled="isTaskMutating(item.key) || !canApproveOrRejectTask(item.statusKey)"
+                    :loading="isActionLoading('approve', item.key)"
+                    @click="openApprovalDrawer(item.key, 'approve')"
+                  >
+                    {{ t('page.envops.deployTask.actions.approve') }}
+                  </NButton>
+                  <NButton
+                    text
+                    type="error"
+                    size="small"
+                    :disabled="isTaskMutating(item.key) || !canApproveOrRejectTask(item.statusKey)"
+                    :loading="isActionLoading('reject', item.key)"
+                    @click="openApprovalDrawer(item.key, 'reject')"
+                  >
+                    {{ t('page.envops.deployTask.actions.reject') }}
+                  </NButton>
+                  <NButton
+                    text
                     type="warning"
                     size="small"
                     :disabled="isTaskMutating(item.key) || !canCancelTask(item.rawStatus)"
@@ -1567,6 +2009,170 @@ onBeforeUnmount(() => {
         </div>
       </NSpin>
     </NCard>
+
+    <NDrawer :show="createDrawerVisible" :width="520" placement="right" @update:show="handleCreateDrawerVisibleChange">
+      <NDrawerContent :title="t('page.envops.deployTask.create.title')" closable>
+        <NSpace vertical :size="16">
+          <NForm label-placement="top">
+            <NFormItem :label="t('page.envops.deployTask.create.taskName')">
+              <NInput
+                v-model:value="createForm.taskName"
+                :placeholder="t('page.envops.deployTask.create.taskNamePlaceholder')"
+              />
+            </NFormItem>
+            <NGrid cols="1 s:2" responsive="screen" :x-gap="12" :y-gap="12">
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.taskType')">
+                  <NSelect v-model:value="createForm.taskType" :options="createTaskTypeOptions" />
+                </NFormItem>
+              </NGi>
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.environment')">
+                  <NSelect v-model:value="createForm.environment" :options="environmentOptions" />
+                </NFormItem>
+              </NGi>
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.app')">
+                  <NSelect
+                    v-model:value="createForm.appId"
+                    clearable
+                    filterable
+                    :options="appOptions"
+                    :placeholder="t('page.envops.deployTask.create.appPlaceholder')"
+                  />
+                </NFormItem>
+              </NGi>
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.version')">
+                  <NSelect
+                    v-model:value="createForm.versionId"
+                    clearable
+                    filterable
+                    :loading="createVersionsLoading"
+                    :disabled="createForm.appId === null"
+                    :options="createVersionOptions"
+                    :placeholder="t('page.envops.deployTask.create.versionPlaceholder')"
+                  />
+                </NFormItem>
+              </NGi>
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.batchStrategy')">
+                  <NSelect v-model:value="createForm.batchStrategy" :options="createBatchStrategyOptions" />
+                </NFormItem>
+              </NGi>
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.batchSize')">
+                  <NInputNumber
+                    v-model:value="createForm.batchSize"
+                    clearable
+                    :min="1"
+                    :disabled="createForm.batchStrategy !== 'ROLLING'"
+                    :placeholder="t('page.envops.deployTask.create.batchSizePlaceholder')"
+                    class="w-full"
+                  />
+                </NFormItem>
+              </NGi>
+            </NGrid>
+            <NFormItem :label="t('page.envops.deployTask.create.deployDir')">
+              <NInput
+                v-model:value="createForm.deployDir"
+                :placeholder="t('page.envops.deployTask.create.deployDirPlaceholder')"
+              />
+            </NFormItem>
+            <NGrid cols="1 s:2" responsive="screen" :x-gap="12" :y-gap="12">
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.sshUser')">
+                  <NInput
+                    v-model:value="createForm.sshUser"
+                    :placeholder="t('page.envops.deployTask.create.sshUserPlaceholder')"
+                  />
+                </NFormItem>
+              </NGi>
+              <NGi>
+                <NFormItem :label="t('page.envops.deployTask.create.sshPort')">
+                  <NInputNumber
+                    v-model:value="createForm.sshPort"
+                    clearable
+                    :min="1"
+                    :placeholder="t('page.envops.deployTask.create.sshPortPlaceholder')"
+                    class="w-full"
+                  />
+                </NFormItem>
+              </NGi>
+            </NGrid>
+            <NFormItem :label="t('page.envops.deployTask.create.privateKeyPath')">
+              <NInput
+                v-model:value="createForm.privateKeyPath"
+                :placeholder="t('page.envops.deployTask.create.privateKeyPathPlaceholder')"
+              />
+            </NFormItem>
+            <NFormItem :label="t('page.envops.deployTask.create.remoteBaseDir')">
+              <NInput
+                v-model:value="createForm.remoteBaseDir"
+                :placeholder="t('page.envops.deployTask.create.remoteBaseDirPlaceholder')"
+              />
+            </NFormItem>
+            <NFormItem :label="t('page.envops.deployTask.create.rollbackCommand')">
+              <NInput
+                v-model:value="createForm.rollbackCommand"
+                type="textarea"
+                :autosize="{ minRows: 3, maxRows: 5 }"
+                :placeholder="t('page.envops.deployTask.create.rollbackCommandPlaceholder')"
+              />
+            </NFormItem>
+            <NFormItem :label="t('page.envops.deployTask.create.hosts')">
+              <NSelect
+                v-model:value="createForm.hostIds"
+                multiple
+                clearable
+                filterable
+                :loading="createHostsLoading"
+                :options="createHostOptions"
+                :placeholder="t('page.envops.deployTask.create.hostsPlaceholder')"
+              />
+            </NFormItem>
+          </NForm>
+          <NSpace justify="end">
+            <NButton @click="handleCreateDrawerVisibleChange(false)">
+              {{ t('common.cancel') }}
+            </NButton>
+            <NButton type="primary" :loading="createSubmitting" @click="handleCreateTask">
+              {{ t('page.envops.deployTask.actions.create') }}
+            </NButton>
+          </NSpace>
+        </NSpace>
+      </NDrawerContent>
+    </NDrawer>
+
+    <NDrawer
+      :show="approvalDrawerVisible"
+      :width="420"
+      placement="right"
+      @update:show="handleApprovalDrawerVisibleChange"
+    >
+      <NDrawerContent :title="approvalDrawerTitle" closable>
+        <NSpace vertical :size="16">
+          <NForm label-placement="top">
+            <NFormItem :label="t('page.envops.deployTask.approval.comment')">
+              <NInput
+                v-model:value="approvalForm.comment"
+                type="textarea"
+                :autosize="{ minRows: 4, maxRows: 8 }"
+                :placeholder="t('page.envops.deployTask.approval.commentPlaceholder')"
+              />
+            </NFormItem>
+          </NForm>
+          <NSpace justify="end">
+            <NButton @click="handleApprovalDrawerVisibleChange(false)">
+              {{ t('common.cancel') }}
+            </NButton>
+            <NButton type="primary" :loading="approvalSubmitting" @click="handleSubmitApproval">
+              {{ approvalSubmitText }}
+            </NButton>
+          </NSpace>
+        </NSpace>
+      </NDrawerContent>
+    </NDrawer>
 
     <NDrawer :show="detailDrawerVisible" :width="960" placement="right" @update:show="handleDetailDrawerVisibleChange">
       <NDrawerContent :title="t('page.envops.deployTask.detail.title')" closable>

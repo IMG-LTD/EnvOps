@@ -17,6 +17,12 @@ declare namespace Api {
       [key: string]: unknown;
     }
 
+    interface CreateDetectTaskParams {
+      taskName: string;
+      hostId: number;
+      schedule?: string;
+    }
+
     type DetectTaskListResponse = DetectTaskRecord[];
 
     interface HostFactRecord {

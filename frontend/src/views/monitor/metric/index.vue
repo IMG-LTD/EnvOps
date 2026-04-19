@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { fetchGetMonitorHostFactsLatest } from '@/service/api';
+import { fetchGetAssetHosts, fetchGetMonitorHostFactsLatest } from '@/service/api';
 
 defineOptions({
   name: 'MonitorMetricPage'
 });
 
+const route = useRoute();
 const { t } = useI18n();
 
 const loading = ref(false);
-const hostId = 1;
+const requestToken = ref(0);
+const defaultHostId = ref<number | null>(null);
 const hostFacts = ref<Api.Monitor.HostFactRecord | null>(null);
+const hostId = computed(() => normalizeHostId(route.query.hostId) ?? defaultHostId.value);
 
 const summary = computed(() => [
   {
@@ -79,12 +83,42 @@ const detailRows = computed(() => [
 ]);
 
 async function loadHostFacts() {
+  const currentRequestToken = ++requestToken.value;
+
   loading.value = true;
 
-  const { data, error } = await fetchGetMonitorHostFactsLatest(hostId);
+  if (defaultHostId.value === null) {
+    const { data, error } = await fetchGetAssetHosts({ current: 1, size: 100 });
+
+    if (currentRequestToken !== requestToken.value) {
+      return;
+    }
+
+    if (!error) {
+      const hostRecords = Array.isArray(data?.records) ? data.records : [];
+      const firstHostWithFacts = hostRecords.find(item => item.hasMonitorFacts);
+      defaultHostId.value = firstHostWithFacts?.id ?? null;
+    }
+  }
+
+  const currentHostId = hostId.value;
+
+  if (currentHostId === null) {
+    hostFacts.value = null;
+    loading.value = false;
+    return;
+  }
+
+  const { data, error } = await fetchGetMonitorHostFactsLatest(currentHostId);
+
+  if (currentRequestToken !== requestToken.value) {
+    return;
+  }
 
   if (!error) {
     hostFacts.value = data;
+  } else {
+    hostFacts.value = null;
   }
 
   loading.value = false;
@@ -105,6 +139,17 @@ function formatMemory(value?: number | null) {
   return `${value} MB`;
 }
 
+function normalizeHostId(value: unknown) {
+  const normalizedValue = Array.isArray(value) ? value[0] : value;
+  const numericValue = Number(normalizedValue);
+
+  if (!Number.isInteger(numericValue) || numericValue <= 0) {
+    return null;
+  }
+
+  return numericValue;
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) {
     return '-';
@@ -112,6 +157,10 @@ function formatDateTime(value?: string | null) {
 
   return value.replace('T', ' ').slice(0, 19);
 }
+
+watch(hostId, () => {
+  void loadHostFacts();
+});
 
 onMounted(() => {
   void loadHostFacts();
@@ -127,7 +176,7 @@ onMounted(() => {
           <p class="mt-8px text-14px text-#666">{{ t('page.envops.monitorMetric.hero.description') }}</p>
         </div>
         <NSpace>
-          <NTag type="info">{{ t('page.envops.monitorMetric.tags.host', { id: hostId }) }}</NTag>
+          <NTag type="info">{{ t('page.envops.monitorMetric.tags.host', { id: hostId ?? '-' }) }}</NTag>
           <NButton secondary :loading="loading" @click="loadHostFacts">
             {{ t('common.refresh') }}
           </NButton>

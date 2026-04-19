@@ -1,5 +1,6 @@
 package com.img.envops.modules.monitor.application;
 
+import com.img.envops.modules.exec.application.MonitorDetectExecutor;
 import com.img.envops.modules.monitor.infrastructure.mapper.MonitorDetectTaskMapper;
 import com.img.envops.modules.monitor.infrastructure.mapper.MonitorHostFactMapper;
 import com.img.envops.modules.monitor.infrastructure.mapper.MonitorHostMapper;
@@ -14,13 +15,16 @@ public class MonitorApplicationService {
   private final MonitorDetectTaskMapper monitorDetectTaskMapper;
   private final MonitorHostFactMapper monitorHostFactMapper;
   private final MonitorHostMapper monitorHostMapper;
+  private final MonitorDetectExecutor monitorDetectExecutor;
 
   public MonitorApplicationService(MonitorDetectTaskMapper monitorDetectTaskMapper,
                                    MonitorHostFactMapper monitorHostFactMapper,
-                                   MonitorHostMapper monitorHostMapper) {
+                                   MonitorHostMapper monitorHostMapper,
+                                   MonitorDetectExecutor monitorDetectExecutor) {
     this.monitorDetectTaskMapper = monitorDetectTaskMapper;
     this.monitorHostFactMapper = monitorHostFactMapper;
     this.monitorHostMapper = monitorHostMapper;
+    this.monitorDetectExecutor = monitorDetectExecutor;
   }
 
   public DetectTaskRecord createDetectTask(CreateDetectTaskCommand command) {
@@ -54,6 +58,34 @@ public class MonitorApplicationService {
         .toList();
   }
 
+  public DetectTaskRecord executeDetectTask(Long taskId) {
+    MonitorDetectTaskMapper.DetectTaskRow task = requireDetectTask(taskId);
+    MonitorHostMapper.HostRow host = requireHost(task.getHostId());
+    LocalDateTime executedAt = LocalDateTime.now();
+
+    try {
+      MonitorDetectExecutor.DetectExecutionResult executionResult = monitorDetectExecutor.executeHostFacts(host.getId(), host.getHostName());
+
+      MonitorHostFactMapper.HostFactEntity hostFactEntity = new MonitorHostFactMapper.HostFactEntity();
+      hostFactEntity.setHostId(host.getId());
+      hostFactEntity.setHostName(executionResult.hostName());
+      hostFactEntity.setOsName(executionResult.osName());
+      hostFactEntity.setKernelVersion(executionResult.kernelVersion());
+      hostFactEntity.setCpuCores(executionResult.cpuCores());
+      hostFactEntity.setMemoryMb(executionResult.memoryMb());
+      hostFactEntity.setAgentVersion(executionResult.agentVersion());
+      hostFactEntity.setCollectedAt(executionResult.collectedAt());
+      monitorHostFactMapper.insertHostFact(hostFactEntity);
+
+      monitorDetectTaskMapper.updateLastExecution(taskId, executedAt, executionResult.resultLevel());
+    } catch (RuntimeException exception) {
+      monitorDetectTaskMapper.updateLastExecution(taskId, executedAt, "failed");
+      throw exception;
+    }
+
+    return toDetectTaskRecord(requireDetectTask(taskId));
+  }
+
   public HostFactRecord getLatestHostFact(Long hostId) {
     MonitorHostMapper.HostRow host = requireHost(hostId);
     MonitorHostFactMapper.HostFactRow latest = monitorHostFactMapper.findLatestByHostId(host.getId());
@@ -84,6 +116,19 @@ public class MonitorApplicationService {
     }
 
     return host;
+  }
+
+  private MonitorDetectTaskMapper.DetectTaskRow requireDetectTask(Long taskId) {
+    if (taskId == null) {
+      throw new IllegalArgumentException("taskId is required");
+    }
+
+    MonitorDetectTaskMapper.DetectTaskRow task = monitorDetectTaskMapper.findById(taskId);
+    if (task == null) {
+      throw new IllegalArgumentException("detect task not found: " + taskId);
+    }
+
+    return task;
   }
 
   private DetectTaskRecord toDetectTaskRecord(MonitorDetectTaskMapper.DetectTaskRow row) {

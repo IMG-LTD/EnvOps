@@ -129,7 +129,9 @@ public class AssetApplicationService {
         row.getClusterName(),
         row.getOwnerName(),
         row.getStatus(),
-        row.getLastHeartbeat());
+        row.getLastHeartbeat(),
+        Boolean.TRUE.equals(row.getHasMonitorFacts()),
+        row.getLatestMonitorFactAt());
   }
 
   private CredentialRecord toCredentialRecord(AssetCredentialMapper.CredentialRow row) {
@@ -178,7 +180,9 @@ public class AssetApplicationService {
                            String clusterName,
                            String ownerName,
                            String status,
-                           LocalDateTime lastHeartbeat) {
+                           LocalDateTime lastHeartbeat,
+                           Boolean hasMonitorFacts,
+                           LocalDateTime latestMonitorFactAt) {
   }
 
   public record CredentialRecord(Long id,

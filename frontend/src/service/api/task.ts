@@ -13,6 +13,50 @@ export function fetchGetDeployTask(id: number) {
   return request<Api.Task.DeployTaskDetailRecord>({ url: `/api/deploy/tasks/${id}` });
 }
 
+/** create deploy task */
+export function fetchPostCreateDeployTask(data: Api.Task.CreateDeployTaskPayload) {
+  return request<Api.Task.DeployTaskRecord>({
+    url: '/api/deploy/tasks',
+    method: 'post',
+    data: {
+      taskName: data.taskName,
+      taskType: data.taskType,
+      appId: data.appId,
+      versionId: data.versionId,
+      hostIds: data.hostIds,
+      batchStrategy: data.batchStrategy,
+      ...(data.batchSize !== null && data.batchSize !== undefined ? { batchSize: data.batchSize } : {}),
+      params: {
+        environment: data.environment,
+        deployDir: data.deployDir,
+        sshUser: data.sshUser,
+        ...(data.sshPort !== null && data.sshPort !== undefined ? { sshPort: data.sshPort } : {}),
+        privateKeyPath: data.privateKeyPath,
+        remoteBaseDir: data.remoteBaseDir,
+        ...(data.rollbackCommand ? { rollbackCommand: data.rollbackCommand } : {})
+      }
+    }
+  });
+}
+
+/** approve deploy task */
+export function fetchPostApproveDeployTask(id: number, data?: Api.Task.DeployTaskApprovalPayload) {
+  return request<Api.Task.DeployTaskRecord>({
+    url: `/api/deploy/tasks/${id}/approve`,
+    method: 'post',
+    data
+  });
+}
+
+/** reject deploy task */
+export function fetchPostRejectDeployTask(id: number, data?: Api.Task.DeployTaskApprovalPayload) {
+  return request<Api.Task.DeployTaskRecord>({
+    url: `/api/deploy/tasks/${id}/reject`,
+    method: 'post',
+    data
+  });
+}
+
 /** execute deploy task */
 export function fetchPostExecuteDeployTask(id: number) {
   return request<Api.Task.DeployTaskRecord>({

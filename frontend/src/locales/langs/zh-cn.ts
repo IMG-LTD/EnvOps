@@ -280,6 +280,7 @@ const local: App.I18n.Schema = {
         getCode: '获取验证码',
         reGetCode: '{time}秒后重新获取',
         sendCodeSuccess: '验证码发送成功',
+        demoCodeHint: '演示环境验证码为手机号后 6 位',
         imageCodePlaceholder: '请输入图片验证码'
       },
       register: {
@@ -463,6 +464,7 @@ const local: App.I18n.Schema = {
           emergencyRollback: '紧急回滚'
         },
         role: {
+          superAdmin: '超级管理员',
           platformAdmin: '平台管理员',
           releaseManager: '发布负责人',
           trafficOwner: '流量负责人',
@@ -551,7 +553,7 @@ const local: App.I18n.Schema = {
       assetHost: {
         hero: {
           title: '主机资产',
-          description: '用于承接资产接入、归属管理与运行态可见性的首版页面壳层。'
+          description: '展示资产主机清单，支持新增纳管主机，并可直接进入已有监控快照的主机指标详情。'
         },
         tags: {
           cmdbSynchronized: 'CMDB 已同步',
@@ -571,6 +573,30 @@ const local: App.I18n.Schema = {
             desc: '当前资产库中状态为告警的主机总数'
           }
         },
+        form: {
+          title: '新增主机',
+          hostName: '主机名',
+          ipAddress: 'IP 地址',
+          environment: '环境',
+          clusterName: '集群名称',
+          ownerName: '归属团队',
+          status: '状态',
+          lastHeartbeat: '最近心跳',
+          placeholders: {
+            hostName: '例如：host-sbx-01',
+            ipAddress: '例如：10.60.1.20',
+            clusterName: '例如：cn-shenzhen-a',
+            ownerName: '例如：Asset Team',
+            lastHeartbeat: '可选，ISO 时间，例如 2026-04-16T11:22:33'
+          },
+          actions: {
+            create: '纳管主机'
+          }
+        },
+        messages: {
+          fillRequired: '请先填写主机名、IP、环境、集群、归属团队和状态',
+          createSuccess: '主机纳管成功'
+        },
         table: {
           title: '主机快照',
           host: '主机',
@@ -579,7 +605,10 @@ const local: App.I18n.Schema = {
           cluster: '集群',
           owner: '归属',
           status: '状态',
-          lastHeartbeat: '最近心跳'
+          lastHeartbeat: '最近心跳',
+          latestMetric: '最新指标快照',
+          operation: '操作',
+          viewMetrics: '查看指标'
         }
       },
       assetGroup: {
@@ -662,11 +691,11 @@ const local: App.I18n.Schema = {
       monitorDetectTask: {
         hero: {
           title: '巡检任务',
-          description: '接入真实巡检任务接口，展示当前巡检作业、执行目标与最近结果。'
+          description: '接入真实巡检任务接口，支持创建任务、手动执行，并回看最新执行结果。'
         },
         tags: {
           healthyCount: '{count} 个正常',
-          timedOutCount: '{count} 个超时'
+          attentionCount: '{count} 个待关注'
         },
         summary: {
           scheduledTasks: {
@@ -682,19 +711,38 @@ const local: App.I18n.Schema = {
             desc: '存在失败、超时或部分成功的任务'
           }
         },
+        form: {
+          title: '新建巡检任务',
+          taskName: '任务名称',
+          taskNamePlaceholder: '请输入任务名称',
+          host: '目标主机',
+          hostPlaceholder: '请选择目标主机',
+          schedule: '调度周期',
+          manualSchedule: '手动执行'
+        },
+        actions: {
+          create: '创建任务',
+          execute: '立即执行'
+        },
+        messages: {
+          fillNameAndHost: '请先填写任务名称并选择目标主机',
+          createSuccess: '巡检任务创建成功',
+          executeSuccess: '巡检任务执行完成'
+        },
         table: {
           title: '任务队列',
           task: '任务',
           target: '目标',
           schedule: '调度周期',
           lastRun: '最近执行',
-          result: '结果'
+          result: '结果',
+          operation: '操作'
         }
       },
       monitorMetric: {
         hero: {
           title: '指标快照',
-          description: '展示指定主机最新一次事实上报，用于验证 monitor 指标页与后端链路。'
+          description: '展示当前主机最新一次事实上报，承接资产主机到监控详情的查看链路。'
         },
         tags: {
           host: '主机 #{id}'
@@ -816,10 +864,62 @@ const local: App.I18n.Schema = {
         },
         actions: {
           detail: '详情',
+          create: '新建任务',
           execute: '执行',
           retry: '重试',
           rollback: '回滚',
+          approve: '通过',
+          reject: '拒绝',
           cancel: '取消任务'
+        },
+        create: {
+          title: '新建发布任务',
+          taskName: '任务名称',
+          taskNamePlaceholder: '请输入任务名称',
+          taskType: '任务类型',
+          app: '应用',
+          appPlaceholder: '请选择应用',
+          version: '版本',
+          versionPlaceholder: '请选择版本',
+          environment: '环境',
+          hosts: '目标主机',
+          hostsPlaceholder: '请选择主机',
+          batchStrategy: '批次策略',
+          batchStrategyAll: '全量',
+          batchStrategyRolling: '滚动',
+          batchSize: '批大小',
+          batchSizePlaceholder: '滚动发布时请输入批大小',
+          deployDir: '部署目录',
+          deployDirPlaceholder: '请输入部署目录，例如 /data/apps/order-service',
+          sshUser: 'SSH 用户',
+          sshUserPlaceholder: '请输入 SSH 登录用户，例如 deploy',
+          sshPort: 'SSH 端口',
+          sshPortPlaceholder: '请输入 SSH 端口，默认 22',
+          privateKeyPath: '私钥路径',
+          privateKeyPathPlaceholder: '请输入私钥文件路径，例如 /data/keys/release.pem',
+          remoteBaseDir: '远端发布根目录',
+          remoteBaseDirPlaceholder: '请输入远端根目录，例如 /opt/envops/releases',
+          rollbackCommand: '回滚命令',
+          rollbackCommandPlaceholder: '可选，填写后回滚任务将直接执行这条命令',
+          validation: {
+            taskNameRequired: '请输入任务名称',
+            appRequired: '请选择应用',
+            versionRequired: '请选择版本',
+            environmentRequired: '请选择环境',
+            hostsRequired: '请选择至少一台主机',
+            deployDirRequired: '请输入部署目录',
+            sshUserRequired: '请输入 SSH 用户',
+            sshPortInvalid: 'SSH 端口必须大于 0',
+            privateKeyPathRequired: '请输入私钥路径',
+            remoteBaseDirRequired: '请输入远端发布根目录',
+            batchSizeRequired: '滚动发布时批大小必须大于 0'
+          }
+        },
+        approval: {
+          approveTitle: '审批通过发布任务',
+          rejectTitle: '拒绝发布任务',
+          comment: '审批备注',
+          commentPlaceholder: '可选，输入审批备注'
         },
         tabs: {
           overview: '概览',
@@ -967,13 +1067,25 @@ const local: App.I18n.Schema = {
           scope: '范围',
           trafficRatio: '流量比例',
           owner: '归属',
-          status: '状态'
+          status: '状态',
+          operation: '操作'
+        },
+        actions: {
+          preview: '预览',
+          apply: '应用',
+          rollback: '回滚'
+        },
+        messages: {
+          latestAction: '最近一次流量动作',
+          previewSuccess: '流量策略预览成功',
+          applySuccess: '流量策略应用成功',
+          rollbackSuccess: '流量策略回滚成功'
         }
       },
       systemUser: {
         hero: {
           title: '用户管理',
-          description: '维护平台操作者、团队权限与登录姿态，支撑 EnvOps 壳层接入。'
+          description: '维护平台操作者、团队权限与登录姿态，支持新增与编辑系统用户。'
         },
         tags: {
           rbacEnabled: 'RBAC 已启用',
@@ -993,6 +1105,36 @@ const local: App.I18n.Schema = {
             desc: '最近 24 小时内登录过的用户'
           }
         },
+        actions: {
+          create: '新增用户',
+          edit: '编辑',
+          refresh: '刷新',
+          save: '保存'
+        },
+        form: {
+          titleCreate: '新增用户',
+          titleEdit: '编辑用户',
+          userName: '用户名',
+          password: '密码',
+          phone: '手机号',
+          team: '团队',
+          loginType: '登录方式',
+          status: '状态',
+          roles: '角色',
+          placeholders: {
+            userName: '请输入用户名，例如 ops-manager',
+            passwordCreate: '请输入登录密码',
+            passwordEdit: '可选，不填写则保持原密码',
+            phone: '请输入 11 位手机号',
+            roles: '请选择至少一个角色'
+          }
+        },
+        messages: {
+          fillRequired: '请先填写用户名、手机号、团队、登录方式、状态和角色',
+          phoneInvalid: '手机号格式不正确',
+          createSuccess: '用户创建成功',
+          updateSuccess: '用户更新成功'
+        },
         table: {
           title: '访问快照',
           user: '用户',
@@ -1000,7 +1142,8 @@ const local: App.I18n.Schema = {
           team: '团队',
           loginType: '登录方式',
           lastLogin: '最近登录',
-          status: '状态'
+          status: '状态',
+          operation: '操作'
         }
       }
     }

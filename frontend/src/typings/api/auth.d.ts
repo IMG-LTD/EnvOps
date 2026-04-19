@@ -9,6 +9,11 @@ declare namespace Api {
       token: string;
     }
 
+    interface SendCodeResult {
+      maskedPhone: string;
+      expireSeconds: number;
+    }
+
     interface UserInfo {
       userId: string;
       userName: string;

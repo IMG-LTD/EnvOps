@@ -33,6 +33,11 @@ public class MonitorController {
     return R.ok(monitorApplicationService.getDetectTasks());
   }
 
+  @PostMapping("/detect-tasks/{id}/execute")
+  public R<MonitorApplicationService.DetectTaskRecord> executeDetectTask(@PathVariable Long id) {
+    return R.ok(monitorApplicationService.executeDetectTask(id));
+  }
+
   @GetMapping("/hosts/{hostId}/facts/latest")
   public R<MonitorApplicationService.HostFactRecord> getLatestHostFact(@PathVariable Long hostId) {
     return R.ok(monitorApplicationService.getLatestHostFact(hostId));

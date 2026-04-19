@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS asset_tag;
 DROP TABLE IF EXISTS asset_group;
 DROP TABLE IF EXISTS asset_credential;
 DROP TABLE IF EXISTS asset_host;
+DROP TABLE IF EXISTS traffic_policy;
 DROP TABLE IF EXISTS sys_user_role;
 DROP TABLE IF EXISTS sys_menu_route;
 DROP TABLE IF EXISTS sys_role;
@@ -226,10 +227,29 @@ CREATE TABLE deploy_task_param (
     CONSTRAINT fk_deploy_task_param_task FOREIGN KEY (task_id) REFERENCES deploy_task (id)
 );
 
+CREATE TABLE traffic_policy (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    app VARCHAR(128) NOT NULL,
+    strategy VARCHAR(64) NOT NULL,
+    scope VARCHAR(128) NOT NULL,
+    traffic_ratio VARCHAR(32) NOT NULL,
+    owner VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    plugin_type VARCHAR(32) NOT NULL,
+    rollback_token VARCHAR(128),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE sys_user (
     id BIGINT PRIMARY KEY,
     user_name VARCHAR(64) NOT NULL UNIQUE,
-    password VARCHAR(128) NOT NULL
+    password VARCHAR(128) NOT NULL,
+    phone VARCHAR(16) NOT NULL UNIQUE,
+    team_key VARCHAR(32) NOT NULL DEFAULT 'envops',
+    login_type VARCHAR(32) NOT NULL DEFAULT 'PASSWORD',
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    last_login_at TIMESTAMP NULL
 );
 
 CREATE TABLE sys_role (

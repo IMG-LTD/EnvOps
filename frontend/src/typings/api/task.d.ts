@@ -9,6 +9,31 @@ declare namespace Api {
 
     type TaskSortOrder = 'asc' | 'desc';
 
+    type DeployTaskCreateTaskType = 'INSTALL' | 'UPGRADE';
+
+    type DeployTaskBatchStrategy = 'ALL' | 'ROLLING';
+
+    interface CreateDeployTaskPayload {
+      taskName: string;
+      taskType: DeployTaskCreateTaskType;
+      appId: number;
+      versionId: number;
+      environment: string;
+      hostIds: number[];
+      batchStrategy: DeployTaskBatchStrategy;
+      batchSize?: number | null;
+      deployDir: string;
+      sshUser: string;
+      sshPort?: number | null;
+      privateKeyPath: string;
+      remoteBaseDir: string;
+      rollbackCommand?: string | null;
+    }
+
+    interface DeployTaskApprovalPayload {
+      comment?: string | null;
+    }
+
     interface DeployTaskListQuery {
       keyword?: string;
       status?: string;

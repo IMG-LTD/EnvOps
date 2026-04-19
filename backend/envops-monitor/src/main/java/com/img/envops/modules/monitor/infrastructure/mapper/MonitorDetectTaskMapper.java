@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,6 +47,16 @@ public interface MonitorDetectTaskMapper {
       ORDER BY created_at DESC, id DESC
       """)
   List<DetectTaskRow> findAll();
+
+  @Update("""
+      UPDATE monitor_detect_task
+      SET last_run_at = #{lastRunAt},
+          last_result = #{lastResult}
+      WHERE id = #{id}
+      """)
+  int updateLastExecution(@Param("id") Long id,
+                          @Param("lastRunAt") LocalDateTime lastRunAt,
+                          @Param("lastResult") String lastResult);
 
   class DetectTaskRow {
     private Long id;

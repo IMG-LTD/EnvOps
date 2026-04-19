@@ -726,7 +726,7 @@ class AppControllerTest {
 
   @Test
   void nonSuperAdminCannotAccessAppApis() throws Exception {
-    seedUserWithRole(2L, "release-engineer", "Release@123", 2L, "RELEASE_ENGINEER", "Release Engineer");
+    seedUserWithRole(2L, "release-engineer", "Release@123", 6L, "RELEASE_ENGINEER", "Release Engineer");
     String accessToken = login("release-engineer", "Release@123");
 
     mockMvc.perform(get("/api/apps")
@@ -838,7 +838,15 @@ class AppControllerTest {
                                 Long roleId,
                                 String roleKey,
                                 String roleName) {
-    jdbcTemplate.update("INSERT INTO sys_user (id, user_name, password) VALUES (?, ?, ?)", userId, userName, password);
+    jdbcTemplate.update(
+        "INSERT INTO sys_user (id, user_name, password, phone, team_key, login_type, status, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+        userId,
+        userName,
+        password,
+        "139" + String.format("%08d", userId % 100000000L),
+        "platform",
+        "PASSWORD",
+        "ACTIVE");
     jdbcTemplate.update("INSERT INTO sys_role (id, role_key, role_name) VALUES (?, ?, ?)", roleId, roleKey, roleName);
     jdbcTemplate.update("INSERT INTO sys_user_role (user_id, role_id) VALUES (?, ?)", userId, roleId);
   }

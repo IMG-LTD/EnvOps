@@ -33,11 +33,29 @@ VALUES
     (1, 'host-prd-01', 'Ubuntu 22.04.4 LTS', '5.15.0-106-generic', 8, 16384, '1.0.1', TIMESTAMP '2026-04-16 08:45:00'),
     (2, 'host-prd-02', 'Alibaba Cloud Linux 3', '5.10.134-18.al8', 16, 32768, '1.0.0', TIMESTAMP '2026-04-16 08:30:00');
 
-INSERT INTO sys_user (id, user_name, password) VALUES (1, 'envops-admin', 'EnvOps@123');
+INSERT INTO sys_user (id, user_name, password, phone, team_key, login_type, status, last_login_at)
+VALUES
+    (1, 'envops-admin', 'EnvOps@123', '13800138000', 'platform', 'PASSWORD', 'ACTIVE', TIMESTAMP '2026-04-18 09:15:00'),
+    (20, 'release-admin', 'Release@123', '13900139000', 'release', 'PASSWORD_OTP', 'ACTIVE', TIMESTAMP '2026-04-18 08:45:00'),
+    (21, 'traffic-owner', 'Traffic@123', '13700137000', 'traffic', 'SSO', 'REVIEW', TIMESTAMP '2026-04-17 19:20:00'),
+    (22, 'qa-observer', 'QaObserver@123', '13600136000', 'qa', 'SSO', 'DISABLED', TIMESTAMP '2026-04-16 18:10:00');
 
-INSERT INTO sys_role (id, role_key, role_name) VALUES (1, 'SUPER_ADMIN', 'Super Admin');
+INSERT INTO sys_role (id, role_key, role_name)
+VALUES
+    (1, 'SUPER_ADMIN', 'Super Admin'),
+    (2, 'PLATFORM_ADMIN', 'Platform Admin'),
+    (3, 'RELEASE_MANAGER', 'Release Manager'),
+    (4, 'TRAFFIC_OWNER', 'Traffic Owner'),
+    (5, 'OBSERVER', 'Observer');
 
-INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);
+INSERT INTO sys_user_role (user_id, role_id)
+VALUES
+    (1, 1),
+    (1, 2),
+    (20, 1),
+    (20, 3),
+    (21, 4),
+    (22, 5);
 
 INSERT INTO app_definition (id, app_code, app_name, app_type, runtime_type, deploy_mode, default_port, health_check_path, description, status, deleted, created_by, updated_by, created_at, updated_at)
 VALUES
@@ -80,6 +98,12 @@ INSERT INTO deploy_task_param (id, task_id, param_key, param_value, secret_flag)
 VALUES
     (2301, 2001, 'deployDir', '/data/apps/order-service', 0),
     (2302, 2001, 'profile', 'prod', 0);
+
+INSERT INTO traffic_policy (id, app, strategy, scope, traffic_ratio, owner, status, plugin_type, rollback_token, created_at, updated_at)
+VALUES
+    (3001, 'checkout-gateway', 'header_canary', 'prod / cn-shanghai-a', '20%', 'traffic-team', 'ENABLED', 'NGINX', 'traffic-rb-3001', TIMESTAMP '2026-04-15 17:00:00', TIMESTAMP '2026-04-15 17:00:00'),
+    (3002, 'billing-admin', 'blue_green', 'staging / all', '100%', 'release-team', 'PREVIEW', 'REST', 'traffic-rb-3002', TIMESTAMP '2026-04-15 17:05:00', TIMESTAMP '2026-04-15 17:05:00'),
+    (3003, 'ops-worker', 'weighted_routing', 'prod / cn-beijing-b', '10%', 'platform-team', 'REVIEW', 'NGINX', NULL, TIMESTAMP '2026-04-15 17:10:00', TIMESTAMP '2026-04-15 17:10:00');
 
 INSERT INTO sys_menu_route (id, parent_id, route_name, route_path, component, title, icon, route_order, route_type, required_role, home_flag)
 VALUES

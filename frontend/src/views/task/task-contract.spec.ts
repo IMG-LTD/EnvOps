@@ -26,6 +26,11 @@ const mocks = vi.hoisted(() => {
   const fetchGetDeployTaskHosts = vi.fn();
   const fetchGetDeployTaskLogs = vi.fn();
   const fetchGetTaskCenterTasks = vi.fn();
+  const fetchGetAppVersions = vi.fn();
+  const fetchGetAssetHosts = vi.fn();
+  const fetchPostCreateDeployTask = vi.fn();
+  const fetchPostApproveDeployTask = vi.fn();
+  const fetchPostRejectDeployTask = vi.fn();
   const fetchPostExecuteDeployTask = vi.fn();
   const fetchPostRetryDeployTask = vi.fn();
   const fetchPostRollbackDeployTask = vi.fn();
@@ -42,6 +47,11 @@ const mocks = vi.hoisted(() => {
     fetchGetDeployTaskHosts,
     fetchGetDeployTaskLogs,
     fetchGetTaskCenterTasks,
+    fetchGetAppVersions,
+    fetchGetAssetHosts,
+    fetchPostCreateDeployTask,
+    fetchPostApproveDeployTask,
+    fetchPostRejectDeployTask,
     fetchPostExecuteDeployTask,
     fetchPostRetryDeployTask,
     fetchPostRollbackDeployTask,
@@ -109,6 +119,94 @@ const buttonStub = defineComponent({
   }
 });
 
+const inputStub = defineComponent({
+  inheritAttrs: false,
+  props: {
+    value: {
+      type: [String, Number],
+      default: ''
+    }
+  },
+  emits: ['update:value'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h('input', {
+        ...attrs,
+        value: props.value ?? '',
+        onInput: (event: Event) => emit('update:value', (event.target as HTMLInputElement).value)
+      });
+  }
+});
+
+const inputNumberStub = defineComponent({
+  inheritAttrs: false,
+  props: {
+    value: {
+      type: [Number, String, null],
+      default: null
+    }
+  },
+  emits: ['update:value'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h('input', {
+        ...attrs,
+        type: 'number',
+        value: props.value ?? '',
+        onInput: (event: Event) => {
+          const value = (event.target as HTMLInputElement).value;
+          emit('update:value', value === '' ? null : Number(value));
+        }
+      });
+  }
+});
+
+const selectStub = defineComponent({
+  inheritAttrs: false,
+  props: {
+    value: {
+      type: [String, Number, Array, null],
+      default: null
+    },
+    options: {
+      type: Array,
+      default: () => []
+    },
+    multiple: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['update:value'],
+  setup(props, { attrs, emit }) {
+    return () =>
+      h(
+        'select',
+        {
+          ...attrs,
+          multiple: props.multiple,
+          value: props.multiple ? undefined : (props.value ?? ''),
+          onChange: (event: Event) => {
+            const target = event.target as HTMLSelectElement;
+
+            if (props.multiple) {
+              const values = Array.from(target.selectedOptions).map(option => {
+                const matched = props.options.find((item: any) => String(item.value) === option.value) as any;
+                return matched ? matched.value : option.value;
+              });
+              emit('update:value', values);
+              return;
+            }
+
+            const matched = props.options.find((item: any) => String(item.value) === target.value) as any;
+            emit('update:value', matched ? matched.value : target.value);
+          }
+        },
+        props.options.map((option: any) => h('option', { value: String(option.value) }, option.label))
+      );
+  }
+});
+
 const tableStub = defineComponent({
   inheritAttrs: false,
   setup(_props, { attrs, slots }) {
@@ -140,6 +238,11 @@ vi.mock('@/service/api', () => ({
   fetchGetDeployTaskHosts: mocks.fetchGetDeployTaskHosts,
   fetchGetDeployTaskLogs: mocks.fetchGetDeployTaskLogs,
   fetchGetTaskCenterTasks: mocks.fetchGetTaskCenterTasks,
+  fetchGetAppVersions: mocks.fetchGetAppVersions,
+  fetchGetAssetHosts: mocks.fetchGetAssetHosts,
+  fetchPostCreateDeployTask: mocks.fetchPostCreateDeployTask,
+  fetchPostApproveDeployTask: mocks.fetchPostApproveDeployTask,
+  fetchPostRejectDeployTask: mocks.fetchPostRejectDeployTask,
   fetchPostExecuteDeployTask: mocks.fetchPostExecuteDeployTask,
   fetchPostRetryDeployTask: mocks.fetchPostRetryDeployTask,
   fetchPostRollbackDeployTask: mocks.fetchPostRollbackDeployTask,
@@ -294,12 +397,15 @@ async function mountDeployTaskPage() {
     'NGi',
     'NStatistic',
     'NInput',
+    'NInputNumber',
     'NSelect',
     'NButton',
     'NSpin',
     'NTable',
     'NEmpty',
     'NPagination',
+    'NForm',
+    'NFormItem',
     'NDrawer',
     'NDrawerContent',
     'NTabs',
@@ -312,11 +418,17 @@ async function mountDeployTaskPage() {
       name,
       name === 'NButton'
         ? buttonStub
-        : name === 'NDrawer'
-          ? drawerStub
-          : name === 'NTable'
-            ? tableStub
-            : passthroughStub
+        : name === 'NInput'
+          ? inputStub
+          : name === 'NInputNumber'
+            ? inputNumberStub
+            : name === 'NSelect'
+              ? selectStub
+              : name === 'NDrawer'
+                ? drawerStub
+                : name === 'NTable'
+                  ? tableStub
+                  : passthroughStub
     );
   });
   app.mount(container);
@@ -416,6 +528,27 @@ describe('task pages contract wiring', () => {
         records: []
       }
     });
+    mocks.fetchGetAppVersions.mockResolvedValue({
+      data: [],
+      error: null
+    });
+    mocks.fetchGetAssetHosts.mockResolvedValue({
+      data: {
+        current: 1,
+        size: 100,
+        total: 0,
+        records: [],
+        summary: {
+          managedHosts: 0,
+          onlineHosts: 0,
+          warningHosts: 0
+        }
+      },
+      error: null
+    });
+    mocks.fetchPostCreateDeployTask.mockResolvedValue({ data: null, error: null });
+    mocks.fetchPostApproveDeployTask.mockResolvedValue({ data: null, error: null });
+    mocks.fetchPostRejectDeployTask.mockResolvedValue({ data: null, error: null });
     mocks.fetchGetTaskCenterTasks.mockResolvedValue({
       error: null,
       data: {
@@ -943,9 +1076,159 @@ describe('task pages contract wiring', () => {
     page.unmount();
   });
 
+  it('submits deploy task create form with execution params wired into payload', async () => {
+    mocks.fetchGetApps.mockResolvedValue({
+      data: [
+        {
+          id: 1001,
+          appName: 'order-service',
+          appCode: 'order-service'
+        }
+      ],
+      error: null
+    });
+    mocks.fetchGetAppVersions.mockResolvedValue({
+      data: [
+        {
+          id: 1401,
+          versionNo: 'v1.0.0'
+        }
+      ],
+      error: null
+    });
+    mocks.fetchGetAssetHosts.mockResolvedValue({
+      data: {
+        current: 1,
+        size: 100,
+        total: 2,
+        records: [
+          {
+            id: 1,
+            hostName: 'host-prd-01',
+            ipAddress: '10.0.0.11',
+            environment: 'production'
+          },
+          {
+            id: 2,
+            hostName: 'host-prd-02',
+            ipAddress: '10.0.0.12',
+            environment: 'production'
+          }
+        ],
+        summary: {
+          managedHosts: 2,
+          onlineHosts: 2,
+          warningHosts: 0
+        }
+      },
+      error: null
+    });
+    mocks.fetchPostCreateDeployTask.mockResolvedValue({ data: { id: 99 }, error: null });
+
+    const page = await mountDeployTaskPage();
+
+    try {
+      const openCreateButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+        button.textContent?.includes('page.envops.deployTask.actions.create')
+      );
+      openCreateButton?.click();
+      await settleRender();
+
+      const getInputByPlaceholder = (placeholder: string) =>
+        Array.from(page.container.querySelectorAll('input')).find(
+          input => input.getAttribute('placeholder') === placeholder
+        ) as HTMLInputElement | undefined;
+      const getSelectByPlaceholder = (placeholder: string) =>
+        Array.from(page.container.querySelectorAll('select')).find(
+          select => select.getAttribute('placeholder') === placeholder
+        ) as HTMLSelectElement | undefined;
+
+      const taskNameInput = getInputByPlaceholder('page.envops.deployTask.create.taskNamePlaceholder');
+      const deployDirInput = getInputByPlaceholder('page.envops.deployTask.create.deployDirPlaceholder');
+      const sshUserInput = getInputByPlaceholder('page.envops.deployTask.create.sshUserPlaceholder');
+      const sshPortInput = getInputByPlaceholder('page.envops.deployTask.create.sshPortPlaceholder');
+      const privateKeyPathInput = getInputByPlaceholder('page.envops.deployTask.create.privateKeyPathPlaceholder');
+      const remoteBaseDirInput = getInputByPlaceholder('page.envops.deployTask.create.remoteBaseDirPlaceholder');
+      const rollbackCommandInput = getInputByPlaceholder('page.envops.deployTask.create.rollbackCommandPlaceholder');
+      const appSelect = getSelectByPlaceholder('page.envops.deployTask.create.appPlaceholder');
+      const versionSelect = getSelectByPlaceholder('page.envops.deployTask.create.versionPlaceholder');
+      const hostSelect = getSelectByPlaceholder('page.envops.deployTask.create.hostsPlaceholder');
+
+      expect(taskNameInput).toBeTruthy();
+      expect(deployDirInput).toBeTruthy();
+      expect(sshUserInput).toBeTruthy();
+      expect(sshPortInput).toBeTruthy();
+      expect(privateKeyPathInput).toBeTruthy();
+      expect(remoteBaseDirInput).toBeTruthy();
+      expect(rollbackCommandInput).toBeTruthy();
+      expect(appSelect).toBeTruthy();
+      expect(versionSelect).toBeTruthy();
+      expect(hostSelect).toBeTruthy();
+
+      taskNameInput!.value = 'deploy-order-service-prod';
+      taskNameInput!.dispatchEvent(new Event('input', { bubbles: true }));
+      deployDirInput!.value = '/data/apps/order-service';
+      deployDirInput!.dispatchEvent(new Event('input', { bubbles: true }));
+      sshUserInput!.value = 'release';
+      sshUserInput!.dispatchEvent(new Event('input', { bubbles: true }));
+      sshPortInput!.value = '22';
+      sshPortInput!.dispatchEvent(new Event('input', { bubbles: true }));
+      privateKeyPathInput!.value = '/data/keys/release.pem';
+      privateKeyPathInput!.dispatchEvent(new Event('input', { bubbles: true }));
+      remoteBaseDirInput!.value = '/opt/envops/releases';
+      remoteBaseDirInput!.dispatchEvent(new Event('input', { bubbles: true }));
+      rollbackCommandInput!.value = 'bash /opt/envops/bin/rollback.sh';
+      rollbackCommandInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+      appSelect!.value = '1001';
+      appSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      await settleRender();
+
+      versionSelect!.value = '1401';
+      versionSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+
+      Array.from(hostSelect!.options).forEach(option => {
+        option.selected = option.value === '1' || option.value === '2';
+      });
+      hostSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      await settleRender();
+
+      const createButtons = Array.from(page.container.querySelectorAll('button')).filter(button =>
+        button.textContent?.includes('page.envops.deployTask.actions.create')
+      );
+      createButtons.at(-1)?.click();
+      await settleRender();
+
+      expect(mocks.fetchPostCreateDeployTask).toHaveBeenCalledWith({
+        taskName: 'deploy-order-service-prod',
+        taskType: 'INSTALL',
+        appId: 1001,
+        versionId: 1401,
+        environment: 'production',
+        hostIds: [1, 2],
+        batchStrategy: 'ALL',
+        batchSize: null,
+        deployDir: '/data/apps/order-service',
+        sshUser: 'release',
+        sshPort: 22,
+        privateKeyPath: '/data/keys/release.pem',
+        remoteBaseDir: '/opt/envops/releases',
+        rollbackCommand: 'bash /opt/envops/bin/rollback.sh'
+      });
+    } finally {
+      page.unmount();
+    }
+  });
+
   it('exposes task api fetchers through the shared api barrel', () => {
     expect(taskApiSource).toMatch(/export function fetchGetDeployTasks\s*\(/);
     expect(taskApiSource).toMatch(/url:\s*['"]\/api\/deploy\/tasks['"]/);
+    expect(taskApiSource).toMatch(/export function fetchPostCreateDeployTask\s*\(/);
+    expect(taskApiSource).toMatch(/url:\s*['"]\/api\/deploy\/tasks['"]/);
+    expect(taskApiSource).toMatch(/export function fetchPostApproveDeployTask\s*\(/);
+    expect(taskApiSource).toMatch(/url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/approve`/);
+    expect(taskApiSource).toMatch(/export function fetchPostRejectDeployTask\s*\(/);
+    expect(taskApiSource).toMatch(/url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/reject`/);
     expect(taskApiSource).toMatch(/export function fetchPostExecuteDeployTask\s*\(/);
     expect(taskApiSource).toMatch(/url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/execute`/);
     expect(taskApiSource).toMatch(/export function fetchPostRetryDeployTask\s*\(/);
@@ -968,6 +1251,15 @@ describe('task pages contract wiring', () => {
     expect(taskTypingSource).toContain('type TaskSortBy');
     expect(taskTypingSource).toContain("'createdAt' | 'updatedAt' | 'taskNo' | 'status'");
     expect(taskTypingSource).toContain("type TaskSortOrder = 'asc' | 'desc'");
+    expect(taskTypingSource).toContain("type DeployTaskCreateTaskType = 'INSTALL' | 'UPGRADE'");
+    expect(taskTypingSource).toContain("type DeployTaskBatchStrategy = 'ALL' | 'ROLLING'");
+    expect(taskTypingSource).toContain('interface CreateDeployTaskPayload');
+    expect(taskTypingSource).toContain('sshUser: string;');
+    expect(taskTypingSource).toContain('sshPort?: number | null;');
+    expect(taskTypingSource).toContain('privateKeyPath: string;');
+    expect(taskTypingSource).toContain('remoteBaseDir: string;');
+    expect(taskTypingSource).toContain('rollbackCommand?: string | null;');
+    expect(taskTypingSource).toContain('interface DeployTaskApprovalPayload');
     expect(taskTypingSource).toContain('interface DeployTaskListQuery');
     expect(taskTypingSource).toContain('interface DeployTaskPage');
     expect(taskTypingSource).toContain('interface DeployTaskDetailRecord extends DeployTaskRecord');
@@ -992,6 +1284,28 @@ describe('task pages contract wiring', () => {
     expect(taskApiSource).toMatch(/export function fetchGetDeployTask\s*\(id: number\)/);
     expect(taskApiSource).toMatch(
       /request<Api\.Task\.DeployTaskDetailRecord>\(\{\s*url:\s*`\/api\/deploy\/tasks\/\$\{id\}`\s*\}/s
+    );
+    expect(taskApiSource).toMatch(
+      /export function fetchPostCreateDeployTask\s*\(data: Api\.Task\.CreateDeployTaskPayload\)/
+    );
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskRecord>\(\{[\s\S]*url:\s*['"]\/api\/deploy\/tasks['"],[\s\S]*method:\s*['"]post['"]/s
+    );
+    expect(taskApiSource).toContain('sshUser: data.sshUser');
+    expect(taskApiSource).toContain('privateKeyPath: data.privateKeyPath');
+    expect(taskApiSource).toContain('remoteBaseDir: data.remoteBaseDir');
+    expect(taskApiSource).toContain('data.rollbackCommand ? { rollbackCommand: data.rollbackCommand } : {}');
+    expect(taskApiSource).toMatch(
+      /export function fetchPostApproveDeployTask\s*\(id: number, data\?: Api\.Task\.DeployTaskApprovalPayload\)/
+    );
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskRecord>\(\{[\s\S]*url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/approve`,[\s\S]*method:\s*['"]post['"]/s
+    );
+    expect(taskApiSource).toMatch(
+      /export function fetchPostRejectDeployTask\s*\(id: number, data\?: Api\.Task\.DeployTaskApprovalPayload\)/
+    );
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.DeployTaskRecord>\(\{[\s\S]*url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/reject`,[\s\S]*method:\s*['"]post['"]/s
     );
     expect(taskApiSource).toMatch(
       /export function fetchGetDeployTaskHosts\s*\(id: number, params: Api\.Task\.DeployTaskHostQuery\)/
@@ -1026,6 +1340,10 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain('pageSize');
     expect(deployTaskPage).toContain('sortBy');
     expect(deployTaskPage).toContain('taskId');
+    expect(deployTaskPage).toContain('handleOpenCreateDrawer');
+    expect(deployTaskPage).toContain('handleCreateTask');
+    expect(deployTaskPage).toContain('openApprovalDrawer');
+    expect(deployTaskPage).toContain('handleSubmitApproval');
     expect(deployTaskPage).toContain('handleExecuteTask');
     expect(deployTaskPage).toContain('handleRetryTask');
     expect(deployTaskPage).toContain('handleRollbackTask');
@@ -1034,6 +1352,21 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain('const taskHosts = ref<Api.Task.DeployTaskHostRecord[]>');
     expect(deployTaskPage).toContain('const taskLogs = ref<Api.Task.DeployTaskLogRecord[]>');
     expect(deployTaskPage).toContain('NDrawer');
+    expect(deployTaskPage).toContain('createDrawerVisible');
+    expect(deployTaskPage).toContain('approvalDrawerVisible');
+    expect(deployTaskPage).toContain('fetchGetAppVersions');
+    expect(deployTaskPage).toContain('fetchGetAssetHosts');
+    expect(deployTaskPage).toContain('fetchPostCreateDeployTask');
+    expect(deployTaskPage).toContain('sshUser');
+    expect(deployTaskPage).toContain('sshPort');
+    expect(deployTaskPage).toContain('privateKeyPath');
+    expect(deployTaskPage).toContain('remoteBaseDir');
+    expect(deployTaskPage).toContain('rollbackCommand');
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.create.validation.sshUserRequired')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.create.validation.privateKeyPathRequired')");
+    expect(deployTaskPage).toContain("t('page.envops.deployTask.create.validation.remoteBaseDirRequired')");
+    expect(deployTaskPage).toContain('fetchPostApproveDeployTask');
+    expect(deployTaskPage).toContain('fetchPostRejectDeployTask');
     expect(deployTaskPage).toContain('NPagination');
     expect(deployTaskPage).toContain('common.refresh');
     expect(deployTaskPage).toContain('NEmpty');
@@ -1543,19 +1876,50 @@ describe('task pages contract wiring', () => {
     expect(appTypingSource).toContain('hosts: {');
     expect(appTypingSource).toContain('logs: {');
     expect(appTypingSource).toContain('manualRefresh: string');
+    expect(appTypingSource).toContain('create: string');
     expect(appTypingSource).toContain('execute: string');
     expect(appTypingSource).toContain('retry: string');
     expect(appTypingSource).toContain('rollback: string');
+    expect(appTypingSource).toContain('approve: string');
+    expect(appTypingSource).toContain('reject: string');
     expect(appTypingSource).toContain('cancel: string');
     expect(appTypingSource).toContain('originTaskId: string');
     expect(zhLocaleSource).toContain('manualRefresh');
     expect(zhLocaleSource).toContain('originTaskId');
+    expect(zhLocaleSource).toContain('create');
+    expect(zhLocaleSource).toContain('approve');
+    expect(zhLocaleSource).toContain('reject');
     expect(zhLocaleSource).toContain('rollback');
     expect(enLocaleSource).toContain('manualRefresh');
     expect(enLocaleSource).toContain('originTaskId');
+    expect(enLocaleSource).toContain('create');
+    expect(enLocaleSource).toContain('approve');
+    expect(enLocaleSource).toContain('reject');
     expect(enLocaleSource).toContain('rollback');
     expect(appTypingSource).toContain('cancelled: string');
     expect(appTypingSource).toContain('rejected: string');
+    expect(appTypingSource).toContain('sshUser: string');
+    expect(appTypingSource).toContain('sshUserPlaceholder: string');
+    expect(appTypingSource).toContain('sshPort: string');
+    expect(appTypingSource).toContain('sshPortPlaceholder: string');
+    expect(appTypingSource).toContain('privateKeyPath: string');
+    expect(appTypingSource).toContain('privateKeyPathPlaceholder: string');
+    expect(appTypingSource).toContain('remoteBaseDir: string');
+    expect(appTypingSource).toContain('remoteBaseDirPlaceholder: string');
+    expect(appTypingSource).toContain('rollbackCommand: string');
+    expect(appTypingSource).toContain('rollbackCommandPlaceholder: string');
+    expect(appTypingSource).toContain('sshUserRequired: string');
+    expect(appTypingSource).toContain('sshPortInvalid: string');
+    expect(appTypingSource).toContain('privateKeyPathRequired: string');
+    expect(appTypingSource).toContain('remoteBaseDirRequired: string');
+    expect(zhLocaleSource).toContain('SSH 用户');
+    expect(zhLocaleSource).toContain('私钥路径');
+    expect(zhLocaleSource).toContain('远端发布根目录');
+    expect(zhLocaleSource).toContain('回滚命令');
+    expect(enLocaleSource).toContain('SSH User');
+    expect(enLocaleSource).toContain('Private Key Path');
+    expect(enLocaleSource).toContain('Remote Release Root');
+    expect(enLocaleSource).toContain('Rollback Command');
   });
 
   it('declares task center locale schema for actions filters and sorting', () => {

@@ -511,6 +511,7 @@ declare namespace App {
             getCode: string;
             reGetCode: string;
             sendCodeSuccess: string;
+            demoCodeHint: string;
             imageCodePlaceholder: string;
           };
           register: {
@@ -693,6 +694,7 @@ declare namespace App {
               emergencyRollback: string;
             };
             role: {
+              superAdmin: string;
               platformAdmin: string;
               releaseManager: string;
               trafficOwner: string;
@@ -801,6 +803,30 @@ declare namespace App {
                 desc: string;
               };
             };
+            form: {
+              title: string;
+              hostName: string;
+              ipAddress: string;
+              environment: string;
+              clusterName: string;
+              ownerName: string;
+              status: string;
+              lastHeartbeat: string;
+              placeholders: {
+                hostName: string;
+                ipAddress: string;
+                clusterName: string;
+                ownerName: string;
+                lastHeartbeat: string;
+              };
+              actions: {
+                create: string;
+              };
+            };
+            messages: {
+              fillRequired: string;
+              createSuccess: string;
+            };
             table: {
               title: string;
               host: string;
@@ -810,6 +836,9 @@ declare namespace App {
               owner: string;
               status: string;
               lastHeartbeat: string;
+              latestMetric: string;
+              operation: string;
+              viewMetrics: string;
             };
           };
           assetGroup: {
@@ -896,7 +925,7 @@ declare namespace App {
             };
             tags: {
               healthyCount: string;
-              timedOutCount: string;
+              attentionCount: string;
             };
             summary: {
               scheduledTasks: {
@@ -912,6 +941,24 @@ declare namespace App {
                 desc: string;
               };
             };
+            form: {
+              title: string;
+              taskName: string;
+              taskNamePlaceholder: string;
+              host: string;
+              hostPlaceholder: string;
+              schedule: string;
+              manualSchedule: string;
+            };
+            actions: {
+              create: string;
+              execute: string;
+            };
+            messages: {
+              fillNameAndHost: string;
+              createSuccess: string;
+              executeSuccess: string;
+            };
             table: {
               title: string;
               task: string;
@@ -919,6 +966,7 @@ declare namespace App {
               schedule: string;
               lastRun: string;
               result: string;
+              operation: string;
             };
           };
           monitorMetric: {
@@ -1046,10 +1094,62 @@ declare namespace App {
             };
             actions: {
               detail: string;
+              create: string;
               execute: string;
               retry: string;
               rollback: string;
+              approve: string;
+              reject: string;
               cancel: string;
+            };
+            create: {
+              title: string;
+              taskName: string;
+              taskNamePlaceholder: string;
+              taskType: string;
+              app: string;
+              appPlaceholder: string;
+              version: string;
+              versionPlaceholder: string;
+              environment: string;
+              hosts: string;
+              hostsPlaceholder: string;
+              batchStrategy: string;
+              batchStrategyAll: string;
+              batchStrategyRolling: string;
+              batchSize: string;
+              batchSizePlaceholder: string;
+              deployDir: string;
+              deployDirPlaceholder: string;
+              sshUser: string;
+              sshUserPlaceholder: string;
+              sshPort: string;
+              sshPortPlaceholder: string;
+              privateKeyPath: string;
+              privateKeyPathPlaceholder: string;
+              remoteBaseDir: string;
+              remoteBaseDirPlaceholder: string;
+              rollbackCommand: string;
+              rollbackCommandPlaceholder: string;
+              validation: {
+                taskNameRequired: string;
+                appRequired: string;
+                versionRequired: string;
+                environmentRequired: string;
+                hostsRequired: string;
+                deployDirRequired: string;
+                sshUserRequired: string;
+                sshPortInvalid: string;
+                privateKeyPathRequired: string;
+                remoteBaseDirRequired: string;
+                batchSizeRequired: string;
+              };
+            };
+            approval: {
+              approveTitle: string;
+              rejectTitle: string;
+              comment: string;
+              commentPlaceholder: string;
             };
             tabs: {
               overview: string;
@@ -1198,6 +1298,18 @@ declare namespace App {
               trafficRatio: string;
               owner: string;
               status: string;
+              operation: string;
+            };
+            actions: {
+              preview: string;
+              apply: string;
+              rollback: string;
+            };
+            messages: {
+              latestAction: string;
+              previewSuccess: string;
+              applySuccess: string;
+              rollbackSuccess: string;
             };
           };
           systemUser: {
@@ -1223,6 +1335,36 @@ declare namespace App {
                 desc: string;
               };
             };
+            actions: {
+              create: string;
+              edit: string;
+              refresh: string;
+              save: string;
+            };
+            form: {
+              titleCreate: string;
+              titleEdit: string;
+              userName: string;
+              password: string;
+              phone: string;
+              team: string;
+              loginType: string;
+              status: string;
+              roles: string;
+              placeholders: {
+                userName: string;
+                passwordCreate: string;
+                passwordEdit: string;
+                phone: string;
+                roles: string;
+              };
+            };
+            messages: {
+              fillRequired: string;
+              phoneInvalid: string;
+              createSuccess: string;
+              updateSuccess: string;
+            };
             table: {
               title: string;
               user: string;
@@ -1231,6 +1373,7 @@ declare namespace App {
               loginType: string;
               lastLogin: string;
               status: string;
+              operation: string;
             };
           };
         };

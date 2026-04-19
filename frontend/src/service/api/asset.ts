@@ -8,6 +8,15 @@ export function fetchGetAssetHosts(params: Api.Asset.HostQuery) {
   });
 }
 
+/** create asset host */
+export function fetchCreateAssetHost(data: Api.Asset.CreateHostParams) {
+  return request<Api.Asset.HostRecord>({
+    url: '/api/assets/hosts',
+    method: 'post',
+    data
+  });
+}
+
 /** get asset credentials */
 export function fetchGetAssetCredentials() {
   return request<Api.Asset.CredentialRecord[]>({ url: '/api/assets/credentials' });

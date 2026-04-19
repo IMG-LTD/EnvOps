@@ -67,7 +67,15 @@ class AssetControllerTest {
         .andExpect(jsonPath("$.data.summary.onlineHosts").value(2))
         .andExpect(jsonPath("$.data.summary.warningHosts").value(1))
         .andExpect(jsonPath("$.data.records").isArray())
-        .andExpect(jsonPath("$.data.records[0].hostName").value("host-prd-01"));
+        .andExpect(jsonPath("$.data.records[0].hostName").value("host-sbx-01"))
+        .andExpect(jsonPath("$.data.records[0].hasMonitorFacts").value(false))
+        .andExpect(jsonPath("$.data.records[0].latestMonitorFactAt").isEmpty())
+        .andExpect(jsonPath("$.data.records[1].hostName").value("host-stg-01"))
+        .andExpect(jsonPath("$.data.records[1].hasMonitorFacts").value(false))
+        .andExpect(jsonPath("$.data.records[1].latestMonitorFactAt").isEmpty())
+        .andExpect(jsonPath("$.data.records[3].hostName").value("host-prd-01"))
+        .andExpect(jsonPath("$.data.records[3].hasMonitorFacts").value(true))
+        .andExpect(jsonPath("$.data.records[3].latestMonitorFactAt").value("2026-04-16T08:45:00"));
   }
 
   @Test

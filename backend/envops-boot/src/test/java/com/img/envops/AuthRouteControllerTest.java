@@ -12,9 +12,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.blankOrNullString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -60,6 +60,134 @@ class AuthRouteControllerTest {
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("401"))
         .andExpect(jsonPath("$.msg").value("Invalid username or password"));
+  }
+
+  @Test
+  void loginRejectsDisabledUser() throws Exception {
+    mockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "userName": "qa-observer",
+                  "password": "QaObserver@123"
+                }
+                """))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("401"))
+        .andExpect(jsonPath("$.msg").value("Invalid username or password"));
+  }
+
+  @Test
+  void sendCodeRejectsInvalidPhone() throws Exception {
+    mockMvc.perform(post("/api/auth/sendCode")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "123"
+                }
+                """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"))
+        .andExpect(jsonPath("$.msg").value("phone is invalid"));
+  }
+
+  @Test
+  void sendCodeReturnsMaskedPhoneForSeededUser() throws Exception {
+    mockMvc.perform(post("/api/auth/sendCode")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13900139000"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.maskedPhone").value("139****9000"))
+        .andExpect(jsonPath("$.data.expireSeconds").value(300));
+  }
+
+  @Test
+  void codeLoginReturnsAccessTokenAndUpdatesUserInfo() throws Exception {
+    mockMvc.perform(post("/api/auth/sendCode")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13900139000"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"));
+
+    MvcResult codeLoginResult = mockMvc.perform(post("/api/auth/codeLogin")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13900139000",
+                  "code": "139000"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.token", not(blankOrNullString())))
+        .andReturn();
+
+    String accessToken = objectMapper.readTree(codeLoginResult.getResponse().getContentAsString()).path("data").path("token").asText();
+
+    mockMvc.perform(get("/api/auth/getUserInfo")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.userId").value("20"))
+        .andExpect(jsonPath("$.data.userName").value("release-admin"))
+        .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+  }
+
+  @Test
+  void codeLoginRejectsWrongCode() throws Exception {
+    mockMvc.perform(post("/api/auth/sendCode")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13900139000"
+                }
+                """))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(post("/api/auth/codeLogin")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13900139000",
+                  "code": "000000"
+                }
+                """))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("401"))
+        .andExpect(jsonPath("$.msg").value("Invalid phone or verification code"));
+  }
+
+  @Test
+  void codeLoginRejectsDisabledUser() throws Exception {
+    mockMvc.perform(post("/api/auth/sendCode")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13600136000"
+                }
+                """))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(post("/api/auth/codeLogin")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "phone": "13600136000",
+                  "code": "136000"
+                }
+                """))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("401"))
+        .andExpect(jsonPath("$.msg").value("Invalid phone or verification code"));
   }
 
   @Test

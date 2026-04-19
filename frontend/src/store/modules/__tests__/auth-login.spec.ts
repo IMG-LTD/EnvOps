@@ -5,6 +5,7 @@ import { resetSetupStore } from '@/store/plugins';
 
 const mocks = vi.hoisted(() => {
   const fetchLogin = vi.fn();
+  const fetchCodeLogin = vi.fn();
   const fetchGetUserInfo = vi.fn();
   const startLoading = vi.fn();
   const endLoading = vi.fn();
@@ -30,6 +31,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     fetchLogin,
+    fetchCodeLogin,
     fetchGetUserInfo,
     startLoading,
     endLoading,
@@ -58,6 +60,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/service/api', () => ({
   fetchLogin: mocks.fetchLogin,
+  fetchCodeLogin: mocks.fetchCodeLogin,
   fetchGetUserInfo: mocks.fetchGetUserInfo
 }));
 
@@ -88,7 +91,7 @@ vi.mock('@/store/modules/tab', () => ({
   useTabStore: () => mocks.tabStore
 }));
 
-describe('auth store login failure handling', () => {
+describe('auth store login handling', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -113,9 +116,21 @@ describe('auth store login failure handling', () => {
         }
       }
     });
+    mocks.fetchCodeLogin.mockResolvedValue({
+      data: null,
+      error: {
+        response: {
+          status: 401,
+          data: {
+            code: '401',
+            msg: 'Unauthorized'
+          }
+        }
+      }
+    });
   });
 
-  it('does not reset global auth state when login returns 401', async () => {
+  it('does not reset global auth state when password login returns 401', async () => {
     const { useAuthStore } = await import('@/store/modules/auth');
 
     const authStore = useAuthStore();
@@ -125,5 +140,47 @@ describe('auth store login failure handling', () => {
     expect(mocks.routeStore.resetStore).not.toHaveBeenCalled();
     expect(mocks.tabStore.cacheTabs).not.toHaveBeenCalled();
     expect(mocks.toLogin).not.toHaveBeenCalled();
+  });
+
+  it('does not reset global auth state when code login returns 401', async () => {
+    const { useAuthStore } = await import('@/store/modules/auth');
+
+    const authStore = useAuthStore();
+
+    await authStore.loginByCode('13900139000', '000000');
+
+    expect(mocks.routeStore.resetStore).not.toHaveBeenCalled();
+    expect(mocks.tabStore.cacheTabs).not.toHaveBeenCalled();
+    expect(mocks.toLogin).not.toHaveBeenCalled();
+  });
+
+  it('reuses token login flow after code login succeeds', async () => {
+    mocks.fetchCodeLogin.mockResolvedValue({
+      data: {
+        token: 'code-login-token'
+      },
+      error: null
+    });
+    mocks.fetchGetUserInfo.mockResolvedValue({
+      data: {
+        userId: '20',
+        userName: 'release-admin',
+        roles: ['SUPER_ADMIN', 'RELEASE_MANAGER'],
+        buttons: ['envops:dashboard:view']
+      },
+      error: null
+    });
+
+    const { useAuthStore } = await import('@/store/modules/auth');
+
+    const authStore = useAuthStore();
+
+    await authStore.loginByCode('13900139000', '139000');
+
+    expect(mocks.fetchCodeLogin).toHaveBeenCalledWith('13900139000', '139000');
+    expect(mocks.fetchLogin).not.toHaveBeenCalled();
+    expect(mocks.localSet).toHaveBeenCalledWith('token', 'code-login-token');
+    expect(mocks.redirectFromLogin).toHaveBeenCalled();
+    expect(authStore.userInfo.userName).toBe('release-admin');
   });
 });

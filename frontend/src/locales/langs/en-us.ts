@@ -284,6 +284,7 @@ const local: App.I18n.Schema = {
         getCode: 'Get verification code',
         reGetCode: 'Reacquire after {time}s',
         sendCodeSuccess: 'Verification code sent successfully',
+        demoCodeHint: 'In demo mode, use the last 6 digits of the phone number',
         imageCodePlaceholder: 'Please enter image verification code'
       },
       register: {
@@ -467,6 +468,7 @@ const local: App.I18n.Schema = {
           emergencyRollback: 'Emergency rollback'
         },
         role: {
+          superAdmin: 'Super Admin',
           platformAdmin: 'Platform Admin',
           releaseManager: 'Release Manager',
           trafficOwner: 'Traffic Owner',
@@ -557,7 +559,8 @@ const local: App.I18n.Schema = {
       assetHost: {
         hero: {
           title: 'Host Inventory',
-          description: 'A starter shell for asset onboarding, ownership management and runtime visibility.'
+          description:
+            'Show managed hosts, add newly onboarded hosts and jump straight into metric details for hosts with monitor snapshots.'
         },
         tags: {
           cmdbSynchronized: 'CMDB synchronized',
@@ -577,6 +580,30 @@ const local: App.I18n.Schema = {
             desc: 'Total hosts in the asset inventory whose status is warning'
           }
         },
+        form: {
+          title: 'Add Host',
+          hostName: 'Host Name',
+          ipAddress: 'IP Address',
+          environment: 'Environment',
+          clusterName: 'Cluster Name',
+          ownerName: 'Owner Team',
+          status: 'Status',
+          lastHeartbeat: 'Last Heartbeat',
+          placeholders: {
+            hostName: 'Example: host-sbx-01',
+            ipAddress: 'Example: 10.60.1.20',
+            clusterName: 'Example: cn-shenzhen-a',
+            ownerName: 'Example: Asset Team',
+            lastHeartbeat: 'Optional ISO timestamp, e.g. 2026-04-16T11:22:33'
+          },
+          actions: {
+            create: 'Onboard Host'
+          }
+        },
+        messages: {
+          fillRequired: 'Please enter host name, IP address, environment, cluster, owner team and status first',
+          createSuccess: 'Host onboarded successfully'
+        },
         table: {
           title: 'Host Snapshot',
           host: 'Host',
@@ -585,7 +612,10 @@ const local: App.I18n.Schema = {
           cluster: 'Cluster',
           owner: 'Owner',
           status: 'Status',
-          lastHeartbeat: 'Last Heartbeat'
+          lastHeartbeat: 'Last Heartbeat',
+          latestMetric: 'Latest Metric Snapshot',
+          operation: 'Action',
+          viewMetrics: 'View Metrics'
         }
       },
       assetGroup: {
@@ -668,11 +698,11 @@ const local: App.I18n.Schema = {
       monitorDetectTask: {
         hero: {
           title: 'Detection Tasks',
-          description: 'Use the live monitor task API to show current jobs, targets and latest outcomes.'
+          description: 'Use the live monitor task API to create tasks, run them manually and review the latest results.'
         },
         tags: {
           healthyCount: '{count} healthy',
-          timedOutCount: '{count} timed out'
+          attentionCount: '{count} need attention'
         },
         summary: {
           scheduledTasks: {
@@ -688,19 +718,39 @@ const local: App.I18n.Schema = {
             desc: 'Tasks with failed, timed-out or partial-success results'
           }
         },
+        form: {
+          title: 'Create Detection Task',
+          taskName: 'Task Name',
+          taskNamePlaceholder: 'Enter task name',
+          host: 'Target Host',
+          hostPlaceholder: 'Select target host',
+          schedule: 'Schedule',
+          manualSchedule: 'Manual Run'
+        },
+        actions: {
+          create: 'Create Task',
+          execute: 'Run Now'
+        },
+        messages: {
+          fillNameAndHost: 'Enter the task name and select a target host first',
+          createSuccess: 'Detection task created successfully',
+          executeSuccess: 'Detection task finished running'
+        },
         table: {
           title: 'Task Queue',
           task: 'Task',
           target: 'Target',
           schedule: 'Schedule',
           lastRun: 'Last Run',
-          result: 'Result'
+          result: 'Result',
+          operation: 'Action'
         }
       },
       monitorMetric: {
         hero: {
           title: 'Metric Snapshot',
-          description: 'Show the latest reported host facts for a fixed host to validate the monitor data path.'
+          description:
+            'Show the latest reported facts for the selected host and complete the asset-to-monitor detail flow.'
         },
         tags: {
           host: 'Host #{id}'
@@ -823,10 +873,62 @@ const local: App.I18n.Schema = {
         },
         actions: {
           detail: 'Detail',
+          create: 'Create Task',
           execute: 'Execute',
           retry: 'Retry',
           rollback: 'Rollback',
+          approve: 'Approve',
+          reject: 'Reject',
           cancel: 'Cancel Task'
+        },
+        create: {
+          title: 'Create Deploy Task',
+          taskName: 'Task Name',
+          taskNamePlaceholder: 'Enter task name',
+          taskType: 'Task Type',
+          app: 'Application',
+          appPlaceholder: 'Select application',
+          version: 'Version',
+          versionPlaceholder: 'Select version',
+          environment: 'Environment',
+          hosts: 'Target Hosts',
+          hostsPlaceholder: 'Select hosts',
+          batchStrategy: 'Batch Strategy',
+          batchStrategyAll: 'All',
+          batchStrategyRolling: 'Rolling',
+          batchSize: 'Batch Size',
+          batchSizePlaceholder: 'Enter batch size for rolling deployments',
+          deployDir: 'Deploy Directory',
+          deployDirPlaceholder: 'Enter deploy directory, e.g. /data/apps/order-service',
+          sshUser: 'SSH User',
+          sshUserPlaceholder: 'Enter the SSH login user, e.g. deploy',
+          sshPort: 'SSH Port',
+          sshPortPlaceholder: 'Enter the SSH port, default 22',
+          privateKeyPath: 'Private Key Path',
+          privateKeyPathPlaceholder: 'Enter the private key path, e.g. /data/keys/release.pem',
+          remoteBaseDir: 'Remote Release Root',
+          remoteBaseDirPlaceholder: 'Enter the remote root, e.g. /opt/envops/releases',
+          rollbackCommand: 'Rollback Command',
+          rollbackCommandPlaceholder: 'Optional. When set, rollback tasks run this command directly',
+          validation: {
+            taskNameRequired: 'Please enter the task name',
+            appRequired: 'Please select an application',
+            versionRequired: 'Please select a version',
+            environmentRequired: 'Please select an environment',
+            hostsRequired: 'Please select at least one host',
+            deployDirRequired: 'Please enter the deploy directory',
+            sshUserRequired: 'Please enter the SSH user',
+            sshPortInvalid: 'SSH port must be greater than 0',
+            privateKeyPathRequired: 'Please enter the private key path',
+            remoteBaseDirRequired: 'Please enter the remote release root',
+            batchSizeRequired: 'Batch size must be greater than 0 for rolling deployments'
+          }
+        },
+        approval: {
+          approveTitle: 'Approve Deploy Task',
+          rejectTitle: 'Reject Deploy Task',
+          comment: 'Comment',
+          commentPlaceholder: 'Optional approval comment'
         },
         tabs: {
           overview: 'Overview',
@@ -974,13 +1076,25 @@ const local: App.I18n.Schema = {
           scope: 'Scope',
           trafficRatio: 'Traffic Ratio',
           owner: 'Owner',
-          status: 'Status'
+          status: 'Status',
+          operation: 'Action'
+        },
+        actions: {
+          preview: 'Preview',
+          apply: 'Apply',
+          rollback: 'Rollback'
+        },
+        messages: {
+          latestAction: 'Latest Traffic Action',
+          previewSuccess: 'Traffic policy previewed successfully',
+          applySuccess: 'Traffic policy applied successfully',
+          rollbackSuccess: 'Traffic policy rolled back successfully'
         }
       },
       systemUser: {
         hero: {
           title: 'User Management',
-          description: 'Maintain platform operators, team permissions and login posture for the EnvOps shell.'
+          description: 'Maintain platform operators, team permissions and login posture, with create and edit actions.'
         },
         tags: {
           rbacEnabled: 'RBAC enabled',
@@ -1000,6 +1114,36 @@ const local: App.I18n.Schema = {
             desc: 'Users who logged in during the last 24 hours'
           }
         },
+        actions: {
+          create: 'Create User',
+          edit: 'Edit',
+          refresh: 'Refresh',
+          save: 'Save'
+        },
+        form: {
+          titleCreate: 'Create User',
+          titleEdit: 'Edit User',
+          userName: 'User Name',
+          password: 'Password',
+          phone: 'Phone',
+          team: 'Team',
+          loginType: 'Login Type',
+          status: 'Status',
+          roles: 'Roles',
+          placeholders: {
+            userName: 'Enter a user name, for example ops-manager',
+            passwordCreate: 'Enter the login password',
+            passwordEdit: 'Optional. Leave blank to keep the current password',
+            phone: 'Enter an 11-digit phone number',
+            roles: 'Select at least one role'
+          }
+        },
+        messages: {
+          fillRequired: 'Please fill in user name, phone, team, login type, status, and roles',
+          phoneInvalid: 'Phone number format is invalid',
+          createSuccess: 'User created successfully',
+          updateSuccess: 'User updated successfully'
+        },
         table: {
           title: 'Access Snapshot',
           user: 'User',
@@ -1007,7 +1151,8 @@ const local: App.I18n.Schema = {
           team: 'Team',
           loginType: 'Login Type',
           lastLogin: 'Last Login',
-          status: 'Status'
+          status: 'Status',
+          operation: 'Action'
         }
       }
     }

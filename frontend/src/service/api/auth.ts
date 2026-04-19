@@ -17,6 +17,29 @@ export function fetchLogin(userName: string, password: string) {
   });
 }
 
+/** send verification code */
+export function fetchSendLoginCode(phone: string) {
+  return request<Api.Auth.SendCodeResult>({
+    url: '/api/auth/sendCode',
+    method: 'post',
+    data: {
+      phone
+    }
+  });
+}
+
+/** login by verification code */
+export function fetchCodeLogin(phone: string, code: string) {
+  return request<Api.Auth.LoginToken>({
+    url: '/api/auth/codeLogin',
+    method: 'post',
+    data: {
+      phone,
+      code
+    }
+  });
+}
+
 /** Get user info */
 export function fetchGetUserInfo() {
   return request<Api.Auth.UserInfo>({ url: '/api/auth/getUserInfo' });

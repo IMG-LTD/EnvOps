@@ -2,7 +2,7 @@ import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { defineStore } from 'pinia';
 import { useLoading } from '@sa/hooks';
-import { fetchGetUserInfo, fetchLogin } from '@/service/api';
+import { fetchCodeLogin, fetchGetUserInfo, fetchLogin } from '@/service/api';
 import { useRouterPush } from '@/hooks/common/router';
 import { localStg } from '@/utils/storage';
 import { SetupStoreId } from '@/enum';
@@ -60,7 +60,6 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
       return;
     }
 
-    // Store current user ID locally for next login comparison
     localStg.set('lastLoginUserId', userInfo.userId);
   }
 
@@ -76,7 +75,6 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
     const lastLoginUserId = localStg.get('lastLoginUserId');
 
-    // Clear all tabs if current user is different from previous user
     if (!lastLoginUserId || lastLoginUserId !== userInfo.userId) {
       localStg.remove('globalTabs');
       tabStore.clearTabs();
@@ -89,6 +87,26 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
     return false;
   }
 
+  async function finalizeLogin(loginToken: Api.Auth.LoginToken, redirect = true) {
+    const pass = await loginByToken(loginToken);
+
+    if (pass) {
+      const isClear = checkTabClear();
+      let needRedirect = redirect;
+
+      if (isClear) {
+        needRedirect = false;
+      }
+      await redirectFromLogin(needRedirect);
+
+      window.$notification?.success({
+        title: $t('page.login.common.loginSuccess'),
+        content: $t('page.login.common.welcomeBack', { userName: userInfo.userName }),
+        duration: 4500
+      });
+    }
+  }
+
   /**
    * Login
    *
@@ -99,38 +117,34 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   async function login(userName: string, password: string, redirect = true) {
     startLoading();
 
-    const { data: loginToken, error } = await fetchLogin(userName, password);
+    try {
+      const { data: loginToken, error } = await fetchLogin(userName, password);
 
-    if (!error) {
-      const pass = await loginByToken(loginToken);
-
-      if (pass) {
-        // Check if the tab needs to be cleared
-        const isClear = checkTabClear();
-        let needRedirect = redirect;
-
-        if (isClear) {
-          // If the tab needs to be cleared,it means we don't need to redirect.
-          needRedirect = false;
-        }
-        await redirectFromLogin(needRedirect);
-
-        window.$notification?.success({
-          title: $t('page.login.common.loginSuccess'),
-          content: $t('page.login.common.welcomeBack', { userName: userInfo.userName }),
-          duration: 4500
-        });
+      if (!error) {
+        await finalizeLogin(loginToken, redirect);
       }
+    } finally {
+      endLoading();
     }
+  }
 
-    endLoading();
+  async function loginByCode(phone: string, code: string, redirect = true) {
+    startLoading();
+
+    try {
+      const { data: loginToken, error } = await fetchCodeLogin(phone, code);
+
+      if (!error) {
+        await finalizeLogin(loginToken, redirect);
+      }
+    } finally {
+      endLoading();
+    }
   }
 
   async function loginByToken(loginToken: Api.Auth.LoginToken) {
-    // 1. stored in the localStorage, the later requests need it in headers
     localStg.set('token', loginToken.token);
 
-    // 2. get user info
     const pass = await getUserInfo();
 
     if (pass) {
@@ -146,7 +160,6 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
     const { data: info, error } = await fetchGetUserInfo();
 
     if (!error) {
-      // update store
       Object.assign(userInfo, info);
 
       return true;
@@ -176,6 +189,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
     loginLoading,
     resetStore,
     login,
+    loginByCode,
     initUserInfo
   };
 });

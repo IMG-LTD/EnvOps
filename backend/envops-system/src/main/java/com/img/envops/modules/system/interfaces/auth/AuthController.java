@@ -24,6 +24,17 @@ public class AuthController {
         new AuthApplicationService.LoginCommand(request.userName(), request.password())));
   }
 
+  @PostMapping("/sendCode")
+  public R<AuthApplicationService.SendCodeResult> sendCode(@RequestBody SendCodeRequest request) {
+    return R.ok(authApplicationService.sendCode(new AuthApplicationService.SendCodeCommand(request.phone())));
+  }
+
+  @PostMapping("/codeLogin")
+  public R<AuthApplicationService.LoginToken> codeLogin(@RequestBody CodeLoginRequest request) {
+    return R.ok(authApplicationService.codeLogin(
+        new AuthApplicationService.CodeLoginCommand(request.phone(), request.code())));
+  }
+
   @GetMapping("/getUserInfo")
   public R<AuthApplicationService.UserInfo> getUserInfo(Authentication authentication) {
     String principal = authentication == null ? null : authentication.getName();
@@ -31,5 +42,11 @@ public class AuthController {
   }
 
   public record LoginRequest(String userName, String password) {
+  }
+
+  public record SendCodeRequest(String phone) {
+  }
+
+  public record CodeLoginRequest(String phone, String code) {
   }
 }

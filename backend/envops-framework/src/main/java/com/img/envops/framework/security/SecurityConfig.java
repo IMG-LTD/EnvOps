@@ -42,6 +42,8 @@ public class SecurityConfig {
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/sendCode").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/codeLogin").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/routes/getConstantRoutes").permitAll()
             .requestMatchers("/error").permitAll()
             .requestMatchers(
@@ -54,7 +56,9 @@ public class SecurityConfig {
                 "/api/config-templates",
                 "/api/config-templates/**",
                 "/api/script-templates",
-                "/api/script-templates/**")
+                "/api/script-templates/**",
+                "/api/system/users",
+                "/api/system/users/**")
             .hasRole("SUPER_ADMIN")
             .requestMatchers("/api/**").authenticated()
             .anyRequest().permitAll())

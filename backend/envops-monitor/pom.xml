@@ -28,5 +28,10 @@
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>${mybatis-spring-boot.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.img.envops</groupId>
+            <artifactId>envops-exec</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 </project>

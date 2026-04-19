@@ -27,16 +27,18 @@ public interface AssetHostMapper {
   HostSummaryRow summarizeHosts();
 
   @Select("""
-      SELECT id,
-             host_name AS hostName,
-             ip_address AS ipAddress,
-             environment,
-             cluster_name AS clusterName,
-             owner_name AS ownerName,
-             status,
-             last_heartbeat AS lastHeartbeat
-      FROM asset_host
-      ORDER BY id
+      SELECT host.id,
+             host.host_name AS hostName,
+             host.ip_address AS ipAddress,
+             host.environment,
+             host.cluster_name AS clusterName,
+             host.owner_name AS ownerName,
+             host.status,
+             host.last_heartbeat AS lastHeartbeat,
+             EXISTS (SELECT 1 FROM monitor_host_fact fact WHERE fact.host_id = host.id) AS hasMonitorFacts,
+             (SELECT MAX(fact.collected_at) FROM monitor_host_fact fact WHERE fact.host_id = host.id) AS latestMonitorFactAt
+      FROM asset_host host
+      ORDER BY host.id DESC
       LIMIT #{limit} OFFSET #{offset}
       """)
   List<HostRow> findHosts(@Param("limit") int limit, @Param("offset") int offset);
@@ -49,16 +51,18 @@ public interface AssetHostMapper {
   int insertHost(HostEntity host);
 
   @Select("""
-      SELECT id,
-             host_name AS hostName,
-             ip_address AS ipAddress,
-             environment,
-             cluster_name AS clusterName,
-             owner_name AS ownerName,
-             status,
-             last_heartbeat AS lastHeartbeat
-      FROM asset_host
-      WHERE id = #{id}
+      SELECT host.id,
+             host.host_name AS hostName,
+             host.ip_address AS ipAddress,
+             host.environment,
+             host.cluster_name AS clusterName,
+             host.owner_name AS ownerName,
+             host.status,
+             host.last_heartbeat AS lastHeartbeat,
+             EXISTS (SELECT 1 FROM monitor_host_fact fact WHERE fact.host_id = host.id) AS hasMonitorFacts,
+             (SELECT MAX(fact.collected_at) FROM monitor_host_fact fact WHERE fact.host_id = host.id) AS latestMonitorFactAt
+      FROM asset_host host
+      WHERE host.id = #{id}
       """)
   HostRow findById(@Param("id") Long id);
 
@@ -101,6 +105,8 @@ public interface AssetHostMapper {
     private String ownerName;
     private String status;
     private LocalDateTime lastHeartbeat;
+    private Boolean hasMonitorFacts;
+    private LocalDateTime latestMonitorFactAt;
 
     public Long getId() {
       return id;
@@ -164,6 +170,22 @@ public interface AssetHostMapper {
 
     public void setLastHeartbeat(LocalDateTime lastHeartbeat) {
       this.lastHeartbeat = lastHeartbeat;
+    }
+
+    public Boolean getHasMonitorFacts() {
+      return hasMonitorFacts;
+    }
+
+    public void setHasMonitorFacts(Boolean hasMonitorFacts) {
+      this.hasMonitorFacts = hasMonitorFacts;
+    }
+
+    public LocalDateTime getLatestMonitorFactAt() {
+      return latestMonitorFactAt;
+    }
+
+    public void setLatestMonitorFactAt(LocalDateTime latestMonitorFactAt) {
+      this.latestMonitorFactAt = latestMonitorFactAt;
     }
   }
 

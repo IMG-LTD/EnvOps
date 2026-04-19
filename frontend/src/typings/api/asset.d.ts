@@ -16,6 +16,8 @@ declare namespace Api {
       ownerName: string;
       status: 'online' | 'warning' | 'offline' | string;
       lastHeartbeat: string;
+      hasMonitorFacts?: boolean;
+      latestMonitorFactAt?: string | null;
     }
 
     interface HostSummary {
@@ -26,6 +28,16 @@ declare namespace Api {
 
     interface HostPage extends Common.PaginatingQueryRecord<HostRecord> {
       summary: HostSummary;
+    }
+
+    interface CreateHostParams {
+      hostName: string;
+      ipAddress: string;
+      environment: string;
+      clusterName: string;
+      ownerName: string;
+      status: string;
+      lastHeartbeat?: string;
     }
 
     interface CredentialRecord {
