@@ -10,6 +10,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -52,6 +54,8 @@ class AppControllerTest {
 
   @Value("${envops.storage.local-base-dir}")
   private String storageBaseDir;
+
+  private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
   @Test
   void getAppsReturnsSeededApps() throws Exception {
@@ -842,7 +846,7 @@ class AppControllerTest {
         "INSERT INTO sys_user (id, user_name, password, phone, team_key, login_type, status, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
         userId,
         userName,
-        password,
+        passwordEncoder.encode(password),
         "139" + String.format("%08d", userId % 100000000L),
         "platform",
         "PASSWORD",

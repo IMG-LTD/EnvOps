@@ -5,6 +5,7 @@ import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper.RoleRow;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper.UserAuthRow;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper.UserListRow;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,9 +29,11 @@ public class UserApplicationService {
       "^[1](([3][0-9])|([4][01456789])|([5][012356789])|([6][2567])|([7][0-8])|([8][0-9])|([9][012356789]))[0-9]{8}$");
 
   private final UserAuthMapper userAuthMapper;
+  private final PasswordEncoder passwordEncoder;
 
-  public UserApplicationService(UserAuthMapper userAuthMapper) {
+  public UserApplicationService(UserAuthMapper userAuthMapper, PasswordEncoder passwordEncoder) {
     this.userAuthMapper = userAuthMapper;
+    this.passwordEncoder = passwordEncoder;
   }
 
   public List<SystemUserRecord> getUsers() {
@@ -220,7 +223,7 @@ public class UserApplicationService {
       throw new IllegalArgumentException("password is required");
     }
 
-    return password.trim();
+    return passwordEncoder.encode(password.trim());
   }
 
   private String normalizePassword(String password, boolean required, String fallbackPassword) {

@@ -46,7 +46,6 @@ type DeployTaskCreateFormModel = {
   hostIds: number[];
   batchStrategy: Api.Task.DeployTaskBatchStrategy;
   batchSize: number | null;
-  deployDir: string;
   sshUser: string;
   sshPort: number | null;
   privateKeyPath: string;
@@ -477,7 +476,6 @@ function createDefaultCreateFormModel(): DeployTaskCreateFormModel {
     hostIds: [],
     batchStrategy: 'ALL',
     batchSize: null,
-    deployDir: '',
     sshUser: 'deploy',
     sshPort: 22,
     privateKeyPath: '',
@@ -968,22 +966,23 @@ function buildCreateTaskPayload(): Api.Task.CreateDeployTaskPayload {
   const normalizedBatchSize = createForm.batchStrategy === 'ROLLING' ? Number(createForm.batchSize) : null;
   const normalizedSshPort = createForm.sshPort === null ? null : Number(createForm.sshPort);
 
-  return {
+  const payload: Api.Task.CreateDeployTaskPayload = {
     taskName: createForm.taskName.trim(),
     taskType: createForm.taskType,
-    appId: Number(createForm.appId),
-    versionId: Number(createForm.versionId),
+    appId: createForm.appId!,
+    versionId: createForm.versionId!,
     environment: createForm.environment,
-    hostIds: createForm.hostIds,
+    hostIds: [...createForm.hostIds],
     batchStrategy: createForm.batchStrategy,
     batchSize: normalizedBatchSize,
-    deployDir: createForm.deployDir.trim(),
     sshUser: createForm.sshUser.trim(),
     sshPort: normalizedSshPort,
     privateKeyPath: createForm.privateKeyPath.trim(),
     remoteBaseDir: createForm.remoteBaseDir.trim(),
     rollbackCommand: createForm.rollbackCommand.trim() || null
   };
+
+  return payload;
 }
 
 function validateCreateForm() {
@@ -1009,11 +1008,6 @@ function validateCreateForm() {
 
   if (!createForm.hostIds.length) {
     window.$message?.warning(t('page.envops.deployTask.create.validation.hostsRequired'));
-    return false;
-  }
-
-  if (!createForm.deployDir.trim()) {
-    window.$message?.warning(t('page.envops.deployTask.create.validation.deployDirRequired'));
     return false;
   }
 
@@ -2073,12 +2067,6 @@ onBeforeUnmount(() => {
                 </NFormItem>
               </NGi>
             </NGrid>
-            <NFormItem :label="t('page.envops.deployTask.create.deployDir')">
-              <NInput
-                v-model:value="createForm.deployDir"
-                :placeholder="t('page.envops.deployTask.create.deployDirPlaceholder')"
-              />
-            </NFormItem>
             <NGrid cols="1 s:2" responsive="screen" :x-gap="12" :y-gap="12">
               <NGi>
                 <NFormItem :label="t('page.envops.deployTask.create.sshUser')">

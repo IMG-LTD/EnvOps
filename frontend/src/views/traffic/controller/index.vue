@@ -37,10 +37,15 @@ const trafficPluginsByType = computed(() => {
   return directory;
 });
 
+const hasNotReadyPlugin = computed(() =>
+  trafficPluginList.value.some(item => normalizeLookupValue(item.status) !== 'ready')
+);
+
 const trafficPolicies = computed(() =>
   trafficPolicyList.value.map(item => {
     const statusKey = getTrafficPolicyStatusKey(item.status);
     const plugin = trafficPluginsByType.value.get(normalizeLookupValue(item.pluginType));
+    const isPluginReady = normalizeLookupValue(plugin?.status) === 'ready';
 
     return {
       key: item.id,
@@ -53,24 +58,18 @@ const trafficPolicies = computed(() =>
       status: getTrafficPolicyStatusLabel(statusKey),
       statusType: getTrafficPolicyTagType(statusKey),
       statusKey,
-      canPreview: Boolean(plugin?.supportsPreview),
-      canApply: Boolean(plugin?.supportsApply),
-      canRollback: Boolean(plugin?.supportsRollback) && Boolean(normalizeOptionalText(item.rollbackToken)),
+      canPreview: isPluginReady && Boolean(plugin?.supportsPreview),
+      canApply: isPluginReady && Boolean(plugin?.supportsApply),
+      canRollback:
+        isPluginReady && Boolean(plugin?.supportsRollback) && Boolean(normalizeOptionalText(item.rollbackToken)),
       rollbackToken: normalizeOptionalText(item.rollbackToken)
     };
   })
 );
 
-const enabledPolicyCount = computed(() => trafficPolicies.value.filter(item => item.statusKey === 'enabled').length);
-const previewPolicyCount = computed(() => trafficPolicies.value.filter(item => item.statusKey === 'preview').length);
-
-const canaryReleaseCount = computed(
-  () =>
-    trafficPolicyList.value.filter(item => {
-      const trafficRatio = getTrafficRatioNumber(item.trafficRatio);
-
-      return trafficRatio !== null && trafficRatio > 0 && trafficRatio < 100 && isProductionScope(item.scope);
-    }).length
+const policyRecordCount = computed(() => trafficPolicies.value.length);
+const previewRecordCount = computed(
+  () => trafficPolicies.value.filter(item => item.statusKey === 'preview' || item.statusKey === 'review').length
 );
 
 const rollbackReadyRate = computed(() => {
@@ -91,13 +90,13 @@ const metrics = computed(() => [
   {
     key: 'policiesEnabled',
     label: t('page.envops.trafficController.summary.policiesEnabled.label'),
-    value: String(enabledPolicyCount.value),
+    value: String(policyRecordCount.value),
     desc: t('page.envops.trafficController.summary.policiesEnabled.desc')
   },
   {
     key: 'canaryReleases',
     label: t('page.envops.trafficController.summary.canaryReleases.label'),
-    value: String(canaryReleaseCount.value),
+    value: String(previewRecordCount.value),
     desc: t('page.envops.trafficController.summary.canaryReleases.desc')
   },
   {
@@ -109,10 +108,12 @@ const metrics = computed(() => [
 ]);
 
 const policiesLiveTag = computed(
-  () => `${enabledPolicyCount.value} / ${t('page.envops.trafficController.summary.policiesEnabled.label')}`
+  () => `${policyRecordCount.value} / ${t('page.envops.trafficController.summary.policiesEnabled.label')}`
 );
 
-const previewPolicyTag = computed(() => `${previewPolicyCount.value} / ${t('page.envops.common.status.preview')}`);
+const previewRecordTag = computed(
+  () => `${previewRecordCount.value} / ${t('page.envops.trafficController.summary.canaryReleases.label')}`
+);
 
 const latestActionSummary = computed(() => {
   const actionResult = latestActionResult.value;
@@ -212,26 +213,8 @@ function getDisplayText(value?: string | null) {
   return '-';
 }
 
-function getTrafficRatioNumber(value?: string | null) {
-  const parsedValue = Number.parseFloat(
-    String(value || '')
-      .replace('%', '')
-      .trim()
-  );
-
-  return Number.isFinite(parsedValue) ? parsedValue : null;
-}
-
 function getTrafficRatioLabel(value?: string | null) {
   return getDisplayText(value);
-}
-
-function isProductionScope(scope?: string | null) {
-  const normalizedScope = String(scope || '')
-    .trim()
-    .toLowerCase();
-
-  return normalizedScope.includes('prod') || normalizedScope.includes('production');
 }
 
 function formatFallbackText(value?: string | null) {
@@ -312,6 +295,10 @@ function getTrafficOwnerLabel(value?: string | null) {
 function getTrafficPolicyStatusKey(value?: string | null): TrafficPolicyStatusKey {
   const normalizedStatus = normalizeLookupValue(value);
 
+  if (normalizedStatus.includes('enable')) {
+    return 'enabled';
+  }
+
   if (normalizedStatus.includes('preview')) {
     return 'preview';
   }
@@ -328,7 +315,7 @@ function getTrafficPolicyStatusKey(value?: string | null): TrafficPolicyStatusKe
     return 'disabled';
   }
 
-  return 'enabled';
+  return 'standby';
 }
 
 function getTrafficPolicyStatusLabel(statusKey: TrafficPolicyStatusKey) {
@@ -390,13 +377,17 @@ onMounted(() => {
         </div>
         <NSpace>
           <NTag type="success">{{ policiesLiveTag }}</NTag>
-          <NTag type="info">{{ previewPolicyTag }}</NTag>
+          <NTag type="info">{{ previewRecordTag }}</NTag>
           <NButton secondary :loading="loading" @click="loadTrafficData">
             {{ t('common.refresh') }}
           </NButton>
         </NSpace>
       </div>
     </NCard>
+
+    <NAlert v-if="hasNotReadyPlugin" type="warning" :show-icon="false">
+      {{ t('page.envops.trafficController.messages.notReadyWarning') }}
+    </NAlert>
 
     <NGrid cols="1 s:3" responsive="screen" :x-gap="16" :y-gap="16">
       <NGi v-for="item in metrics" :key="item.key">

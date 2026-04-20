@@ -22,7 +22,6 @@ declare namespace Api {
       hostIds: number[];
       batchStrategy: DeployTaskBatchStrategy;
       batchSize?: number | null;
-      deployDir: string;
       sshUser: string;
       sshPort?: number | null;
       privateKeyPath: string;

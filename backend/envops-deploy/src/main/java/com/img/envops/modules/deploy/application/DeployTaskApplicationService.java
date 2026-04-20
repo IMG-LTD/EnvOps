@@ -37,6 +37,13 @@ public class DeployTaskApplicationService {
   private static final List<String> SUPPORTED_SORT_ORDERS = List.of("asc", "desc");
   private static final List<String> SUPPORTED_SOURCE_TYPES = List.of("DEPLOY");
   private static final List<String> SUPPORTED_PRIORITIES = List.of("P1", "P2", "P3");
+  private static final Set<String> SUPPORTED_CREATE_PARAM_KEYS = Set.of(
+      "environment",
+      "sshUser",
+      "sshPort",
+      "privateKeyPath",
+      "remoteBaseDir",
+      "rollbackCommand");
   private static final List<String> SECRET_PARAM_KEYS = List.of("token", "secret", "password", "credential", "privatekey", "accesskey", "secretkey", "apikey", "sshkey", "rollbackcommand");
   private static final DateTimeFormatter TASK_NO_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -457,9 +464,20 @@ public class DeployTaskApplicationService {
         if (!StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
           continue;
         }
-        normalizedParams.put(entry.getKey().trim(), String.valueOf(entry.getValue()));
+        String key = entry.getKey().trim();
+        if (!SUPPORTED_CREATE_PARAM_KEYS.contains(key)) {
+          continue;
+        }
+        String value = String.valueOf(entry.getValue());
+        if (!StringUtils.hasText(value)) {
+          continue;
+        }
+        normalizedParams.put(key, value.trim());
       }
     }
+    normalizedParams.put("sshUser", requireNonBlankParam(normalizedParams, "sshUser"));
+    normalizedParams.put("privateKeyPath", requireNonBlankParam(normalizedParams, "privateKeyPath"));
+    normalizedParams.put("remoteBaseDir", requireNonBlankParam(normalizedParams, "remoteBaseDir"));
 
     return new ValidatedCreateCommand(
         command.taskName().trim(),
@@ -470,6 +488,14 @@ public class DeployTaskApplicationService {
         batchStrategy,
         batchSize,
         normalizedParams);
+  }
+
+  private String requireNonBlankParam(Map<String, String> params, String key) {
+    String value = params.get(key);
+    if (!StringUtils.hasText(value)) {
+      throw new IllegalArgumentException(key + " is required");
+    }
+    return value.trim();
   }
 
   private DeployTaskMapper.DeployTaskRow requireTask(Long id) {

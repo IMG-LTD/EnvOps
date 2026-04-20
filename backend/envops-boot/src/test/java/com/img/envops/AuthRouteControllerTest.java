@@ -3,11 +3,15 @@ package com.img.envops;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.img.envops.framework.security.JwtTokenService;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -38,6 +42,11 @@ class AuthRouteControllerTest {
   @Autowired
   private JwtTokenService jwtTokenService;
 
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
+
+  private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
   @Test
   void loginReturnsAccessTokenOnly() throws Exception {
     String accessToken = login();
@@ -45,6 +54,20 @@ class AuthRouteControllerTest {
     org.assertj.core.api.Assertions.assertThat(accessToken)
         .isNotBlank()
         .isNotEqualTo(FORGED_ACCESS_TOKEN);
+  }
+
+  @Test
+  void seededAdminPasswordIsStoredAsHashAndStillAllowsLogin() throws Exception {
+    String storedPassword = jdbcTemplate.queryForObject(
+        "SELECT password FROM sys_user WHERE user_name = ?",
+        String.class,
+        "envops-admin");
+
+    Assertions.assertThat(storedPassword)
+        .isNotBlank()
+        .isNotEqualTo("EnvOps@123");
+    Assertions.assertThat(passwordEncoder.matches("EnvOps@123", storedPassword)).isTrue();
+    Assertions.assertThat(login()).isNotBlank();
   }
 
   @Test
@@ -194,7 +217,8 @@ class AuthRouteControllerTest {
   void getUserInfoRequiresAuth() throws Exception {
     mockMvc.perform(get("/api/auth/getUserInfo"))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("401"));
+        .andExpect(jsonPath("$.code").value("401"))
+        .andExpect(jsonPath("$.msg").value("Unauthorized"));
   }
 
   @Test

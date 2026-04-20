@@ -25,6 +25,21 @@ public class RestTrafficPlugin implements TrafficPlugin {
   }
 
   @Override
+  public boolean supportsPreview() {
+    return false;
+  }
+
+  @Override
+  public boolean supportsApply() {
+    return false;
+  }
+
+  @Override
+  public boolean supportsRollback() {
+    return false;
+  }
+
+  @Override
   public TrafficPluginResult preview(TrafficActionRequest request) {
     return buildActionResult("preview", request);
   }

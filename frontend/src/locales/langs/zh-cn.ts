@@ -987,7 +987,7 @@ const local: App.I18n.Schema = {
       taskCenter: {
         hero: {
           title: '任务中心',
-          description: '提供统一的编排队列、执行可视化与跨域任务追踪视图。'
+          description: '提供 Deploy 任务的审批、执行可视化与状态追踪视图。'
         },
         tags: {
           queueBalanced: '队列均衡',
@@ -996,21 +996,20 @@ const local: App.I18n.Schema = {
         summary: {
           queued: {
             label: '排队中',
-            desc: '等待执行器或审批信号的任务'
+            desc: '等待审批或等待执行器启动的 Deploy 任务'
           },
           running: {
             label: '运行中',
-            desc: '横跨发布、巡检与流量域的活跃任务'
+            desc: '当前仍在执行中的 Deploy 任务'
           },
           slaBreachRisk: {
             label: 'SLA 风险',
-            desc: '接近超时阈值的长耗时任务'
+            desc: '接近超时阈值的长耗时 Deploy 任务'
           }
         },
         filters: {
           keyword: '关键词',
           status: '状态',
-          sourceType: '来源类型',
           taskType: '任务类型',
           priority: '优先级',
           search: '搜索',
@@ -1025,7 +1024,7 @@ const local: App.I18n.Schema = {
           desc: '降序'
         },
         table: {
-          title: '统一队列',
+          title: 'Deploy 队列',
           taskId: '任务 ID',
           type: '类型',
           source: '来源',
@@ -1040,7 +1039,7 @@ const local: App.I18n.Schema = {
       trafficController: {
         hero: {
           title: '流量控制',
-          description: '管理渐进式发布策略、流量切分与可回滚的网关规则。'
+          description: '展示流量策略记录与插件接入状态。EnvOps 0.0.4 不提供真实切流动作。'
         },
         tags: {
           policiesLive: '3 条策略生效中',
@@ -1048,16 +1047,16 @@ const local: App.I18n.Schema = {
         },
         summary: {
           policiesEnabled: {
-            label: '已启用策略',
-            desc: '当前已在网关侧生效的路由规则'
+            label: '策略记录',
+            desc: '当前仓库中的流量策略记录，不代表真实网关已生效'
           },
           canaryReleases: {
-            label: '金丝雀发布',
-            desc: '生产环境内正在观察的流量切分'
+            label: '预览策略',
+            desc: '处于预览或演示语义中的策略记录'
           },
           rollbackReady: {
-            label: '回滚就绪',
-            desc: '已保存上一版本可快速回退的策略'
+            label: '回滚令牌覆盖率',
+            desc: '仅表示记录层面存在回滚令牌，不代表外部系统已接通'
           }
         },
         table: {
@@ -1077,6 +1076,7 @@ const local: App.I18n.Schema = {
         },
         messages: {
           latestAction: '最近一次流量动作',
+          notReadyWarning: '当前 NGINX / REST plugin 仍是 skeleton，页面只展示目录状态，不允许执行真实流量动作。',
           previewSuccess: '流量策略预览成功',
           applySuccess: '流量策略应用成功',
           rollbackSuccess: '流量策略回滚成功'

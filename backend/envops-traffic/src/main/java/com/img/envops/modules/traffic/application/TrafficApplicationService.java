@@ -109,6 +109,10 @@ public class TrafficApplicationService {
   private TrafficPlugin requirePluginSupport(String pluginType, String action) {
     TrafficPlugin plugin = resolvePlugin(pluginType);
 
+    if (!"READY".equals(plugin.pluginStatus())) {
+      throw new IllegalArgumentException("traffic plugin is not ready: " + pluginType);
+    }
+
     boolean supported = switch (action) {
       case "preview" -> plugin.supportsPreview();
       case "apply" -> plugin.supportsApply();

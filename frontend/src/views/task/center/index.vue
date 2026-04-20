@@ -29,7 +29,6 @@ const taskList = ref<Api.Task.TaskCenterRecord[]>([]);
 const filterForm = reactive({
   keyword: '',
   status: null as string | null,
-  sourceType: null as string | null,
   taskType: null as string | null,
   priority: null as string | null
 });
@@ -47,8 +46,6 @@ const statusOptions = computed(() => [
   { label: t('page.envops.common.status.cancelled'), value: 'CANCELLED' },
   { label: t('page.envops.common.status.rejected'), value: 'REJECTED' }
 ]);
-
-const sourceTypeOptions = computed(() => [{ label: t('page.envops.common.taskType.deploy'), value: 'DEPLOY' }]);
 
 const taskTypeOptions = computed(() => [
   { label: t('page.envops.deployTask.filters.taskTypeInstall'), value: 'INSTALL' },
@@ -80,7 +77,6 @@ watch(
     pendingTaskCenterRouteQuery.value = query;
     filterForm.keyword = query.keyword;
     filterForm.status = query.status || null;
-    filterForm.sourceType = query.sourceType || null;
     filterForm.taskType = query.taskType || null;
     filterForm.priority = query.priority || null;
   },
@@ -186,7 +182,6 @@ async function handleSearch() {
   await pushTaskCenterRouteQuery({
     keyword: filterForm.keyword.trim(),
     status: filterForm.status ?? '',
-    sourceType: filterForm.sourceType ?? '',
     taskType: filterForm.taskType ?? '',
     priority: filterForm.priority ?? '',
     page: DEFAULT_TASK_CENTER_ROUTE_QUERY.page
@@ -196,14 +191,12 @@ async function handleSearch() {
 async function handleResetFilters() {
   filterForm.keyword = '';
   filterForm.status = null;
-  filterForm.sourceType = null;
   filterForm.taskType = null;
   filterForm.priority = null;
 
   await pushTaskCenterRouteQuery({
     keyword: '',
     status: '',
-    sourceType: '',
     taskType: '',
     priority: '',
     page: DEFAULT_TASK_CENTER_ROUTE_QUERY.page
@@ -238,7 +231,6 @@ function stringifyTaskCenterRouteQuery(query: TaskCenterRouteQuery) {
   return {
     ...(query.keyword ? { keyword: query.keyword } : {}),
     ...(query.status ? { status: query.status } : {}),
-    ...(query.sourceType ? { sourceType: query.sourceType } : {}),
     ...(query.taskType ? { taskType: query.taskType } : {}),
     ...(query.priority ? { priority: query.priority } : {}),
     page: String(query.page),
@@ -483,13 +475,6 @@ function isDeploySourceType(value: string | null | undefined) {
             class="w-180px"
             :options="statusOptions"
             :placeholder="t('page.envops.taskCenter.filters.status')"
-          />
-          <NSelect
-            v-model:value="filterForm.sourceType"
-            clearable
-            class="w-180px"
-            :options="sourceTypeOptions"
-            :placeholder="t('page.envops.taskCenter.filters.sourceType')"
           />
           <NSelect
             v-model:value="filterForm.taskType"

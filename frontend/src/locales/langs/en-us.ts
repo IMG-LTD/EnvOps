@@ -996,7 +996,7 @@ const local: App.I18n.Schema = {
       taskCenter: {
         hero: {
           title: 'Task Center',
-          description: 'A unified work queue for orchestration, execution visibility and cross-domain task tracing.'
+          description: 'A deploy queue view for approval, execution visibility and task status tracking.'
         },
         tags: {
           queueBalanced: 'Queue balanced',
@@ -1005,21 +1005,20 @@ const local: App.I18n.Schema = {
         summary: {
           queued: {
             label: 'Queued',
-            desc: 'Tasks waiting for workers or approval signals'
+            desc: 'Deploy tasks waiting for approval or executor pickup'
           },
           running: {
             label: 'Running',
-            desc: 'Active jobs across deploy, inspection and traffic domains'
+            desc: 'Deploy tasks currently executing'
           },
           slaBreachRisk: {
             label: 'SLA Breach Risk',
-            desc: 'Long-running tasks close to configured timeout limits'
+            desc: 'Deploy tasks close to timeout thresholds'
           }
         },
         filters: {
           keyword: 'Keyword',
           status: 'Status',
-          sourceType: 'Source Type',
           taskType: 'Task Type',
           priority: 'Priority',
           search: 'Search',
@@ -1034,7 +1033,7 @@ const local: App.I18n.Schema = {
           desc: 'DESC'
         },
         table: {
-          title: 'Unified Queue',
+          title: 'Deploy Queue',
           taskId: 'Task ID',
           type: 'Type',
           source: 'Source',
@@ -1049,7 +1048,8 @@ const local: App.I18n.Schema = {
       trafficController: {
         hero: {
           title: 'Traffic Controller',
-          description: 'Manage progressive delivery policies, traffic splits and rollback-ready gateway rules.'
+          description:
+            'Show policy records and plugin readiness. EnvOps 0.0.4 does not provide real traffic switching actions.'
         },
         tags: {
           policiesLive: '3 policies live',
@@ -1057,16 +1057,16 @@ const local: App.I18n.Schema = {
         },
         summary: {
           policiesEnabled: {
-            label: 'Policies Enabled',
-            desc: 'Routing strategies currently active across gateways'
+            label: 'Policy Records',
+            desc: 'Traffic policy records in the current store; they do not mean real gateway rules are active'
           },
           canaryReleases: {
-            label: 'Canary Releases',
-            desc: 'Traffic splits under observation in production'
+            label: 'Preview Records',
+            desc: 'Policy records currently in preview or demo semantics'
           },
           rollbackReady: {
-            label: 'Rollback Ready',
-            desc: 'Policies with a captured previous version for fallback'
+            label: 'Rollback Token Coverage',
+            desc: 'Only indicates rollback tokens exist at the record level; it does not mean external systems are connected'
           }
         },
         table: {
@@ -1086,6 +1086,8 @@ const local: App.I18n.Schema = {
         },
         messages: {
           latestAction: 'Latest Traffic Action',
+          notReadyWarning:
+            'The current NGINX / REST plugins are still skeletons. This page only shows directory status and does not allow real traffic actions.',
           previewSuccess: 'Traffic policy previewed successfully',
           applySuccess: 'Traffic policy applied successfully',
           rollbackSuccess: 'Traffic policy rolled back successfully'
