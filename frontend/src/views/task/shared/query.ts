@@ -284,7 +284,7 @@ export function toTaskCenterApiQuery(query: TaskCenterRouteQuery): Api.Task.Task
   return {
     ...(query.keyword ? { keyword: query.keyword } : {}),
     ...(query.status ? { status: query.status } : {}),
-    ...(query.sourceType ? { sourceType: query.sourceType } : {}),
+    sourceType: 'DEPLOY',
     ...(query.taskType ? { taskType: query.taskType } : {}),
     ...(query.priority ? { priority: query.priority } : {}),
     page: query.page,

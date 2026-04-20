@@ -111,6 +111,7 @@ class DeployTaskControllerTest {
                     "deployDir": "/data/apps/order-service",
                     "port": 8080,
                     "profile": "prod",
+                    "environment": "production",
                     "sshUser": "deploy",
                     "sshPort": 22,
                     "privateKeyPath": "%s",
@@ -135,12 +136,13 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.successCount").value(0))
         .andExpect(jsonPath("$.data.failCount").value(0))
         .andExpect(jsonPath("$.data.operatorName").value("release-admin"))
-        .andExpect(jsonPath("$.data.params.deployDir").value("/data/apps/order-service"))
-        .andExpect(jsonPath("$.data.params.port").value("8080"))
-        .andExpect(jsonPath("$.data.params.profile").value("prod"))
+        .andExpect(jsonPath("$.data.params.environment").value("production"))
         .andExpect(jsonPath("$.data.params.sshUser").value("deploy"))
         .andExpect(jsonPath("$.data.params.sshPort").value("22"))
         .andExpect(jsonPath("$.data.params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.params.deployDir").doesNotExist())
+        .andExpect(jsonPath("$.data.params.port").doesNotExist())
+        .andExpect(jsonPath("$.data.params.profile").doesNotExist())
         .andExpect(jsonPath("$.data.params.privateKeyPath").doesNotExist())
         .andExpect(jsonPath("$.data.params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.params.accessToken").doesNotExist())
@@ -163,9 +165,9 @@ class DeployTaskControllerTest {
         .isEqualTo(2);
     org.assertj.core.api.Assertions.assertThat(
             jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task_param WHERE task_id = ?", Integer.class, taskId))
-        .isEqualTo(9);
+        .isEqualTo(6);
     org.assertj.core.api.Assertions.assertThat(
-            jdbcTemplate.queryForObject("SELECT secret_flag FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "accessToken"))
+            jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "environment"))
         .isEqualTo(1);
 
     mockMvc.perform(get("/api/deploy/tasks")
@@ -176,9 +178,13 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
         .andExpect(jsonPath("$.data.records[0].taskName").value("install-order-service-prod"))
         .andExpect(jsonPath("$.data.records[0].status").value("PENDING_APPROVAL"))
+        .andExpect(jsonPath("$.data.records[0].params.environment").value("production"))
         .andExpect(jsonPath("$.data.records[0].params.sshUser").value("deploy"))
         .andExpect(jsonPath("$.data.records[0].params.sshPort").value("22"))
         .andExpect(jsonPath("$.data.records[0].params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.records[0].params.deployDir").doesNotExist())
+        .andExpect(jsonPath("$.data.records[0].params.port").doesNotExist())
+        .andExpect(jsonPath("$.data.records[0].params.profile").doesNotExist())
         .andExpect(jsonPath("$.data.records[0].params.privateKeyPath").doesNotExist())
         .andExpect(jsonPath("$.data.records[0].params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.records[0].params.accessToken").doesNotExist());
@@ -191,10 +197,13 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.taskNo").value(created.path("taskNo").asText()))
         .andExpect(jsonPath("$.data.taskName").value("install-order-service-prod"))
         .andExpect(jsonPath("$.data.status").value("PENDING_APPROVAL"))
-        .andExpect(jsonPath("$.data.params.deployDir").value("/data/apps/order-service"))
+        .andExpect(jsonPath("$.data.params.environment").value("production"))
         .andExpect(jsonPath("$.data.params.sshUser").value("deploy"))
         .andExpect(jsonPath("$.data.params.sshPort").value("22"))
         .andExpect(jsonPath("$.data.params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.params.deployDir").doesNotExist())
+        .andExpect(jsonPath("$.data.params.port").doesNotExist())
+        .andExpect(jsonPath("$.data.params.profile").doesNotExist())
         .andExpect(jsonPath("$.data.params.privateKeyPath").doesNotExist())
         .andExpect(jsonPath("$.data.params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.params.accessToken").doesNotExist());
@@ -246,7 +255,7 @@ class DeployTaskControllerTest {
         List.of(1L, 2L, 3L),
         "ALL",
         0,
-        Map.of("deployDir", "/data/apps/order-service"));
+        createRequiredParams());
 
     jdbcTemplate.update("UPDATE deploy_task_host SET status = 'CANCEL_REQUESTED' WHERE task_id = ? AND host_id = ?", taskId, 2L);
     jdbcTemplate.update("UPDATE deploy_task_host SET status = 'FAILED' WHERE task_id = ? AND host_id = ?", taskId, 3L);
@@ -276,7 +285,7 @@ class DeployTaskControllerTest {
         List.of(1L, 2L, 3L),
         "ALL",
         0,
-        Map.of("deployDir", "/data/apps/order-service"));
+        createRequiredParams());
 
     jdbcTemplate.update("UPDATE deploy_task_host SET status = 'FAILED' WHERE task_id = ? AND host_id = ?", taskId, 3L);
 
@@ -308,7 +317,7 @@ class DeployTaskControllerTest {
         List.of(1L, 2L, 3L),
         "ALL",
         0,
-        Map.of("deployDir", "/data/apps/order-service"));
+        createRequiredParams());
 
     mockMvc.perform(get("/api/deploy/tasks/{id}/hosts", taskId)
             .param("keyword", "10.20.1.12")
@@ -334,7 +343,7 @@ class DeployTaskControllerTest {
         List.of(1L, 2L),
         "ALL",
         0,
-        Map.of("deployDir", "/data/apps/order-service"));
+        createRequiredParams());
     long taskId = createDeployTask(
         accessToken,
         "logs-filter-paging",
@@ -344,7 +353,7 @@ class DeployTaskControllerTest {
         List.of(1L, 2L),
         "ALL",
         0,
-        Map.of("deployDir", "/data/apps/order-service"));
+        createRequiredParams());
 
     long hostOneTaskHostId = jdbcTemplate.queryForObject(
         "SELECT id FROM deploy_task_host WHERE task_id = ? AND host_id = ?",
@@ -455,9 +464,8 @@ class DeployTaskControllerTest {
         List.of(1L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/alpha",
-            "profile", "prod"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(matchedOlderTaskId, "profile", "prod");
     long matchedNewerTaskId = createDeployTask(
         accessToken,
         "deploy-filter-prod-beta",
@@ -467,9 +475,8 @@ class DeployTaskControllerTest {
         List.of(2L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/beta",
-            "namespace", "production"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(matchedNewerTaskId, "namespace", "production");
     long differentAppTaskId = createDeployTask(
         accessToken,
         "deploy-filter-prod-gateway",
@@ -479,9 +486,8 @@ class DeployTaskControllerTest {
         List.of(3L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/gateway",
-            "environment", "prod"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(differentAppTaskId, "environment", "prod");
     long differentTaskTypeId = createDeployTask(
         accessToken,
         "deploy-filter-prod-upgrade",
@@ -491,9 +497,8 @@ class DeployTaskControllerTest {
         List.of(1L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/upgrade",
-            "env", "prod"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(differentTaskTypeId, "env", "prod");
     long differentEnvironmentTaskId = createDeployTask(
         accessToken,
         "deploy-filter-sandbox",
@@ -503,9 +508,8 @@ class DeployTaskControllerTest {
         List.of(1L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/sandbox",
-            "environment", "sandbox"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(differentEnvironmentTaskId, "environment", "sandbox");
 
     approveDeployTask(accessToken, matchedOlderTaskId, "approve alpha");
     approveDeployTask(accessToken, matchedNewerTaskId, "approve beta");
@@ -557,9 +561,8 @@ class DeployTaskControllerTest {
         List.of(1L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/stage",
-            "profile", "preprod"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(stagingTaskId, "profile", "preprod");
     long sandboxTaskId = createDeployTask(
         accessToken,
         "deploy-filter-sandbox-dev",
@@ -569,9 +572,8 @@ class DeployTaskControllerTest {
         List.of(2L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/dev",
-            "env", "dev"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(sandboxTaskId, "env", "dev");
     long unmatchedTaskId = createDeployTask(
         accessToken,
         "deploy-filter-unmatched-production",
@@ -581,9 +583,8 @@ class DeployTaskControllerTest {
         List.of(3L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/prod",
-            "environment", "prod"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(unmatchedTaskId, "environment", "prod");
 
     approveDeployTask(accessToken, stagingTaskId, "approve staging");
     approveDeployTask(accessToken, sandboxTaskId, "approve sandbox");
@@ -626,10 +627,9 @@ class DeployTaskControllerTest {
         List.of(1L),
         "ALL",
         0,
-        Map.of(
-            "deployDir", "/data/apps/conflict",
-            "environment", "dev",
-            "profile", "prod"));
+        createRequiredParamsWithoutEnvironment());
+    insertTaskParam(conflictTaskId, "environment", "dev");
+    insertTaskParam(conflictTaskId, "profile", "prod");
 
     approveDeployTask(accessToken, conflictTaskId, "approve conflicting environment task");
 
@@ -814,7 +814,7 @@ class DeployTaskControllerTest {
         List.of(1L),
         "ALL",
         0,
-        Map.of("profile", "prod"));
+        createRequiredParams());
     long p3TaskId = createDeployTask(accessToken, "task-center-filter-pending-p3");
     long p2TaskId = createDeployTask(accessToken, "task-center-filter-pending-p2");
 
@@ -1100,6 +1100,31 @@ class DeployTaskControllerTest {
   }
 
   @Test
+  void createDeployTaskRejectsMissingExecutionParams() throws Exception {
+    String accessToken = login("envops-admin", "EnvOps@123");
+
+    mockMvc.perform(post("/api/deploy/tasks")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "taskName": "invalid-order-service",
+                  "taskType": "INSTALL",
+                  "appId": 1001,
+                  "versionId": 1401,
+                  "environment": "production",
+                  "hostIds": [1],
+                  "batchStrategy": "ALL",
+                  "params": {
+                    "remoteBaseDir": "/opt/envops/releases"
+                  }
+                }
+                """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.msg").value("sshUser is required"));
+  }
+
+  @Test
   void createDeployTaskRejectsInvalidTaskType() throws Exception {
     String accessToken = login();
 
@@ -1241,7 +1266,7 @@ class DeployTaskControllerTest {
   }
 
   @Test
-  void deployTaskMarksCommonCredentialKeysAsSecret() throws Exception {
+  void createDeployTaskIgnoresLegacyParamsOutsidePublicContract() throws Exception {
     String accessToken = login("release-admin", "Release@123");
 
     MvcResult createResult = mockMvc.perform(post("/api/deploy/tasks")
@@ -1249,42 +1274,64 @@ class DeployTaskControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {
-                  "taskName": "install-with-common-secret-keys",
+                  "taskName": "install-ignore-legacy-create-params",
                   "taskType": "INSTALL",
                   "appId": 1001,
                   "versionId": 1401,
                   "hostIds": [1],
                   "batchStrategy": "ALL",
                   "params": {
-                    "apiKey": "masked-api-key",
-                    "access_key": "masked-access-key",
-                    "private_key": "masked-private-key",
-                    "ssh_key": "masked-ssh-key"
+                    "environment": "production",
+                    "deployDir": "/data/apps/order-service",
+                    "profile": "prod",
+                    "accessToken": "prod-secret-token",
+                    "sshUser": "deploy",
+                    "sshPort": 22,
+                    "privateKeyPath": "%s",
+                    "remoteBaseDir": "/opt/envops/releases",
+                    "rollbackCommand": "bash /opt/envops/bin/rollback.sh"
                   }
                 }
-                """))
+                """.formatted(TEST_PRIVATE_KEY_PATH)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.params.apiKey").doesNotExist())
-        .andExpect(jsonPath("$.data.params.access_key").doesNotExist())
-        .andExpect(jsonPath("$.data.params.private_key").doesNotExist())
-        .andExpect(jsonPath("$.data.params.ssh_key").doesNotExist())
+        .andExpect(jsonPath("$.data.params.environment").value("production"))
+        .andExpect(jsonPath("$.data.params.sshUser").value("deploy"))
+        .andExpect(jsonPath("$.data.params.sshPort").value("22"))
+        .andExpect(jsonPath("$.data.params.remoteBaseDir").value("/opt/envops/releases"))
+        .andExpect(jsonPath("$.data.params.deployDir").doesNotExist())
+        .andExpect(jsonPath("$.data.params.profile").doesNotExist())
+        .andExpect(jsonPath("$.data.params.accessToken").doesNotExist())
         .andReturn();
 
     long taskId = objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data").path("id").asLong();
 
     org.assertj.core.api.Assertions.assertThat(
-            jdbcTemplate.queryForObject("SELECT secret_flag FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "apiKey"))
-        .isEqualTo(1);
+            jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "deployDir"))
+        .isEqualTo(0);
     org.assertj.core.api.Assertions.assertThat(
-            jdbcTemplate.queryForObject("SELECT secret_flag FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "access_key"))
-        .isEqualTo(1);
+            jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "profile"))
+        .isEqualTo(0);
     org.assertj.core.api.Assertions.assertThat(
-            jdbcTemplate.queryForObject("SELECT secret_flag FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "private_key"))
-        .isEqualTo(1);
-    org.assertj.core.api.Assertions.assertThat(
-            jdbcTemplate.queryForObject("SELECT secret_flag FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "ssh_key"))
-        .isEqualTo(1);
+            jdbcTemplate.queryForObject("SELECT COUNT(*) FROM deploy_task_param WHERE task_id = ? AND param_key = ?", Integer.class, taskId, "accessToken"))
+        .isEqualTo(0);
+
+    mockMvc.perform(get("/api/deploy/tasks/{id}", taskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.params.deployDir").doesNotExist())
+        .andExpect(jsonPath("$.data.params.profile").doesNotExist())
+        .andExpect(jsonPath("$.data.params.accessToken").doesNotExist());
+
+    mockMvc.perform(get("/api/deploy/tasks")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
+        .andExpect(jsonPath("$.data.records[0].params.deployDir").doesNotExist())
+        .andExpect(jsonPath("$.data.records[0].params.profile").doesNotExist())
+        .andExpect(jsonPath("$.data.records[0].params.accessToken").doesNotExist());
   }
 
   @Test
@@ -1298,7 +1345,10 @@ class DeployTaskControllerTest {
                 java.util.List.of(1L),
                 "ALL",
                 0,
-                java.util.Map.of("deployDir", "/tmp/app")),
+                java.util.Map.of(
+                    "sshUser", "deploy",
+                    "privateKeyPath", "/tmp/key.pem",
+                    "remoteBaseDir", "/tmp/app")),
             null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("operatorName is required");
@@ -1307,30 +1357,20 @@ class DeployTaskControllerTest {
   @Test
   void deployTaskReadModelStillHidesSensitiveKeysWhenSecretFlagIsMissing() throws Exception {
     String accessToken = login("release-admin", "Release@123");
+    long taskId = createDeployTask(accessToken, "install-with-history-secret-flag-gap");
 
-    MvcResult createResult = mockMvc.perform(post("/api/deploy/tasks")
-            .header("Authorization", "Bearer " + accessToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "taskName": "install-with-history-secret-flag-gap",
-                  "taskType": "INSTALL",
-                  "appId": 1001,
-                  "versionId": 1401,
-                  "hostIds": [1],
-                  "batchStrategy": "ALL",
-                  "params": {
-                    "access_key": "should-stay-hidden",
-                    "profile": "prod"
-                  }
-                }
-                """))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value("0000"))
-        .andReturn();
-
-    long taskId = objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data").path("id").asLong();
-
+    jdbcTemplate.update(
+        "INSERT INTO deploy_task_param (task_id, param_key, param_value, secret_flag) VALUES (?, ?, ?, ?)",
+        taskId,
+        "access_key",
+        "should-stay-hidden",
+        1);
+    jdbcTemplate.update(
+        "INSERT INTO deploy_task_param (task_id, param_key, param_value, secret_flag) VALUES (?, ?, ?, ?)",
+        taskId,
+        "profile",
+        "prod",
+        0);
     jdbcTemplate.update("UPDATE deploy_task_param SET secret_flag = 0 WHERE task_id = ? AND param_key = ?", taskId, "access_key");
 
     mockMvc.perform(get("/api/deploy/tasks/{id}", taskId)
@@ -1357,11 +1397,15 @@ class DeployTaskControllerTest {
                   "hostIds": [1],
                   "batchStrategy": "ALL",
                   "params": {
-                    "deployDir": "/data/apps/order-service",
+                    "environment": "production",
+                    "sshUser": "deploy",
+                    "sshPort": 22,
+                    "privateKeyPath": "%s",
+                    "remoteBaseDir": "/opt/envops/releases",
                     "rollbackCommand": "echo rollback-direct"
                   }
                 }
-                """))
+                """.formatted(TEST_PRIVATE_KEY_PATH)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
         .andReturn();
@@ -1372,7 +1416,7 @@ class DeployTaskControllerTest {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.params.deployDir").value("/data/apps/order-service"))
+        .andExpect(jsonPath("$.data.params.environment").value("production"))
         .andExpect(jsonPath("$.data.params.rollbackCommand").doesNotExist());
 
     MvcResult listResult = mockMvc.perform(get("/api/deploy/tasks")
@@ -1391,8 +1435,8 @@ class DeployTaskControllerTest {
     }
 
     org.assertj.core.api.Assertions.assertThat(createdTask).isNotNull();
-    org.assertj.core.api.Assertions.assertThat(createdTask.path("params").path("deployDir").asText())
-        .isEqualTo("/data/apps/order-service");
+    org.assertj.core.api.Assertions.assertThat(createdTask.path("params").path("environment").asText())
+        .isEqualTo("production");
     org.assertj.core.api.Assertions.assertThat(createdTask.path("params").has("rollbackCommand")).isFalse();
   }
 
@@ -1902,11 +1946,9 @@ class DeployTaskControllerTest {
         "execute-missing-ssh-user",
         versionId,
         List.of(1L),
-        Map.of(
-            "sshPort", 22,
-            "privateKeyPath", TEST_PRIVATE_KEY_PATH,
-            "remoteBaseDir", "/opt/envops/releases"));
+        createRequiredParams());
     approveDeployTask(accessToken, taskId, "approved for missing ssh user test");
+    jdbcTemplate.update("DELETE FROM deploy_task_param WHERE task_id = ? AND param_key = ?", taskId, "sshUser");
 
     mockMvc.perform(post("/api/deploy/tasks/{id}/execute", taskId)
             .header("Authorization", "Bearer " + accessToken))
@@ -2046,7 +2088,7 @@ class DeployTaskControllerTest {
   @Test
   void cancelDeployTaskWhilePendingFinalizesCancelledTaskAndHostsWithoutStartedAt() throws Exception {
     String accessToken = login("release-admin", "Release@123");
-    long taskId = createDeployTask(accessToken, "cancel-pending-order-service", 1401L, List.of(1L, 2L), Map.of("deployDir", "/data/apps/order-service"));
+    long taskId = createDeployTask(accessToken, "cancel-pending-order-service", 1401L, List.of(1L, 2L), createRequiredParams());
     approveDeployTask(accessToken, taskId, "approved for pending cancel test");
 
     mockMvc.perform(post("/api/deploy/tasks/{id}/cancel", taskId)
@@ -2151,8 +2193,37 @@ class DeployTaskControllerTest {
         .isEqualTo("upload package failed");
   }
 
+  private Map<String, Object> createRequiredParams() {
+    return createRequiredParams("production");
+  }
+
+  private Map<String, Object> createRequiredParamsWithoutEnvironment() {
+    return createRequiredParams(null);
+  }
+
+  private Map<String, Object> createRequiredParams(String environment) {
+    Map<String, Object> params = new LinkedHashMap<>();
+    if (environment != null) {
+      params.put("environment", environment);
+    }
+    params.put("sshUser", "deploy");
+    params.put("sshPort", 22);
+    params.put("privateKeyPath", TEST_PRIVATE_KEY_PATH);
+    params.put("remoteBaseDir", "/opt/envops/releases");
+    return params;
+  }
+
+  private void insertTaskParam(long taskId, String key, String value) {
+    jdbcTemplate.update(
+        "INSERT INTO deploy_task_param (task_id, param_key, param_value, secret_flag) VALUES (?, ?, ?, ?)",
+        taskId,
+        key,
+        value,
+        0);
+  }
+
   private long createDeployTask(String accessToken, String taskName) throws Exception {
-    return createDeployTask(accessToken, taskName, "INSTALL", 1001L, 1401L, List.of(1L), "ALL", 0, Map.of("deployDir", "/data/apps/order-service"));
+    return createDeployTask(accessToken, taskName, "INSTALL", 1001L, 1401L, List.of(1L), "ALL", 0, createRequiredParams());
   }
 
   private long createDeployTask(String accessToken,

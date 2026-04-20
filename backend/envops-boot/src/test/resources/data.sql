@@ -35,10 +35,10 @@ VALUES
 
 INSERT INTO sys_user (id, user_name, password, phone, team_key, login_type, status, last_login_at)
 VALUES
-    (1, 'envops-admin', 'EnvOps@123', '13800138000', 'platform', 'PASSWORD', 'ACTIVE', TIMESTAMP '2026-04-18 09:15:00'),
-    (20, 'release-admin', 'Release@123', '13900139000', 'release', 'PASSWORD_OTP', 'ACTIVE', TIMESTAMP '2026-04-18 08:45:00'),
-    (21, 'traffic-owner', 'Traffic@123', '13700137000', 'traffic', 'SSO', 'REVIEW', TIMESTAMP '2026-04-17 19:20:00'),
-    (22, 'qa-observer', 'QaObserver@123', '13600136000', 'qa', 'SSO', 'DISABLED', TIMESTAMP '2026-04-16 18:10:00');
+    (1, 'envops-admin', '$2a$10$sWJS6yVY5qaMhiYxDaI6VeCpsw4iCkM4BAnZVUGXZ3ubl2oY/WMGG', '13800138000', 'platform', 'PASSWORD', 'ACTIVE', TIMESTAMP '2026-04-18 09:15:00'),
+    (20, 'release-admin', '$2a$10$OUBSEAaQp/gYQtWjZHO0lu56HJVAuTFRPNzqHBa4DcIHl/msxU.Wq', '13900139000', 'release', 'PASSWORD_OTP', 'ACTIVE', TIMESTAMP '2026-04-18 08:45:00'),
+    (21, 'traffic-owner', '$2a$10$PPuMaDMld2QRRagKXK7NMOZTqMZBFSbLXZbR8pmGhJCp.OH2D0lf2', '13700137000', 'traffic', 'SSO', 'REVIEW', TIMESTAMP '2026-04-17 19:20:00'),
+    (22, 'qa-observer', '$2a$10$iXuMZ4iC1HB7Wdz4mF9lde.QeVz1WR5u0HpumRPn6oEu8s68oHV1u', '13600136000', 'qa', 'SSO', 'DISABLED', TIMESTAMP '2026-04-16 18:10:00');
 
 INSERT INTO sys_role (id, role_key, role_name)
 VALUES
@@ -96,8 +96,10 @@ VALUES
 
 INSERT INTO deploy_task_param (id, task_id, param_key, param_value, secret_flag)
 VALUES
-    (2301, 2001, 'deployDir', '/data/apps/order-service', 0),
-    (2302, 2001, 'profile', 'prod', 0);
+    (2301, 2001, 'sshUser', 'deploy', 0),
+    (2302, 2001, 'sshPort', '22', 0),
+    (2303, 2001, 'privateKeyPath', '/opt/envops/keys/demo-release.pem', 1),
+    (2304, 2001, 'remoteBaseDir', '/opt/envops/releases', 0);
 
 INSERT INTO traffic_policy (id, app, strategy, scope, traffic_ratio, owner, status, plugin_type, rollback_token, created_at, updated_at)
 VALUES

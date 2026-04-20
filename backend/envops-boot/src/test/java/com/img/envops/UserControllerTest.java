@@ -9,6 +9,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -41,6 +43,8 @@ class UserControllerTest {
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
+
+  private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
   @Test
   void getSystemUsersRequiresAuthentication() throws Exception {
@@ -115,6 +119,10 @@ class UserControllerTest {
         "SELECT phone FROM sys_user WHERE user_name = ?",
         String.class,
         "ops-manager");
+    String storedPassword = jdbcTemplate.queryForObject(
+        "SELECT password FROM sys_user WHERE user_name = ?",
+        String.class,
+        "ops-manager");
     List<String> storedRoles = jdbcTemplate.queryForList(
         """
             SELECT r.role_key
@@ -128,6 +136,8 @@ class UserControllerTest {
         "ops-manager");
 
     Assertions.assertThat(storedPhone).isEqualTo("13500135000");
+    Assertions.assertThat(storedPassword).isNotEqualTo("OpsManager@123");
+    Assertions.assertThat(passwordEncoder.matches("OpsManager@123", storedPassword)).isTrue();
     Assertions.assertThat(storedRoles).containsExactlyInAnyOrder("PLATFORM_ADMIN", "OBSERVER");
     Assertions.assertThat(login("ops-manager", "OpsManager@123")).isNotBlank();
   }
@@ -197,7 +207,8 @@ class UserControllerTest {
         String.class,
         21L);
 
-    Assertions.assertThat(storedPassword).isEqualTo("Traffic@456");
+    Assertions.assertThat(storedPassword).isNotEqualTo("Traffic@456");
+    Assertions.assertThat(passwordEncoder.matches("Traffic@456", storedPassword)).isTrue();
     Assertions.assertThat(storedRoles).containsExactlyInAnyOrder("PLATFORM_ADMIN", "OBSERVER");
     Assertions.assertThat(login("traffic-owner", "Traffic@456")).isNotBlank();
   }
@@ -212,7 +223,7 @@ class UserControllerTest {
         "INSERT INTO sys_user (id, user_name, password, phone, team_key, login_type, status, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
         userId,
         userName,
-        password,
+        passwordEncoder.encode(password),
         "139" + String.format("%08d", userId % 100000000L),
         "ops",
         "PASSWORD",

@@ -4,6 +4,7 @@ import com.img.envops.common.exception.UnauthorizedException;
 import com.img.envops.framework.security.JwtTokenService;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper.UserAuthRow;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,11 +25,15 @@ public class AuthApplicationService {
 
   private final UserAuthMapper userAuthMapper;
   private final JwtTokenService jwtTokenService;
+  private final PasswordEncoder passwordEncoder;
   private final Map<String, VerificationCodeSession> verificationCodeSessions = new ConcurrentHashMap<>();
 
-  public AuthApplicationService(UserAuthMapper userAuthMapper, JwtTokenService jwtTokenService) {
+  public AuthApplicationService(UserAuthMapper userAuthMapper,
+                                JwtTokenService jwtTokenService,
+                                PasswordEncoder passwordEncoder) {
     this.userAuthMapper = userAuthMapper;
     this.jwtTokenService = jwtTokenService;
+    this.passwordEncoder = passwordEncoder;
   }
 
   public LoginToken login(LoginCommand command) {
@@ -37,7 +42,7 @@ public class AuthApplicationService {
     }
 
     UserAuthRow user = userAuthMapper.findByUserName(command.userName().trim());
-    if (user == null || !Objects.equals(user.getPassword(), command.password()) || !isActiveUser(user)) {
+    if (user == null || !passwordEncoder.matches(command.password(), user.getPassword()) || !isActiveUser(user)) {
       throw new UnauthorizedException("Invalid username or password");
     }
 

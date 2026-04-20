@@ -1240,7 +1240,6 @@ declare namespace App {
             filters: {
               keyword: string;
               status: string;
-              sourceType: string;
               taskType: string;
               priority: string;
               search: string;
@@ -1307,6 +1306,7 @@ declare namespace App {
             };
             messages: {
               latestAction: string;
+              notReadyWarning: string;
               previewSuccess: string;
               applySuccess: string;
               rollbackSuccess: string;

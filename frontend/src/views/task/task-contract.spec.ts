@@ -15,6 +15,11 @@ const apiIndexSource = readFileSync(path.resolve(__dirname, '../../service/api/i
 const zhLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/zh-cn.ts'), 'utf8');
 const enLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/en-us.ts'), 'utf8');
 
+function extractSection(source: string, startKey: string, nextKey: string) {
+  const match = source.match(new RegExp(`${startKey}:\\s*\\{([\\s\\S]*?)${nextKey}:\\s*\\{`, 's'));
+  return match?.[1] ?? '';
+}
+
 const mocks = vi.hoisted(() => {
   const route = { query: {} as Record<string, unknown> };
   const routerPushByKey = vi.fn(async (_key: string, payload?: { query?: Record<string, string> }) => {
@@ -1144,7 +1149,6 @@ describe('task pages contract wiring', () => {
         ) as HTMLSelectElement | undefined;
 
       const taskNameInput = getInputByPlaceholder('page.envops.deployTask.create.taskNamePlaceholder');
-      const deployDirInput = getInputByPlaceholder('page.envops.deployTask.create.deployDirPlaceholder');
       const sshUserInput = getInputByPlaceholder('page.envops.deployTask.create.sshUserPlaceholder');
       const sshPortInput = getInputByPlaceholder('page.envops.deployTask.create.sshPortPlaceholder');
       const privateKeyPathInput = getInputByPlaceholder('page.envops.deployTask.create.privateKeyPathPlaceholder');
@@ -1155,7 +1159,6 @@ describe('task pages contract wiring', () => {
       const hostSelect = getSelectByPlaceholder('page.envops.deployTask.create.hostsPlaceholder');
 
       expect(taskNameInput).toBeTruthy();
-      expect(deployDirInput).toBeTruthy();
       expect(sshUserInput).toBeTruthy();
       expect(sshPortInput).toBeTruthy();
       expect(privateKeyPathInput).toBeTruthy();
@@ -1167,8 +1170,6 @@ describe('task pages contract wiring', () => {
 
       taskNameInput!.value = 'deploy-order-service-prod';
       taskNameInput!.dispatchEvent(new Event('input', { bubbles: true }));
-      deployDirInput!.value = '/data/apps/order-service';
-      deployDirInput!.dispatchEvent(new Event('input', { bubbles: true }));
       sshUserInput!.value = 'release';
       sshUserInput!.dispatchEvent(new Event('input', { bubbles: true }));
       sshPortInput!.value = '22';
@@ -1208,7 +1209,6 @@ describe('task pages contract wiring', () => {
         hostIds: [1, 2],
         batchStrategy: 'ALL',
         batchSize: null,
-        deployDir: '/data/apps/order-service',
         sshUser: 'release',
         sshPort: 22,
         privateKeyPath: '/data/keys/release.pem',
@@ -1392,8 +1392,7 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain('fetchGetTaskCenterTasks(toTaskCenterApiQuery(query))');
     expect(taskCenterPage).toContain('filterForm.keyword = query.keyword');
     expect(taskCenterPage).toContain('filterForm.status = query.status || null');
-    expect(taskCenterPage).toContain('filterForm.sourceType = query.sourceType || null');
-    expect(taskCenterPage).toContain('filterForm.taskType = query.taskType');
+    expect(taskCenterPage).toContain('filterForm.taskType = query.taskType || null');
     expect(taskCenterPage).toContain('filterForm.priority = query.priority || null');
     expect(taskCenterPage).toContain(
       'const pendingTaskCenterRouteQuery = ref<TaskCenterRouteQuery>(normalizedRouteQuery.value)'
@@ -1416,7 +1415,6 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openDeployDetail')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.keyword')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.status')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.sourceType')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.taskType')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.priority')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.search')");
@@ -1923,29 +1921,48 @@ describe('task pages contract wiring', () => {
   });
 
   it('declares task center locale schema for actions filters and sorting', () => {
-    expect(appTypingSource).toMatch(/taskCenter:\s*\{[\s\S]*?actions:\s*\{[\s\S]*?openDeployDetail: string/s);
-    expect(appTypingSource).toMatch(
-      /taskCenter:\s*\{[\s\S]*?filters:\s*\{[\s\S]*?keyword: string[\s\S]*?status: string[\s\S]*?sourceType: string[\s\S]*?taskType: string[\s\S]*?priority: string[\s\S]*?search: string[\s\S]*?reset: string/s
-    );
-    expect(appTypingSource).toMatch(
-      /taskCenter:\s*\{[\s\S]*?sorting:\s*\{[\s\S]*?createdAt: string[\s\S]*?updatedAt: string[\s\S]*?taskNo: string[\s\S]*?status: string[\s\S]*?asc: string[\s\S]*?desc: string/s
-    );
-    expect(zhLocaleSource).toContain('openDeployDetail');
-    expect(zhLocaleSource).toContain('sourceType');
-    expect(zhLocaleSource).toContain('priority');
-    expect(zhLocaleSource).toContain('createdAt');
-    expect(zhLocaleSource).toContain('updatedAt');
-    expect(zhLocaleSource).toContain('taskNo');
-    expect(zhLocaleSource).toContain('asc');
-    expect(zhLocaleSource).toContain('desc');
-    expect(enLocaleSource).toContain('openDeployDetail');
-    expect(enLocaleSource).toContain('sourceType');
-    expect(enLocaleSource).toContain('priority');
-    expect(enLocaleSource).toContain('createdAt');
-    expect(enLocaleSource).toContain('updatedAt');
-    expect(enLocaleSource).toContain('taskNo');
-    expect(enLocaleSource).toContain('asc');
-    expect(enLocaleSource).toContain('desc');
+    const taskCenterTypingBlock = extractSection(appTypingSource, 'taskCenter', 'trafficController');
+    const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
+    const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
+    const taskCenterTypingFiltersBlock = extractSection(taskCenterTypingBlock, 'filters', 'sorting');
+    const taskCenterZhFiltersBlock = extractSection(taskCenterZhBlock, 'filters', 'sorting');
+    const taskCenterEnFiltersBlock = extractSection(taskCenterEnBlock, 'filters', 'sorting');
+
+    expect(taskCenterTypingBlock).toContain('actions: {');
+    expect(taskCenterTypingBlock).toContain('openDeployDetail: string');
+    expect(taskCenterTypingBlock).toContain('filters: {');
+    expect(taskCenterTypingFiltersBlock).toContain('keyword: string');
+    expect(taskCenterTypingFiltersBlock).toContain('status: string');
+    expect(taskCenterTypingFiltersBlock).not.toContain('sourceType: string');
+    expect(taskCenterTypingFiltersBlock).toContain('taskType: string');
+    expect(taskCenterTypingFiltersBlock).toContain('priority: string');
+    expect(taskCenterTypingFiltersBlock).toContain('search: string');
+    expect(taskCenterTypingFiltersBlock).toContain('reset: string');
+    expect(taskCenterTypingBlock).toContain('sorting: {');
+    expect(taskCenterTypingBlock).toContain('createdAt: string');
+    expect(taskCenterTypingBlock).toContain('updatedAt: string');
+    expect(taskCenterTypingBlock).toContain('taskNo: string');
+    expect(taskCenterTypingBlock).toContain('status: string');
+    expect(taskCenterTypingBlock).toContain('asc: string');
+    expect(taskCenterTypingBlock).toContain('desc: string');
+
+    expect(taskCenterZhBlock).toContain('openDeployDetail');
+    expect(taskCenterZhFiltersBlock).not.toContain('sourceType');
+    expect(taskCenterZhBlock).toContain('priority');
+    expect(taskCenterZhBlock).toContain('createdAt');
+    expect(taskCenterZhBlock).toContain('updatedAt');
+    expect(taskCenterZhBlock).toContain('taskNo');
+    expect(taskCenterZhBlock).toContain('asc');
+    expect(taskCenterZhBlock).toContain('desc');
+
+    expect(taskCenterEnBlock).toContain('openDeployDetail');
+    expect(taskCenterEnFiltersBlock).not.toContain('sourceType');
+    expect(taskCenterEnBlock).toContain('priority');
+    expect(taskCenterEnBlock).toContain('createdAt');
+    expect(taskCenterEnBlock).toContain('updatedAt');
+    expect(taskCenterEnBlock).toContain('taskNo');
+    expect(taskCenterEnBlock).toContain('asc');
+    expect(taskCenterEnBlock).toContain('desc');
   });
 
   it('adds deploy task detail tabs local filters and guarded auto refresh wiring', () => {
@@ -2099,5 +2116,17 @@ describe('task pages contract wiring', () => {
     expect(enLocaleSource).toContain('application');
     expect(enLocaleSource).toContain('createdRange');
     expect(enLocaleSource).toContain('sorting');
+  });
+
+  it('keeps task center copy aligned with the deploy-only scope we actually ship', () => {
+    const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
+    const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
+
+    expect(taskCenterZhBlock).not.toContain('跨域任务追踪视图');
+    expect(taskCenterZhBlock).toContain('Deploy 任务');
+    expect(taskCenterZhBlock).toContain('Deploy 队列');
+    expect(taskCenterEnBlock).not.toContain('cross-domain task tracing');
+    expect(taskCenterEnBlock).toContain('deploy queue');
+    expect(taskCenterEnBlock).toContain('Deploy Queue');
   });
 });

@@ -188,7 +188,6 @@ describe('task route query helpers', () => {
     const normalized = normalizeTaskCenterRouteQuery({
       keyword: ['deploy'],
       status: undefined,
-      sourceType: 'DEPLOY',
       taskType: 'INSTALL',
       priority: 'P1',
       page: '-2',
@@ -200,7 +199,7 @@ describe('task route query helpers', () => {
     expect(normalized).toEqual({
       keyword: '',
       status: '',
-      sourceType: 'DEPLOY',
+      sourceType: '',
       taskType: 'INSTALL',
       priority: 'P1',
       page: 1,
@@ -218,6 +217,12 @@ describe('task route query helpers', () => {
       sortBy: 'taskNo',
       sortOrder: 'desc'
     });
+  });
+
+  it('forces task-center api queries to DEPLOY so the page cannot pretend to be cross-domain', () => {
+    const query = toTaskCenterApiQuery(normalizeTaskCenterRouteQuery({ keyword: 'order-service' }));
+
+    expect(query.sourceType).toBe('DEPLOY');
   });
 
   it('canonicalizes task center sourceType and priority and clears invalid whitelist values', () => {
@@ -258,6 +263,7 @@ describe('task route query helpers', () => {
     });
 
     expect(toTaskCenterApiQuery(invalidNormalized)).toEqual({
+      sourceType: 'DEPLOY',
       page: 2,
       pageSize: 20,
       sortBy: 'status',

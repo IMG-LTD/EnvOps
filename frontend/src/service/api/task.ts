@@ -28,7 +28,6 @@ export function fetchPostCreateDeployTask(data: Api.Task.CreateDeployTaskPayload
       ...(data.batchSize !== null && data.batchSize !== undefined ? { batchSize: data.batchSize } : {}),
       params: {
         environment: data.environment,
-        deployDir: data.deployDir,
         sshUser: data.sshUser,
         ...(data.sshPort !== null && data.sshPort !== undefined ? { sshPort: data.sshPort } : {}),
         privateKeyPath: data.privateKeyPath,

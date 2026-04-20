@@ -7,14 +7,26 @@ import org.springframework.context.ConfigurableApplicationContext;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EnvOpsBootSmokeTest {
   @Test
-  void contextLoadsWithExplicitSecuritySecrets() {
-    try (ConfigurableApplicationContext ignored = startApplication(Map.of(
-        "envops.security.token-secret", "test-only-envops-token-secret-12345",
-        "envops.security.credential-protection-secret", "test-only-envops-credential-protection-secret-12345"))) {
+  void contextLoadsWithDefaultServerPortAndExplicitSecuritySecrets() {
+    try (ConfigurableApplicationContext context = startApplication(Map.of(
+        "ENVOPS_SECURITY_TOKEN_SECRET", "test-only-envops-token-secret-12345",
+        "ENVOPS_CREDENTIAL_PROTECTION_SECRET", "test-only-envops-credential-protection-secret-12345"))) {
+      assertThat(context.getEnvironment().getProperty("server.port")).isEqualTo("18080");
+    }
+  }
+
+  @Test
+  void contextUsesEnvStyleOverrideForServerPort() {
+    try (ConfigurableApplicationContext context = startApplication(Map.of(
+        "ENVOPS_SECURITY_TOKEN_SECRET", "test-only-envops-token-secret-12345",
+        "ENVOPS_CREDENTIAL_PROTECTION_SECRET", "test-only-envops-credential-protection-secret-12345",
+        "ENVOPS_SERVER_PORT", "19090"))) {
+      assertThat(context.getEnvironment().getProperty("server.port")).isEqualTo("19090");
     }
   }
 
