@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     'asset_group',
     'asset_tag',
     'asset_credential',
+    'asset_database',
     'monitor_detect-task',
     'monitor_metric',
     'app_definition',
@@ -59,6 +60,13 @@ const mocks = vi.hoisted(() => {
           path: '/asset/credential',
           component: 'view.asset_credential',
           meta: { title: 'asset_credential', i18nKey: 'route.asset_credential', order: 4 }
+        },
+        {
+          id: 'asset_database',
+          name: 'asset_database',
+          path: '/asset/database',
+          component: 'view.asset_database',
+          meta: { title: 'asset_database', i18nKey: 'route.asset_database', order: 5 }
         }
       ]
     },

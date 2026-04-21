@@ -1,18 +1,18 @@
-# EnvOps v0.0.4 项目详细说明
+# EnvOps 项目详细说明
 
 ## 1. 文档说明
 
-本文档用于说明当前仓库 `v0.0.4` 基线的项目定位、交付范围、本地联调方式与版本边界。当前版本重点不是继续扩张功能承诺，而是完成 release gate 修复，统一工程闸口、账号安全、本地默认配置，以及 Deploy / Task / Traffic 的对外口径。
+本文档用于说明当前仓库当前基线的项目定位、交付范围、本地联调方式与能力边界。当前阶段重点不是继续扩张功能承诺，而是完成 release gate 修复，统一工程闸口、账号安全、本地默认配置，以及 Deploy / Task / Traffic 的对外口径。
 
 ## 2. 版本定位
 
-`v0.0.4` 明确聚焦以下事项：
+当前基线明确聚焦以下事项：
 
 - 后端 release gate 与本地启动入口统一收敛到 reactor-safe 命令。
 - 前端 targeted unit gate 已有独立脚本，同时保留完整单测基线。
 - 系统账号密码已改为哈希存储与校验。
 - Deploy 创建契约对外只承诺真实执行参数，不再承诺 `deployDir`。
-- 资产中心当前只覆盖主机、凭据、分组、标签四类资产，不承诺数据库资源、数据库实例或数据库专用生命周期。
+- 资产中心当前覆盖主机、凭据、分组、标签、数据库资源五类资产，其中数据库范围已支持目录登记、关系维护与真实连通性检测，但仍不承诺版本治理或数据库专用生命周期。
 - Task Center 当前收敛为 deploy-only 队列视图。
 - Traffic 页面与接口当前明确处于 skeleton / not-ready 边界，不再把占位能力包装成真实切流。
 
@@ -22,7 +22,7 @@
 cmdb/
 ├── backend/     # Spring Boot 3.3 多模块后端
 ├── frontend/    # Vue 3 + Vite + TypeScript 前端控制台
-├── docs/        # v0.0.2 / v0.0.3 / v0.0.4 版本化文档
+├── docs/        # 说明文档与设计材料
 ├── release/     # 发布说明与核对清单
 ├── README.md
 └── LICENSE
@@ -62,14 +62,25 @@ pnpm --dir frontend dev
 
 ### 5.1 资产中心
 
-`v0.0.4` 的资产中心当前只覆盖四类资产：
+当前基线的资产中心覆盖五类资产：
 
 - Host：提供列表与创建
 - Credential：提供列表与创建
 - Group：提供只读列表
 - Tag：提供只读列表
+- Database：提供列表、筛选、创建、编辑、删除、主机/通用凭据关联，以及真实数据库连通性检测
 
-当前前后端都没有数据库资源、数据库实例、数据库专用凭据、数据库连接串、数据库版本信息或数据库生命周期管理入口。`schema.sql` 中也只有 `asset_host`、`asset_credential`、`asset_group`、`asset_tag` 四类资产表，唯一出现 `database` 的地方只是示例标签文案，不代表数据库实例纳管。
+数据库资源当前落地的是“资产目录 + 最小可用真实探测”能力，不是完整数据库平台能力。当前真实边界如下：
+
+- 已支持的主流数据库类型：`mysql`、`postgresql`、`oracle`、`sqlserver`、`mongodb`、`redis`
+- 已支持的状态字段：纳管状态 `managed / disabled`，连通性状态 `unknown / online / warning / offline`
+- 已支持的字段：数据库名、类型、环境、所属主机、端口、实例名、关联凭据、归属团队、纳管状态、连通性状态、连接用户名、最近检查时间、说明
+- 页面支持单个检测、批量检测已选、检测当前页、检测全部筛选结果
+- 检测通过真实数据库连接与认证执行，成功回写 `online`，失败回写 `offline`，缺少连接用户名或密码的记录会跳过并返回原因
+- `warning` 仍为人工维护状态，不由检测流程自动写入
+- 响应不回显连接密码，编辑时密码留空表示沿用已保存密文
+- 当前只支持基础直连，不支持 SSL、连接串、MongoDB 副本集、Redis Sentinel / Cluster 等高级连接能力
+- 当前不包含数据库专用凭据体系、数据库版本采集、自动巡检任务或数据库专用生命周期编排
 
 ### 5.2 Deploy
 
@@ -77,7 +88,7 @@ pnpm --dir frontend dev
 
 ### 5.3 Task Center
 
-Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
+Task Center 当前明确是 deploy-only 队列视图：
 
 - 用于查看 Deploy 任务列表、状态与摘要
 - 支持从队列跳转到 Deploy 详情
@@ -85,7 +96,7 @@ Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 
 ### 5.4 Traffic
 
-Traffic 在 `v0.0.4` 中必须按 not-ready 口径说明：
+Traffic 当前必须按 not-ready 口径说明：
 
 - 页面与接口用于明确 skeleton / not-ready 边界
 - 页面应显示 not-ready warning
@@ -94,7 +105,7 @@ Traffic 在 `v0.0.4` 中必须按 not-ready 口径说明：
 
 ## 6. 本地验证建议
 
-建议按以下命令验证 `v0.0.4` 基线：
+建议按以下命令验证当前基线：
 
 - `bash backend/scripts/test-envops-boot.sh`
 - `pnpm --dir frontend test:unit`
@@ -106,7 +117,7 @@ Traffic 在 `v0.0.4` 中必须按 not-ready 口径说明：
 
 ## 7. Deferred scope
 
-以下内容明确继续保留在 `v0.0.4` 之外：
+以下内容明确继续保留在当前基线之外：
 
 - Traffic 真实外部网关接通
 - Task Center 跨域统一队列
@@ -114,7 +125,7 @@ Traffic 在 `v0.0.4` 中必须按 not-ready 口径说明：
 
 ## 8. 文档同步要求
 
-当前 `v0.0.4` 项目口径需要与以下材料保持一致：
+当前项目口径需要与以下材料保持一致：
 
 - `README.md`
 - `release/0.0.4-release-notes.md`

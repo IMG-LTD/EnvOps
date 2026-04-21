@@ -230,6 +230,7 @@ const local: App.I18n.Schema = {
     asset_group: '分组管理',
     asset_tag: '标签管理',
     asset_credential: '凭据管理',
+    asset_database: '数据库资源',
     monitor: '巡检监控',
     'monitor_detect-task': '巡检任务',
     monitor_metric: '指标快照',
@@ -686,6 +687,118 @@ const local: App.I18n.Schema = {
         messages: {
           fillNameAndType: '请先填写凭据名称和类型',
           createSuccess: '凭据创建成功'
+        }
+      },
+      assetDatabase: {
+        hero: {
+          title: '数据库资源',
+          description: '完成数据库资产登记、主机关联和凭据关联，提供可查询、可维护的数据库目录。'
+        },
+        tags: {
+          registryReady: '资产登记已就绪',
+          connectivityCheckReady: '支持真实连通性检测',
+          warningManual: 'warning 仍为人工标记'
+        },
+        filters: {
+          keywordPlaceholder: '按数据库名、实例名、归属团队或主机搜索',
+          environmentPlaceholder: '按环境筛选',
+          databaseTypePlaceholder: '按数据库类型筛选',
+          lifecycleStatusPlaceholder: '按纳管状态筛选',
+          connectivityStatusPlaceholder: '按连通性状态筛选'
+        },
+        summary: {
+          managedDatabases: {
+            label: '纳管中数据库',
+            desc: '当前纳管状态为 managed 的数据库资源数'
+          },
+          warningDatabases: {
+            label: '告警数据库',
+            desc: '当前连通性状态为 warning 的数据库资源数'
+          },
+          onlineDatabases: {
+            label: '在线数据库',
+            desc: '当前连通性状态为 online 的数据库资源数'
+          }
+        },
+        types: {
+          mysql: 'MySQL',
+          postgresql: 'PostgreSQL',
+          oracle: 'Oracle',
+          sqlserver: 'SQL Server',
+          mongodb: 'MongoDB',
+          redis: 'Redis'
+        },
+        connectivity: {
+          unknown: '未知'
+        },
+        actions: {
+          create: '新建数据库',
+          edit: '编辑',
+          save: '保存',
+          check: '检测',
+          checkSelected: '批量检测已选',
+          checkCurrentPage: '检测当前页',
+          checkAllFiltered: '检测全部筛选结果',
+          closeResult: '关闭结果'
+        },
+        form: {
+          titleCreate: '新建数据库资源',
+          titleEdit: '编辑数据库资源',
+          databaseName: '数据库名',
+          databaseType: '数据库类型',
+          environment: '环境',
+          host: '所属主机',
+          port: '端口',
+          instanceName: '实例名',
+          credential: '关联凭据',
+          ownerName: '归属团队',
+          lifecycleStatus: '纳管状态',
+          connectivityStatus: '连通性状态',
+          connectionUsername: '连接用户名',
+          connectionPassword: '连接密码',
+          lastCheckedAt: '最近检查时间',
+          description: '说明',
+          placeholders: {
+            databaseName: '例如：order_prod',
+            host: '请选择主机',
+            port: '例如：3306',
+            instanceName: '例如：mysql-prd-a',
+            credential: '可选，选择数据库登录凭据',
+            ownerName: '例如：Platform DBA',
+            connectionUsername: '例如：orders_app',
+            connectionPassword: '留空表示沿用已保存密码',
+            lastCheckedAt: '可选，ISO 时间，例如 2026-04-18T12:00:00',
+            description: '可选，补充用途、归属或风险说明'
+          }
+        },
+        table: {
+          title: '数据库目录',
+          database: '数据库',
+          type: '类型',
+          environment: '环境',
+          host: '主机',
+          port: '端口',
+          owner: '归属',
+          lifecycleStatus: '纳管状态',
+          connectivityStatus: '连通性',
+          lastCheckedAt: '最近检查',
+          operation: '操作'
+        },
+        messages: {
+          fillRequired: '请先填写数据库名、类型、环境、主机、端口、归属团队、纳管状态和连通性状态',
+          fillConnectionPair: '如需保存连接凭据，请同时填写连接用户名和连接密码',
+          fillConnectionUsername: '修改连接密码前请先填写连接用户名',
+          checkFinished: '数据库连通性检测已执行完成',
+          createSuccess: '数据库资源创建成功',
+          updateSuccess: '数据库资源更新成功'
+        },
+        result: {
+          title: '检测结果',
+          total: '总数',
+          success: '成功',
+          failed: '失败',
+          skipped: '跳过',
+          message: '结果说明'
         }
       },
       monitorDetectTask: {

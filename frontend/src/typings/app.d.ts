@@ -918,6 +918,118 @@ declare namespace App {
               createSuccess: string;
             };
           };
+          assetDatabase: {
+            hero: {
+              title: string;
+              description: string;
+            };
+            tags: {
+              registryReady: string;
+              connectivityCheckReady: string;
+              warningManual: string;
+            };
+            filters: {
+              keywordPlaceholder: string;
+              environmentPlaceholder: string;
+              databaseTypePlaceholder: string;
+              lifecycleStatusPlaceholder: string;
+              connectivityStatusPlaceholder: string;
+            };
+            summary: {
+              managedDatabases: {
+                label: string;
+                desc: string;
+              };
+              warningDatabases: {
+                label: string;
+                desc: string;
+              };
+              onlineDatabases: {
+                label: string;
+                desc: string;
+              };
+            };
+            types: {
+              mysql: string;
+              postgresql: string;
+              oracle: string;
+              sqlserver: string;
+              mongodb: string;
+              redis: string;
+            };
+            connectivity: {
+              unknown: string;
+            };
+            actions: {
+              create: string;
+              edit: string;
+              save: string;
+              check: string;
+              checkSelected: string;
+              checkCurrentPage: string;
+              checkAllFiltered: string;
+              closeResult: string;
+            };
+            form: {
+              titleCreate: string;
+              titleEdit: string;
+              databaseName: string;
+              databaseType: string;
+              environment: string;
+              host: string;
+              port: string;
+              instanceName: string;
+              credential: string;
+              ownerName: string;
+              lifecycleStatus: string;
+              connectivityStatus: string;
+              connectionUsername: string;
+              connectionPassword: string;
+              lastCheckedAt: string;
+              description: string;
+              placeholders: {
+                databaseName: string;
+                host: string;
+                port: string;
+                instanceName: string;
+                credential: string;
+                ownerName: string;
+                connectionUsername: string;
+                connectionPassword: string;
+                lastCheckedAt: string;
+                description: string;
+              };
+            };
+            table: {
+              title: string;
+              database: string;
+              type: string;
+              environment: string;
+              host: string;
+              port: string;
+              owner: string;
+              lifecycleStatus: string;
+              connectivityStatus: string;
+              lastCheckedAt: string;
+              operation: string;
+            };
+            messages: {
+              fillRequired: string;
+              fillConnectionPair: string;
+              fillConnectionUsername: string;
+              checkFinished: string;
+              createSuccess: string;
+              updateSuccess: string;
+            };
+            result: {
+              title: string;
+              total: string;
+              success: string;
+              failed: string;
+              skipped: string;
+              message: string;
+            };
+          };
           monitorDetectTask: {
             hero: {
               title: string;
