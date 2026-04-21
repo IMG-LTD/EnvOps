@@ -42,11 +42,15 @@ pnpm --dir frontend dev
 
 ## 4. 当前可体验范围
 
-### 4.1 Deploy
+### 4.1 资产中心
+
+当前版本资产中心只提供 Host、Credential、Group、Tag 四类入口。其中 Host 与 Credential 可创建并查看列表，Group 与 Tag 为只读列表。当前没有数据库资源、数据库实例或数据库专用生命周期管理页面，因此不要把“资产”理解成已支持数据库纳管。
+
+### 4.2 Deploy
 
 当前版本保留 Deploy 主链路体验能力，包括任务查看、创建、审批、详情与执行相关处理。对外说明以当前真实执行参数为准，不再对外承诺 `deployDir`。
 
-### 4.2 Task Center
+### 4.3 Task Center
 
 Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 
@@ -54,7 +58,7 @@ Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 - 可从队列跳转到 Deploy 详情
 - 当前不是跨域统一队列
 
-### 4.3 Traffic
+### 4.4 Traffic
 
 Traffic 在 `v0.0.4` 中明确是 not-ready 页面：
 
