@@ -12,6 +12,7 @@
 - 前端 targeted unit gate 已有独立脚本，同时保留完整单测基线。
 - 系统账号密码已改为哈希存储与校验。
 - Deploy 创建契约对外只承诺真实执行参数，不再承诺 `deployDir`。
+- 资产中心当前只覆盖主机、凭据、分组、标签四类资产，不承诺数据库资源、数据库实例或数据库专用生命周期。
 - Task Center 当前收敛为 deploy-only 队列视图。
 - Traffic 页面与接口当前明确处于 skeleton / not-ready 边界，不再把占位能力包装成真实切流。
 
@@ -59,11 +60,22 @@ pnpm --dir frontend dev
 
 ## 5. 当前版本范围
 
-### 5.1 Deploy
+### 5.1 资产中心
+
+`v0.0.4` 的资产中心当前只覆盖四类资产：
+
+- Host：提供列表与创建
+- Credential：提供列表与创建
+- Group：提供只读列表
+- Tag：提供只读列表
+
+当前前后端都没有数据库资源、数据库实例、数据库专用凭据、数据库连接串、数据库版本信息或数据库生命周期管理入口。`schema.sql` 中也只有 `asset_host`、`asset_credential`、`asset_group`、`asset_tag` 四类资产表，唯一出现 `database` 的地方只是示例标签文案，不代表数据库实例纳管。
+
+### 5.2 Deploy
 
 当前版本保留 Deploy 主链路的创建、审批、详情与执行相关能力，但对外契约只承诺真实执行参数，不再承诺 `deployDir`。所有对外说明都应以当前页面和接口中的真实参数为准。
 
-### 5.2 Task Center
+### 5.3 Task Center
 
 Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 
@@ -71,7 +83,7 @@ Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 - 支持从队列跳转到 Deploy 详情
 - 不对外表述为跨域统一队列
 
-### 5.3 Traffic
+### 5.4 Traffic
 
 Traffic 在 `v0.0.4` 中必须按 not-ready 口径说明：
 

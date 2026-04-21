@@ -56,11 +56,15 @@ pnpm --dir frontend dev
 
 ## 5. 模块口径与边界
 
-### 5.1 Deploy
+### 5.1 Asset
+
+`v0.0.4` 资产模块当前前后端只实现了 `/api/assets/hosts`、`/api/assets/credentials`、`/api/assets/groups`、`/api/assets/tags` 四类入口，对应页面也只有 Host、Credential、Group、Tag。当前没有 database / datasource / db instance 路由、接口、类型、表结构或契约测试，因此不能把资产模块表述成数据库资源管理。
+
+### 5.2 Deploy
 
 Deploy 创建契约当前只承诺真实执行参数，不再对外承诺 `deployDir`。开发和联调说明必须与当前页面、接口和 release materials 保持一致。
 
-### 5.2 Task Center
+### 5.3 Task Center
 
 Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 
@@ -68,7 +72,7 @@ Task Center 在 `v0.0.4` 中明确是 deploy-only 队列视图：
 - 当前不是跨域统一队列
 - 相关文案应明确写成 deploy-only
 
-### 5.3 Traffic
+### 5.4 Traffic
 
 Traffic 在 `v0.0.4` 中必须明确写成 not-ready：
 
