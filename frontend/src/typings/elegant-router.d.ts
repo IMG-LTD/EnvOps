@@ -28,6 +28,7 @@ declare module "@elegant-router/types" {
     "app_version": "/app/version";
     "asset": "/asset";
     "asset_credential": "/asset/credential";
+    "asset_database": "/asset/database";
     "asset_group": "/asset/group";
     "asset_host": "/asset/host";
     "asset_tag": "/asset/tag";
@@ -116,6 +117,7 @@ declare module "@elegant-router/types" {
     | "app_script-template"
     | "app_version"
     | "asset_credential"
+    | "asset_database"
     | "asset_group"
     | "asset_host"
     | "asset_tag"

@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS app_package;
 DROP TABLE IF EXISTS app_definition;
 DROP TABLE IF EXISTS monitor_host_fact;
 DROP TABLE IF EXISTS monitor_detect_task;
+DROP TABLE IF EXISTS asset_database;
 DROP TABLE IF EXISTS asset_tag;
 DROP TABLE IF EXISTS asset_group;
 DROP TABLE IF EXISTS asset_credential;
@@ -45,6 +46,29 @@ CREATE TABLE asset_group (
     name VARCHAR(128) NOT NULL,
     description VARCHAR(255),
     host_count INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE asset_database (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    database_name VARCHAR(128) NOT NULL,
+    database_type VARCHAR(32) NOT NULL,
+    environment VARCHAR(32) NOT NULL,
+    host_id BIGINT NOT NULL,
+    port INT NOT NULL,
+    instance_name VARCHAR(128),
+    credential_id BIGINT,
+    owner_name VARCHAR(128) NOT NULL,
+    lifecycle_status VARCHAR(32) NOT NULL,
+    connectivity_status VARCHAR(32) NOT NULL,
+    connection_username VARCHAR(128),
+    connection_password VARCHAR(512),
+    description VARCHAR(255),
+    last_checked_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_asset_database_env_host_port_name UNIQUE (environment, host_id, port, database_name),
+    CONSTRAINT fk_asset_database_host FOREIGN KEY (host_id) REFERENCES asset_host (id),
+    CONSTRAINT fk_asset_database_credential FOREIGN KEY (credential_id) REFERENCES asset_credential (id)
 );
 
 CREATE TABLE asset_tag (

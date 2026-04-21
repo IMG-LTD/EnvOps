@@ -234,6 +234,7 @@ const local: App.I18n.Schema = {
     asset_group: 'Group Management',
     asset_tag: 'Tag Management',
     asset_credential: 'Credential Management',
+    asset_database: 'Database Resources',
     monitor: 'Monitoring',
     'monitor_detect-task': 'Detection Tasks',
     monitor_metric: 'Metric Snapshot',
@@ -693,6 +694,120 @@ const local: App.I18n.Schema = {
         messages: {
           fillNameAndType: 'Please enter the credential name and type first',
           createSuccess: 'Credential created successfully'
+        }
+      },
+      assetDatabase: {
+        hero: {
+          title: 'Database Resources',
+          description:
+            'Register database assets, bind them to hosts and credentials, and maintain a searchable catalog.'
+        },
+        tags: {
+          registryReady: 'Registry ready',
+          connectivityCheckReady: 'Live connectivity checks available',
+          warningManual: 'warning remains manual'
+        },
+        filters: {
+          keywordPlaceholder: 'Search by database, instance, owner or host',
+          environmentPlaceholder: 'Filter by environment',
+          databaseTypePlaceholder: 'Filter by database type',
+          lifecycleStatusPlaceholder: 'Filter by lifecycle status',
+          connectivityStatusPlaceholder: 'Filter by connectivity status'
+        },
+        summary: {
+          managedDatabases: {
+            label: 'Managed Databases',
+            desc: 'Database assets whose lifecycle status is managed'
+          },
+          warningDatabases: {
+            label: 'Warning Databases',
+            desc: 'Database assets whose connectivity status is warning'
+          },
+          onlineDatabases: {
+            label: 'Online Databases',
+            desc: 'Database assets whose connectivity status is online'
+          }
+        },
+        types: {
+          mysql: 'MySQL',
+          postgresql: 'PostgreSQL',
+          oracle: 'Oracle',
+          sqlserver: 'SQL Server',
+          mongodb: 'MongoDB',
+          redis: 'Redis'
+        },
+        connectivity: {
+          unknown: 'Unknown'
+        },
+        actions: {
+          create: 'Create Database',
+          edit: 'Edit',
+          save: 'Save',
+          check: 'Check',
+          checkSelected: 'Check selected',
+          checkCurrentPage: 'Check current page',
+          checkAllFiltered: 'Check all filtered results',
+          closeResult: 'Close result'
+        },
+        form: {
+          titleCreate: 'Create Database Resource',
+          titleEdit: 'Edit Database Resource',
+          databaseName: 'Database Name',
+          databaseType: 'Database Type',
+          environment: 'Environment',
+          host: 'Host',
+          port: 'Port',
+          instanceName: 'Instance Name',
+          credential: 'Credential',
+          ownerName: 'Owner Team',
+          lifecycleStatus: 'Lifecycle Status',
+          connectivityStatus: 'Connectivity Status',
+          connectionUsername: 'Connection Username',
+          connectionPassword: 'Connection Password',
+          lastCheckedAt: 'Last Checked At',
+          description: 'Description',
+          placeholders: {
+            databaseName: 'Example: order_prod',
+            host: 'Select a host',
+            port: 'Example: 3306',
+            instanceName: 'Example: mysql-prd-a',
+            credential: 'Optional. Select a database login credential',
+            ownerName: 'Example: Platform DBA',
+            connectionUsername: 'Example: orders_app',
+            connectionPassword: 'Leave blank to keep the saved password',
+            lastCheckedAt: 'Optional ISO timestamp, e.g. 2026-04-18T12:00:00',
+            description: 'Optional notes for ownership, purpose or risk'
+          }
+        },
+        table: {
+          title: 'Database Catalog',
+          database: 'Database',
+          type: 'Type',
+          environment: 'Environment',
+          host: 'Host',
+          port: 'Port',
+          owner: 'Owner',
+          lifecycleStatus: 'Lifecycle',
+          connectivityStatus: 'Connectivity',
+          lastCheckedAt: 'Last Checked',
+          operation: 'Action'
+        },
+        messages: {
+          fillRequired:
+            'Please enter database name, type, environment, host, port, owner team, lifecycle status and connectivity status first',
+          fillConnectionPair: 'Enter both connection username and connection password when saving credentials',
+          fillConnectionUsername: 'Enter connection username before changing the connection password',
+          checkFinished: 'Database connectivity check completed',
+          createSuccess: 'Database resource created successfully',
+          updateSuccess: 'Database resource updated successfully'
+        },
+        result: {
+          title: 'Check Result',
+          total: 'Total',
+          success: 'Success',
+          failed: 'Failed',
+          skipped: 'Skipped',
+          message: 'Message'
         }
       },
       monitorDetectTask: {

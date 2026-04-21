@@ -26,6 +26,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "app_script-template": () => import("@/views/app/script-template/index.vue"),
   app_version: () => import("@/views/app/version/index.vue"),
   asset_credential: () => import("@/views/asset/credential/index.vue"),
+  asset_database: () => import("@/views/asset/database/index.vue"),
   asset_group: () => import("@/views/asset/group/index.vue"),
   asset_host: () => import("@/views/asset/host/index.vue"),
   asset_tag: () => import("@/views/asset/tag/index.vue"),

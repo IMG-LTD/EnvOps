@@ -174,6 +174,7 @@ const routeMap: RouteMap = {
   "app_version": "/app/version",
   "asset": "/asset",
   "asset_credential": "/asset/credential",
+  "asset_database": "/asset/database",
   "asset_group": "/asset/group",
   "asset_host": "/asset/host",
   "asset_tag": "/asset/tag",

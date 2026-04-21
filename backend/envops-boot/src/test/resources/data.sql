@@ -16,6 +16,15 @@ VALUES
     ('staging-apps', '预发应用主机分组', 1),
     ('sandbox-lab', '沙箱实验主机分组', 1);
 
+INSERT INTO asset_database (database_name, database_type, environment, host_id, port, instance_name, credential_id, owner_name, lifecycle_status, connectivity_status, connection_username, connection_password, description, last_checked_at, created_at, updated_at)
+VALUES
+    ('order_prod', 'mysql', 'production', 1, 3306, 'mysql-prd-a', 1, 'Platform DBA', 'managed', 'online', 'orders_app', 'sealed:v1:1gdCFwLAw-pS5GCsV1Cd1aq6RE6HgEtxF6JoONSKDzqYg4freLYh0WrA', '订单主库生产实例', TIMESTAMP '2026-04-18 09:10:00', TIMESTAMP '2026-04-14 10:00:00', TIMESTAMP '2026-04-18 09:10:00'),
+    ('traffic_gate', 'postgresql', 'production', 2, 5432, 'pg-prd-b', NULL, 'Traffic DBA', 'managed', 'warning', NULL, NULL, '流量规则存储实例', TIMESTAMP '2026-04-18 08:20:00', TIMESTAMP '2026-04-14 11:00:00', TIMESTAMP '2026-04-18 08:20:00'),
+    ('billing_archive', 'oracle', 'staging', 3, 1521, 'oracle-stg-a', 2, 'Finance DBA', 'managed', 'warning', 'archive_app', 'sealed:v1:YLWMmQshluZz6d9F9T3-kxkXOp_j6-lj2cnY5y5c1IyAn39L8wm6oGWXjQ', '归档计费库', TIMESTAMP '2026-04-18 07:40:00', TIMESTAMP '2026-04-14 11:40:00', TIMESTAMP '2026-04-18 07:40:00'),
+    ('ops_metrics', 'sqlserver', 'production', 2, 1433, 'sqlserver-prd-a', NULL, 'Ops DBA', 'managed', 'online', NULL, NULL, '运维指标聚合实例', TIMESTAMP '2026-04-18 08:55:00', TIMESTAMP '2026-04-14 11:50:00', TIMESTAMP '2026-04-18 08:55:00'),
+    ('event_bus', 'mongodb', 'staging', 3, 27017, 'mongo-stg-a', 2, 'Platform DBA', 'managed', 'unknown', NULL, NULL, '事件总线文档库', NULL, TIMESTAMP '2026-04-14 12:00:00', TIMESTAMP '2026-04-14 12:00:00'),
+    ('session_hub', 'redis', 'sandbox', 4, 6379, 'redis-sbx-a', NULL, 'QA Team', 'disabled', 'unknown', 'sandbox_cache', 'sealed:v1:xdNUrMAViunULCU1YPzdAaQUJzYlXd_8lgZCU9aGM_XsU1lfCs0G_6uR9A', '沙箱会话缓存实例', NULL, TIMESTAMP '2026-04-14 12:10:00', TIMESTAMP '2026-04-14 12:10:00');
+
 INSERT INTO asset_tag (name, color, description)
 VALUES
     ('linux', '#18a058', 'Linux 系统主机'),
@@ -117,6 +126,7 @@ VALUES
     (212, 210, 'asset_group', '/asset/group', 'view.asset_group', '分组管理', NULL, 2, 'USER', 'SUPER_ADMIN', FALSE),
     (213, 210, 'asset_tag', '/asset/tag', 'view.asset_tag', '标签管理', NULL, 3, 'USER', 'SUPER_ADMIN', FALSE),
     (214, 210, 'asset_credential', '/asset/credential', 'view.asset_credential', '凭据管理', NULL, 4, 'USER', 'SUPER_ADMIN', FALSE),
+    (215, 210, 'asset_database', '/asset/database', 'view.asset_database', '数据库资源', NULL, 5, 'USER', 'SUPER_ADMIN', FALSE),
     (220, NULL, 'monitor', '/monitor', 'layout.base', '检测中心', 'mdi:radar', 3, 'USER', 'SUPER_ADMIN', FALSE),
     (221, 220, 'monitor_detect-task', '/monitor/detect-task', 'view.monitor_detect-task', '即时检测', NULL, 1, 'USER', 'SUPER_ADMIN', FALSE),
     (222, 220, 'monitor_metric', '/monitor/metric', 'view.monitor_metric', '指标快照', NULL, 2, 'USER', 'SUPER_ADMIN', FALSE),

@@ -118,6 +118,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'asset_database',
+        path: '/asset/database',
+        component: 'view.asset_database',
+        meta: {
+          title: 'asset_database',
+          i18nKey: 'route.asset_database'
+        }
+      },
+      {
         name: 'asset_group',
         path: '/asset/group',
         component: 'view.asset_group',

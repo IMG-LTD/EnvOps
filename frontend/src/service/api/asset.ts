@@ -17,6 +17,81 @@ export function fetchCreateAssetHost(data: Api.Asset.CreateHostParams) {
   });
 }
 
+/** get asset databases */
+export function fetchGetAssetDatabases(params: Api.Asset.DatabaseQuery) {
+  return request<Api.Asset.DatabasePage>({
+    url: '/api/assets/databases',
+    params
+  });
+}
+
+/** create asset database */
+export function fetchCreateAssetDatabase(data: Api.Asset.CreateDatabaseParams) {
+  return request<Api.Asset.DatabaseRecord>({
+    url: '/api/assets/databases',
+    method: 'post',
+    data
+  });
+}
+
+/** update asset database */
+export function fetchUpdateAssetDatabase(id: number, data: Api.Asset.UpdateDatabaseParams) {
+  return request<Api.Asset.DatabaseRecord>({
+    url: `/api/assets/databases/${id}`,
+    method: 'put',
+    data
+  });
+}
+
+/** check one asset database connectivity */
+export function fetchCheckAssetDatabase(id: number) {
+  return request<Api.Asset.DatabaseConnectivityCheckResponse>({
+    url: `/api/assets/databases/${id}/connectivity-check`,
+    method: 'post'
+  });
+}
+
+/** check selected asset databases connectivity */
+export function fetchCheckSelectedAssetDatabases(ids: number[]) {
+  return request<Api.Asset.DatabaseConnectivityCheckResponse>({
+    url: '/api/assets/databases/connectivity-check:selected',
+    method: 'post',
+    data: { ids }
+  });
+}
+
+/** check current page asset databases connectivity */
+export function fetchCheckCurrentPageAssetDatabases(ids: number[]) {
+  return request<Api.Asset.DatabaseConnectivityCheckResponse>({
+    url: '/api/assets/databases/connectivity-check:page',
+    method: 'post',
+    data: { ids }
+  });
+}
+
+/** check queried asset databases connectivity */
+export function fetchCheckQueriedAssetDatabases(query: Api.Asset.DatabaseQuery) {
+  return request<Api.Asset.DatabaseConnectivityCheckResponse>({
+    url: '/api/assets/databases/connectivity-check:query',
+    method: 'post',
+    data: {
+      keyword: query.keyword || null,
+      environment: query.environment || null,
+      databaseType: query.databaseType || null,
+      lifecycleStatus: query.lifecycleStatus || null,
+      connectivityStatus: query.connectivityStatus || null
+    }
+  });
+}
+
+/** delete asset database */
+export function fetchDeleteAssetDatabase(id: number) {
+  return request<boolean>({
+    url: `/api/assets/databases/${id}`,
+    method: 'delete'
+  });
+}
+
 /** get asset credentials */
 export function fetchGetAssetCredentials() {
   return request<Api.Asset.CredentialRecord[]>({ url: '/api/assets/credentials' });
