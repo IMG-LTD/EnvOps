@@ -1,7 +1,9 @@
 package com.img.envops.modules.task.infrastructure.mapper;
 
 import com.img.envops.modules.task.infrastructure.entity.UnifiedTaskCenterEntity;
+import com.img.envops.modules.task.infrastructure.entity.UnifiedTaskCenterRow;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
@@ -49,6 +51,85 @@ public interface UnifiedTaskCenterMapper {
       LIMIT 1
       """)
   UnifiedTaskCenterEntity findEntityBySource(@Param("taskType") String taskType, @Param("sourceId") Long sourceId);
+
+  @Select({
+      "<script>",
+      "SELECT COUNT(*)",
+      "FROM unified_task_center",
+      "<where>",
+      "  <if test='keyword != null'>AND (task_name LIKE CONCAT('%', #{keyword}, '%') OR summary LIKE CONCAT('%', #{keyword}, '%') OR triggered_by LIKE CONCAT('%', #{keyword}, '%'))</if>",
+      "  <if test='taskType != null'>AND task_type = #{taskType}</if>",
+      "  <if test='status != null'>AND status = #{status}</if>",
+      "  <if test='startedFrom != null'>AND started_at <![CDATA[>=]]> #{startedFrom}</if>",
+      "  <if test='startedTo != null'>AND started_at <![CDATA[<=]]> #{startedTo}</if>",
+      "</where>",
+      "</script>"
+  })
+  long countByQuery(
+      @Param("keyword") String keyword,
+      @Param("taskType") String taskType,
+      @Param("status") String status,
+      @Param("startedFrom") LocalDateTime startedFrom,
+      @Param("startedTo") LocalDateTime startedTo);
+
+  @Select({
+      "<script>",
+      "SELECT id,",
+      "       task_type AS taskType,",
+      "       task_name AS taskName,",
+      "       status,",
+      "       triggered_by AS triggeredBy,",
+      "       started_at AS startedAt,",
+      "       finished_at AS finishedAt,",
+      "       summary,",
+      "       detail_preview AS detailPreview,",
+      "       source_id AS sourceId,",
+      "       source_route AS sourceRoute,",
+      "       module_name AS moduleName,",
+      "       error_summary AS errorSummary,",
+      "       created_at AS createdAt,",
+      "       updated_at AS updatedAt",
+      "FROM unified_task_center",
+      "<where>",
+      "  <if test='keyword != null'>AND (task_name LIKE CONCAT('%', #{keyword}, '%') OR summary LIKE CONCAT('%', #{keyword}, '%') OR triggered_by LIKE CONCAT('%', #{keyword}, '%'))</if>",
+      "  <if test='taskType != null'>AND task_type = #{taskType}</if>",
+      "  <if test='status != null'>AND status = #{status}</if>",
+      "  <if test='startedFrom != null'>AND started_at <![CDATA[>=]]> #{startedFrom}</if>",
+      "  <if test='startedTo != null'>AND started_at <![CDATA[<=]]> #{startedTo}</if>",
+      "</where>",
+      "ORDER BY started_at DESC, id DESC",
+      "LIMIT #{limit} OFFSET #{offset}",
+      "</script>"
+  })
+  List<UnifiedTaskCenterRow> findByQuery(
+      @Param("keyword") String keyword,
+      @Param("taskType") String taskType,
+      @Param("status") String status,
+      @Param("startedFrom") LocalDateTime startedFrom,
+      @Param("startedTo") LocalDateTime startedTo,
+      @Param("limit") int limit,
+      @Param("offset") int offset);
+
+  @Select("""
+      SELECT id,
+             task_type AS taskType,
+             task_name AS taskName,
+             status,
+             triggered_by AS triggeredBy,
+             started_at AS startedAt,
+             finished_at AS finishedAt,
+             summary,
+             detail_preview AS detailPreview,
+             source_id AS sourceId,
+             source_route AS sourceRoute,
+             module_name AS moduleName,
+             error_summary AS errorSummary,
+             created_at AS createdAt,
+             updated_at AS updatedAt
+      FROM unified_task_center
+      WHERE id = #{id}
+      """)
+  UnifiedTaskCenterRow findById(@Param("id") Long id);
 
   @Update("""
       UPDATE unified_task_center

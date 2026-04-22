@@ -92,7 +92,7 @@ class DeployTaskControllerTest {
   }
 
   @Test
-  void createDeployTaskReturnsPendingApprovalAcrossQueryEndpoints() throws Exception {
+  void createDeployTaskReturnsPendingApprovalAcrossDeployEndpoints() throws Exception {
     String accessToken = login("release-admin", "Release@123");
 
     MvcResult createResult = mockMvc.perform(post("/api/deploy/tasks")
@@ -207,17 +207,6 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.params.privateKeyPath").doesNotExist())
         .andExpect(jsonPath("$.data.params.rollbackCommand").doesNotExist())
         .andExpect(jsonPath("$.data.params.accessToken").doesNotExist());
-
-    mockMvc.perform(get("/api/task-center/tasks")
-            .header("Authorization", "Bearer " + accessToken))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data.records[0].sourceType").value("DEPLOY"))
-        .andExpect(jsonPath("$.data.records[0].taskName").value("install-order-service-prod"))
-        .andExpect(jsonPath("$.data.records[0].taskType").value("INSTALL"))
-        .andExpect(jsonPath("$.data.records[0].status").value("PENDING_APPROVAL"));
 
     mockMvc.perform(get("/api/deploy/tasks/{id}/hosts", taskId)
             .header("Authorization", "Bearer " + accessToken))
@@ -789,7 +778,7 @@ class DeployTaskControllerTest {
   }
 
   @Test
-  void getTaskCenterTasksRejectsInvalidPage() throws Exception {
+  void getUnifiedTaskCenterTasksRejectsInvalidPage() throws Exception {
     String accessToken = login();
 
     mockMvc.perform(get("/api/task-center/tasks")
@@ -801,143 +790,186 @@ class DeployTaskControllerTest {
   }
 
   @Test
-  void getTaskCenterTasksSupportsFilteringPaginationAndSorting() throws Exception {
-    String accessToken = login("release-admin", "Release@123");
-    long p1OlderTaskId = createDeployTask(accessToken, "task-center-filter-pending-old");
-    long p1NewerTaskId = createDeployTask(accessToken, "task-center-filter-pending-new");
-    long upgradeTaskId = createDeployTask(
-        accessToken,
-        "task-center-filter-pending-upgrade",
-        "UPGRADE",
-        1001L,
-        1401L,
-        List.of(1L),
-        "ALL",
-        0,
-        createRequiredParams());
-    long p3TaskId = createDeployTask(accessToken, "task-center-filter-pending-p3");
-    long p2TaskId = createDeployTask(accessToken, "task-center-filter-pending-p2");
-
-    updateTaskCenterTaskSnapshot(p1OlderTaskId, "PENDING", 1, 1, "2026-04-16 10:00:00");
-    updateTaskCenterTaskSnapshot(p1NewerTaskId, "PENDING", 1, 2, "2026-04-16 11:00:00");
-    updateTaskCenterTaskSnapshot(upgradeTaskId, "PENDING", 1, 3, "2026-04-16 12:00:00");
-    updateTaskCenterTaskSnapshot(p3TaskId, "PENDING", 1, 0, "2026-04-16 13:00:00");
-    updateTaskCenterTaskSnapshot(p2TaskId, "PENDING", 10, 0, "2026-04-16 14:00:00");
-
-    mockMvc.perform(get("/api/task-center/tasks")
-            .param("keyword", "task-center-filter-pending")
-            .param("status", "PENDING")
-            .param("sourceType", "DEPLOY")
-            .param("taskType", "INSTALL")
-            .param("priority", "P1")
-            .param("page", "2")
-            .param("pageSize", "1")
-            .param("sortBy", "updatedAt")
-            .param("sortOrder", "desc")
-            .header("Authorization", "Bearer " + accessToken))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.page").value(2))
-        .andExpect(jsonPath("$.data.pageSize").value(1))
-        .andExpect(jsonPath("$.data.total").value(2))
-        .andExpect(jsonPath("$.data.records.length()").value(1))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) p1OlderTaskId))
-        .andExpect(jsonPath("$.data.records[0].sourceType").value("DEPLOY"))
-        .andExpect(jsonPath("$.data.records[0].taskName").value("task-center-filter-pending-old"))
-        .andExpect(jsonPath("$.data.records[0].taskType").value("INSTALL"))
-        .andExpect(jsonPath("$.data.records[0].priority").value("P1"))
-        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"));
-  }
-
-  @Test
-  void getTaskCenterTasksRejectsInvalidSourceType() throws Exception {
+  void getUnifiedTaskCenterTasksRejectsInvalidStatus() throws Exception {
     String accessToken = login();
 
     mockMvc.perform(get("/api/task-center/tasks")
-            .param("sourceType", "MANUAL")
+            .param("status", "cancelled")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("400"))
-        .andExpect(jsonPath("$.msg").value("sourceType must be one of DEPLOY"));
+        .andExpect(jsonPath("$.msg").value("status must be one of pending, running, success, failed"));
   }
 
   @Test
-  void getTaskCenterTasksRejectsInvalidPriority() throws Exception {
+  void getUnifiedTaskCenterTasksRejectsInvalidStartedRange() throws Exception {
     String accessToken = login();
 
     mockMvc.perform(get("/api/task-center/tasks")
-            .param("priority", "P0")
+            .param("startedFrom", "2026-04-22T10:00:00")
+            .param("startedTo", "2026-04-22T09:00:00")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("400"))
-        .andExpect(jsonPath("$.msg").value("priority must be one of P1, P2, P3"));
+        .andExpect(jsonPath("$.msg").value("startedFrom must be before or equal to startedTo"));
   }
 
   @Test
-  void getTaskCenterTasksTreatsRunningStatusFilterAsRunningLikeIncludingCancelRequested() throws Exception {
+  void getUnifiedTaskCenterTasksSupportsKeywordTaskTypeStatusAndStartedRange() throws Exception {
     String accessToken = login("release-admin", "Release@123");
-    long runningTaskId = createDeployTask(accessToken, "task-center-running-filter-running");
-    long cancelRequestedTaskId = createDeployTask(accessToken, "task-center-running-filter-cancel-requested");
-    long failedTaskId = createDeployTask(accessToken, "task-center-running-filter-failed");
-    long cancelledTaskId = createDeployTask(accessToken, "task-center-running-filter-cancelled");
 
-    updateTaskCenterTaskSnapshot(runningTaskId, "RUNNING", 1, 0, "2026-04-16 17:00:00");
-    updateTaskCenterTaskSnapshot(cancelRequestedTaskId, "CANCEL_REQUESTED", 1, 0, "2026-04-16 17:01:00");
-    updateTaskCenterTaskSnapshot(failedTaskId, "FAILED", 1, 1, "2026-04-16 17:02:00");
-    updateTaskCenterTaskSnapshot(cancelledTaskId, "CANCELLED", 1, 0, "2026-04-16 17:03:00");
+    jdbcTemplate.update(
+        """
+        INSERT INTO unified_task_center (
+            id, task_type, task_name, status, triggered_by, started_at, finished_at,
+            summary, detail_preview, source_id, source_route, module_name, error_summary,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        9101L,
+        "deploy",
+        "task-center-deploy-alpha",
+        "pending",
+        "release-admin",
+        java.sql.Timestamp.valueOf("2026-04-22 10:00:00"),
+        null,
+        "pending alpha rollout",
+        "{\"app\":\"alpha\",\"sourceRoute\":\"/deploy/task?taskId=9101\"}",
+        91001L,
+        "/deploy/task?taskId=9101",
+        "deploy",
+        null,
+        java.sql.Timestamp.valueOf("2026-04-22 10:00:00"),
+        java.sql.Timestamp.valueOf("2026-04-22 10:00:00"));
+    jdbcTemplate.update(
+        """
+        INSERT INTO unified_task_center (
+            id, task_type, task_name, status, triggered_by, started_at, finished_at,
+            summary, detail_preview, source_id, source_route, module_name, error_summary,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        9102L,
+        "database_connectivity",
+        "task-center-database-beta",
+        "failed",
+        "envops-admin",
+        java.sql.Timestamp.valueOf("2026-04-22 10:30:00"),
+        java.sql.Timestamp.valueOf("2026-04-22 10:32:00"),
+        "failed beta connectivity check",
+        "{\"mode\":\"batch\",\"summary\":\"failed beta connectivity check\",\"sourceRoute\":\"/asset/database?keyword=beta\"}",
+        91002L,
+        "/asset/database?keyword=beta",
+        "asset",
+        "beta databases failed authentication",
+        java.sql.Timestamp.valueOf("2026-04-22 10:30:00"),
+        java.sql.Timestamp.valueOf("2026-04-22 10:30:00"));
+    jdbcTemplate.update(
+        """
+        INSERT INTO unified_task_center (
+            id, task_type, task_name, status, triggered_by, started_at, finished_at,
+            summary, detail_preview, source_id, source_route, module_name, error_summary,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        9103L,
+        "traffic_action",
+        "task-center-traffic-gamma",
+        "running",
+        "ops-worker",
+        java.sql.Timestamp.valueOf("2026-04-22 11:00:00"),
+        null,
+        "running gamma traffic action",
+        "{\"action\":\"apply\",\"sourceRoute\":\"/traffic/controller?policyId=3001\"}",
+        91003L,
+        "/traffic/controller?policyId=3001",
+        "traffic",
+        null,
+        java.sql.Timestamp.valueOf("2026-04-22 11:00:00"),
+        java.sql.Timestamp.valueOf("2026-04-22 11:00:00"));
 
     mockMvc.perform(get("/api/task-center/tasks")
-            .param("keyword", "task-center-running-filter-")
-            .param("status", "RUNNING")
+            .param("keyword", "task-center")
+            .param("page", "1")
+            .param("pageSize", "2")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.page").value(1))
+        .andExpect(jsonPath("$.data.pageSize").value(2))
+        .andExpect(jsonPath("$.data.total").value(3))
         .andExpect(jsonPath("$.data.records.length()").value(2))
-        .andExpect(jsonPath("$.data.records[*].id", containsInAnyOrder((int) runningTaskId, (int) cancelRequestedTaskId)))
-        .andExpect(jsonPath("$.data.records[*].status", containsInAnyOrder("RUNNING", "CANCEL_REQUESTED")));
+        .andExpect(jsonPath("$.data.records[0].id").value(9103))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("traffic_action"))
+        .andExpect(jsonPath("$.data.records[0].status").value("running"))
+        .andExpect(jsonPath("$.data.records[0].sourceRoute").value("/traffic/controller?policyId=3001"))
+        .andExpect(jsonPath("$.data.records[1].id").value(9102));
 
     mockMvc.perform(get("/api/task-center/tasks")
-            .param("keyword", "task-center-running-filter-")
-            .param("status", "FAILED")
+            .param("keyword", "beta")
+            .param("taskType", "database_connectivity")
+            .param("status", "failed")
+            .param("startedFrom", "2026-04-22T10:15:00")
+            .param("startedTo", "2026-04-22T10:45:00")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
         .andExpect(jsonPath("$.data.total").value(1))
         .andExpect(jsonPath("$.data.records.length()").value(1))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) failedTaskId))
-        .andExpect(jsonPath("$.data.records[0].status").value("FAILED"));
-
-    mockMvc.perform(get("/api/task-center/tasks")
-            .param("keyword", "task-center-running-filter-")
-            .param("status", "CANCELLED")
-            .header("Authorization", "Bearer " + accessToken))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.total").value(1))
-        .andExpect(jsonPath("$.data.records.length()").value(1))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) cancelledTaskId))
-        .andExpect(jsonPath("$.data.records[0].status").value("CANCELLED"));
+        .andExpect(jsonPath("$.data.records[0].id").value(9102))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("database_connectivity"))
+        .andExpect(jsonPath("$.data.records[0].taskName").value("task-center-database-beta"))
+        .andExpect(jsonPath("$.data.records[0].status").value("failed"))
+        .andExpect(jsonPath("$.data.records[0].startedAt").value("2026-04-22T10:30:00"));
   }
 
   @Test
-  void getTaskCenterTasksTreatsCancelRequestedAsRunningLikePriorityP2() throws Exception {
+  void getUnifiedTaskCenterTaskDetailReturnsLightDrawerPayload() throws Exception {
     String accessToken = login("release-admin", "Release@123");
-    long taskId = createDeployTask(accessToken, "task-center-cancel-requested-running-like");
 
-    updateTaskCenterTaskSnapshot(taskId, "CANCEL_REQUESTED", 1, 0, "2026-04-16 15:00:00");
-
-    mockMvc.perform(get("/api/task-center/tasks")
-            .param("keyword", "task-center-cancel-requested-running-like")
-            .param("priority", "P2")
+    mockMvc.perform(get("/api/task-center/tasks/{id}", 9002L)
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.total").value(1))
-        .andExpect(jsonPath("$.data.records.length()").value(1))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data.records[0].status").value("CANCEL_REQUESTED"))
-        .andExpect(jsonPath("$.data.records[0].priority").value("P2"));
+        .andExpect(jsonPath("$.data.id").value(9002))
+        .andExpect(jsonPath("$.data.taskType").value("database_connectivity"))
+        .andExpect(jsonPath("$.data.taskName").value("批量数据库连通性检测"))
+        .andExpect(jsonPath("$.data.status").value("failed"))
+        .andExpect(jsonPath("$.data.summary").value("批量检测 20 条，成功 16，失败 3，跳过 1"))
+        .andExpect(jsonPath("$.data.startedAt").value("2026-04-21T09:00:00"))
+        .andExpect(jsonPath("$.data.finishedAt").value("2026-04-21T09:02:00"))
+        .andExpect(jsonPath("$.data.sourceRoute").value("/asset/database"))
+        .andExpect(jsonPath("$.data.errorSummary").value("3 databases failed authentication"))
+        .andExpect(jsonPath("$.data.detailPreview.mode").value("batch"))
+        .andExpect(jsonPath("$.data.detailPreview.total").value(20))
+        .andExpect(jsonPath("$.data.detailPreview.success").value(16))
+        .andExpect(jsonPath("$.data.detailPreview.failed").value(3))
+        .andExpect(jsonPath("$.data.detailPreview.skipped").value(1))
+        .andExpect(jsonPath("$.data.detailPreview.sourceRoute").value("/asset/database"));
+  }
+
+  @Test
+  void getUnifiedTaskCenterTaskDetailReturnsServerErrorWhenPreviewPayloadIsBroken() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+
+    jdbcTemplate.update("UPDATE unified_task_center SET detail_preview = ? WHERE id = ?", "{broken-json", 9002L);
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}", 9002L)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.code").value("500"))
+        .andExpect(jsonPath("$.msg").value("Internal server error"));
+  }
+
+  @Test
+  void getUnifiedTaskCenterTaskDetailReturnsNotFoundWhenMissing() throws Exception {
+    String accessToken = login();
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}", 999999L)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("404"))
+        .andExpect(jsonPath("$.msg").value("unified task not found: 999999"));
   }
 
   @Test
@@ -983,15 +1015,6 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.approvalComment").value("approved for release window"))
         .andExpect(jsonPath("$.data.approvalAt", not(blankOrNullString())));
 
-    mockMvc.perform(get("/api/task-center/tasks")
-            .header("Authorization", "Bearer " + accessToken))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data.records[0].status").value("PENDING"))
-        .andExpect(jsonPath("$.data.records[0].approvalOperatorName").value("release-admin"))
-        .andExpect(jsonPath("$.data.records[0].approvalComment").value("approved for release window"))
-        .andExpect(jsonPath("$.data.records[0].approvalAt", not(blankOrNullString())));
   }
 
   @Test
@@ -1037,15 +1060,6 @@ class DeployTaskControllerTest {
         .andExpect(jsonPath("$.data.approvalComment").value("missing maintenance approval"))
         .andExpect(jsonPath("$.data.approvalAt", not(blankOrNullString())));
 
-    mockMvc.perform(get("/api/task-center/tasks")
-            .header("Authorization", "Bearer " + accessToken))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data.records[0].id").value((int) taskId))
-        .andExpect(jsonPath("$.data.records[0].status").value("REJECTED"))
-        .andExpect(jsonPath("$.data.records[0].approvalOperatorName").value("release-admin"))
-        .andExpect(jsonPath("$.data.records[0].approvalComment").value("missing maintenance approval"))
-        .andExpect(jsonPath("$.data.records[0].approvalAt", not(blankOrNullString())));
   }
 
   @Test

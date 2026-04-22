@@ -12,8 +12,12 @@ public class UnifiedTaskCenterRow {
   private LocalDateTime finishedAt;
   private String summary;
   private String detailPreview;
+  private Long sourceId;
   private String sourceRoute;
+  private String moduleName;
   private String errorSummary;
+  private LocalDateTime createdAt;
+  private LocalDateTime updatedAt;
 
   public Long getId() {
     return id;
@@ -87,6 +91,14 @@ public class UnifiedTaskCenterRow {
     this.detailPreview = detailPreview;
   }
 
+  public Long getSourceId() {
+    return sourceId;
+  }
+
+  public void setSourceId(Long sourceId) {
+    this.sourceId = sourceId;
+  }
+
   public String getSourceRoute() {
     return sourceRoute;
   }
@@ -95,11 +107,35 @@ public class UnifiedTaskCenterRow {
     this.sourceRoute = sourceRoute;
   }
 
+  public String getModuleName() {
+    return moduleName;
+  }
+
+  public void setModuleName(String moduleName) {
+    this.moduleName = moduleName;
+  }
+
   public String getErrorSummary() {
     return errorSummary;
   }
 
   public void setErrorSummary(String errorSummary) {
     this.errorSummary = errorSummary;
+  }
+
+  public LocalDateTime getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setCreatedAt(LocalDateTime createdAt) {
+    this.createdAt = createdAt;
+  }
+
+  public LocalDateTime getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setUpdatedAt(LocalDateTime updatedAt) {
+    this.updatedAt = updatedAt;
   }
 }
