@@ -112,9 +112,9 @@ VALUES
 
 INSERT INTO traffic_policy (id, app, strategy, scope, traffic_ratio, owner, status, plugin_type, rollback_token, created_at, updated_at)
 VALUES
-    (3001, 'checkout-gateway', 'header_canary', 'prod / cn-shanghai-a', '20%', 'traffic-team', 'ENABLED', 'NGINX', 'traffic-rb-3001', TIMESTAMP '2026-04-15 17:00:00', TIMESTAMP '2026-04-15 17:00:00'),
-    (3002, 'billing-admin', 'blue_green', 'staging / all', '100%', 'release-team', 'PREVIEW', 'REST', 'traffic-rb-3002', TIMESTAMP '2026-04-15 17:05:00', TIMESTAMP '2026-04-15 17:05:00'),
-    (3003, 'ops-worker', 'weighted_routing', 'prod / cn-beijing-b', '10%', 'platform-team', 'REVIEW', 'NGINX', NULL, TIMESTAMP '2026-04-15 17:10:00', TIMESTAMP '2026-04-15 17:10:00');
+    (3001, 'checkout-gateway', 'weighted_routing', 'prod / cn-beijing-b', '10%', 'platform-team', 'REVIEW', 'REST', NULL, TIMESTAMP '2026-04-22 10:00:00', TIMESTAMP '2026-04-22 10:00:00'),
+    (3002, 'billing-admin', 'weighted_routing', 'staging / all', '20%', 'release-team', 'PREVIEW', 'REST', 'rb-apply-3002', TIMESTAMP '2026-04-22 10:05:00', TIMESTAMP '2026-04-22 10:05:00'),
+    (3003, 'ops-worker', 'header_canary', 'prod / cn-shanghai-a', '5%', 'traffic-team', 'REVIEW', 'NGINX', NULL, TIMESTAMP '2026-04-22 10:10:00', TIMESTAMP '2026-04-22 10:10:00');
 
 INSERT INTO sys_menu_route (id, parent_id, route_name, route_path, component, title, icon, route_order, route_type, required_role, home_flag)
 VALUES

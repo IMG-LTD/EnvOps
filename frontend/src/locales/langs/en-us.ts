@@ -1164,7 +1164,7 @@ const local: App.I18n.Schema = {
         hero: {
           title: 'Traffic Controller',
           description:
-            'Show policy records and plugin readiness. EnvOps 0.0.4 does not provide real traffic switching actions.'
+            'Execute a limited Traffic MVP with real REST-based preview, apply, and rollback for weighted routing policies.'
         },
         tags: {
           policiesLive: '3 policies live',
@@ -1173,15 +1173,15 @@ const local: App.I18n.Schema = {
         summary: {
           policiesEnabled: {
             label: 'Policy Records',
-            desc: 'Traffic policy records in the current store; they do not mean real gateway rules are active'
+            desc: 'Traffic policy records loaded into the controller, including supported and unsupported rows'
           },
           canaryReleases: {
-            label: 'Preview Records',
-            desc: 'Policy records currently in preview or demo semantics'
+            label: 'Preview-ready Policies',
+            desc: 'Policies currently in preview or ready for preview within the MVP boundary'
           },
           rollbackReady: {
-            label: 'Rollback Token Coverage',
-            desc: 'Only indicates rollback tokens exist at the record level; it does not mean external systems are connected'
+            label: 'Rollback-ready Coverage',
+            desc: 'Share of records that currently hold a usable rollback token from the external traffic service'
           }
         },
         table: {
@@ -1202,7 +1202,12 @@ const local: App.I18n.Schema = {
         messages: {
           latestAction: 'Latest Traffic Action',
           notReadyWarning:
-            'The current NGINX / REST plugins are still skeletons. This page only shows directory status and does not allow real traffic actions.',
+            'Traffic MVP currently supports REST plugin and weighted routing only. NGINX, blue-green, and header canary remain outside this release.',
+          pluginNotReady: 'Plugin not ready',
+          pluginNotSupported: 'Plugin not supported in v0.0.5',
+          strategyNotSupported: 'Strategy not supported in v0.0.5',
+          rollbackTokenMissing: 'Rollback token required',
+          actionFailed: 'Traffic action failed',
           previewSuccess: 'Traffic policy previewed successfully',
           applySuccess: 'Traffic policy applied successfully',
           rollbackSuccess: 'Traffic policy rolled back successfully'

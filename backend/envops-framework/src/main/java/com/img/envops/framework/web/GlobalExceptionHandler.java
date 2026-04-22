@@ -1,6 +1,7 @@
 package com.img.envops.framework.web;
 
 import com.img.envops.common.exception.ConflictException;
+import com.img.envops.common.exception.ExternalServiceException;
 import com.img.envops.common.exception.NotFoundException;
 import com.img.envops.common.exception.UnauthorizedException;
 import com.img.envops.common.response.R;
@@ -33,6 +34,11 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(NotFoundException.class)
   public ResponseEntity<R<Void>> handleNotFoundException(NotFoundException exception) {
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(R.fail("404", exception.getMessage()));
+  }
+
+  @ExceptionHandler(ExternalServiceException.class)
+  public ResponseEntity<R<Void>> handleExternalServiceException(ExternalServiceException exception) {
+    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(R.fail("502", exception.getMessage()));
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)

@@ -1419,6 +1419,11 @@ declare namespace App {
             messages: {
               latestAction: string;
               notReadyWarning: string;
+              pluginNotReady: string;
+              pluginNotSupported: string;
+              strategyNotSupported: string;
+              rollbackTokenMissing: string;
+              actionFailed: string;
               previewSuccess: string;
               applySuccess: string;
               rollbackSuccess: string;

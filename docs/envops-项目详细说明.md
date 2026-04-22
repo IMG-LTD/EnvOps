@@ -2,9 +2,9 @@
 
 ## 1. 文档说明
 
-本文档用于说明当前仓库当前基线的项目定位、交付范围、本地联调方式与能力边界。当前阶段重点不是继续扩张功能承诺，而是完成 release gate 修复，统一工程闸口、账号安全、本地默认配置，以及 Deploy / Task / Traffic 的对外口径。
+本文档用于说明当前仓库当前基线的项目定位、交付范围、本地联调方式与能力边界。当前阶段重点不是继续扩张功能承诺，而是同步工程闸口、账号安全、本地默认配置，以及 Database / Deploy / Task / Traffic 的真实能力边界。
 
-## 2. 版本定位
+## 2. 当前基线定位
 
 当前基线明确聚焦以下事项：
 
@@ -14,7 +14,7 @@
 - Deploy 创建契约对外只承诺真实执行参数，不再承诺 `deployDir`。
 - 资产中心当前覆盖主机、凭据、分组、标签、数据库资源五类资产，其中数据库范围已支持目录登记、关系维护与真实连通性检测，但仍不承诺版本治理或数据库专用生命周期。
 - Task Center 当前收敛为 deploy-only 队列视图。
-- Traffic 页面与接口当前明确处于 skeleton / not-ready 边界，不再把占位能力包装成真实切流。
+- Traffic 页面与接口当前已收敛为最小真实切流 MVP，只覆盖 REST 插件、`weighted_routing` 策略，以及 `preview` / `apply` / `rollback` 真闭环。
 
 ## 3. 仓库结构
 
@@ -96,12 +96,16 @@ Task Center 当前明确是 deploy-only 队列视图：
 
 ### 5.4 Traffic
 
-Traffic 当前必须按 not-ready 口径说明：
+Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 
-- 页面与接口用于明确 skeleton / not-ready 边界
-- 页面应显示 not-ready warning
-- 动作按钮保持禁用
-- 当前不对外承诺 `preview` / `apply` / `rollback` 为可执行的真实切流能力
+- 只支持一个插件通路：`REST`
+- 只支持一个策略：`weighted_routing`
+- `preview`、`apply`、`rollback` 三个动作都会真实调用外部 REST 流量服务
+- 只有外部调用成功，EnvOps 才更新策略状态与 `rollbackToken`
+- `apply` 要求外部服务返回可用的 `rollbackToken`，否则请求失败且不写入成功状态
+- `rollback` 只对已有 `rollbackToken` 的记录开放
+- 页面会展示范围 warning、最近一次动作结果，以及不支持记录的禁用原因
+- 当前不扩展多插件、多策略矩阵、审批体系大改、批量切流、高级编排与灰度报表
 
 ## 6. 本地验证建议
 
@@ -119,7 +123,7 @@ Traffic 当前必须按 not-ready 口径说明：
 
 以下内容明确继续保留在当前基线之外：
 
-- Traffic 真实外部网关接通
+- Traffic 的多插件适配、多策略矩阵、审批体系重构、批量切流、高级编排与灰度报表
 - Task Center 跨域统一队列
 - Deploy 大规模主机检索与更深执行器增强
 
@@ -128,5 +132,5 @@ Traffic 当前必须按 not-ready 口径说明：
 当前项目口径需要与以下材料保持一致：
 
 - `README.md`
-- `release/0.0.4-release-notes.md`
+- `release/0.0.5-release-notes.md`
 - `release/0.0.4-checklist.md`

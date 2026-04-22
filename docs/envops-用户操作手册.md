@@ -2,7 +2,7 @@
 
 ## 1. 手册说明
 
-本文档面向当前基线的本地体验者、联调人员与演示使用者。当前阶段重点在于修正文档与发版口径，尤其是本地启动方式、Task Center 的范围收口，以及 Traffic 的 not-ready 边界说明。
+本文档面向当前基线的本地体验者、联调人员与演示使用者。当前阶段重点在于同步本地启动方式、Task Center 的范围收口，以及 Traffic 最小真实能力的使用口径。
 
 ## 2. 使用前准备
 
@@ -80,11 +80,15 @@ Task Center 当前明确是 deploy-only 队列视图：
 
 ### 4.4 Traffic
 
-Traffic 当前明确是 not-ready 页面：
+Traffic 当前可体验的是最小真实切流 MVP：
 
-- 页面会显示 not-ready warning
-- 动作按钮保持禁用
-- 当前不能把 `preview` / `apply` / `rollback` 视为已对外开放的真实切流能力
+- 页面会提示当前只支持 `REST` 插件与 `weighted_routing` 策略
+- 满足支持条件的记录可执行 `Preview`、`Apply`、`Rollback`
+- `Preview`、`Apply`、`Rollback` 都会真实调用外部流量服务
+- `Apply` 成功后会写入新的状态与 `rollbackToken`
+- 只有已有 `rollbackToken` 的记录才可执行 `Rollback`
+- 不支持的记录会保持禁用，并在表格中展示原因
+- 当前不提供多插件、多策略矩阵、批量切流、高级编排或灰度报表
 
 ## 5. 本地使用建议
 
@@ -95,13 +99,13 @@ Traffic 当前明确是 not-ready 页面：
 3. 使用 `envops-admin / EnvOps@123` 登录
 4. 体验资产、检测、应用与 Deploy 主链路
 5. 在 Task Center 中查看 deploy-only 队列
-6. 打开 Traffic 页面确认 not-ready warning 与禁用动作按钮
+6. 打开 Traffic 页面，确认支持范围 warning、动作按钮可用性，以及最近一次动作反馈
 
 ## 6. Deferred scope
 
 以下内容明确不属于当前基线可用范围：
 
-- Traffic 真实外部网关接通
+- Traffic 的多插件适配、多策略矩阵、批量切流、高级编排与灰度报表
 - Task Center 跨域统一队列
 - Deploy 大规模主机检索与更深执行器增强
 
@@ -113,5 +117,4 @@ Traffic 当前明确是 not-ready 页面：
 - `docs/envops-项目详细说明.md`
 - `docs/envops-开发技术说明.md`
 - `docs/envops-用户操作手册.md`
-- `release/0.0.4-release-notes.md`
-- `release/0.0.4-checklist.md`
+- `release/0.0.5-release-notes.md`

@@ -1,5 +1,6 @@
 package com.img.envops.modules.traffic.application;
 
+import com.img.envops.common.exception.NotFoundException;
 import com.img.envops.modules.traffic.infrastructure.mapper.TrafficPolicyMapper;
 import com.img.envops.modules.traffic.plugin.TrafficActionRequest;
 import com.img.envops.modules.traffic.plugin.TrafficPlugin;
@@ -14,6 +15,10 @@ import java.util.Locale;
 
 @Service
 public class TrafficApplicationService {
+  private static final String MVP_PLUGIN_TYPE = "REST";
+  private static final String MVP_STRATEGY = "weighted_routing";
+  private static final String READY_STATUS = "READY";
+
   private final TrafficPolicyMapper trafficPolicyMapper;
   private final List<TrafficPlugin> trafficPlugins;
 
@@ -43,25 +48,31 @@ public class TrafficApplicationService {
 
   public TrafficPolicyActionRecord previewPolicy(Long policyId) {
     TrafficPolicyMapper.TrafficPolicyRow policy = requirePolicy(policyId);
+    validateMvpScope(policy);
     TrafficPlugin plugin = requirePluginSupport(policy.getPluginType(), "preview");
     TrafficPluginResult pluginResult = plugin.preview(buildActionRequest(policy));
-    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "PREVIEW", normalizeOptionalText(policy.getRollbackToken()));
-
+    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "PREVIEW", normalizeOptionalText(pluginResult.rollbackToken()));
     return new TrafficPolicyActionRecord("preview", updatedPolicy, pluginResult);
   }
 
   public TrafficPolicyActionRecord applyPolicy(Long policyId) {
     TrafficPolicyMapper.TrafficPolicyRow policy = requirePolicy(policyId);
+    validateMvpScope(policy);
     TrafficPlugin plugin = requirePluginSupport(policy.getPluginType(), "apply");
     TrafficPluginResult pluginResult = plugin.apply(buildActionRequest(policy));
-    String rollbackToken = getRollbackTokenOrGenerate(policy);
-    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "ENABLED", rollbackToken);
+    String rollbackToken = normalizeOptionalText(pluginResult.rollbackToken());
 
+    if (rollbackToken == null) {
+      throw new IllegalArgumentException("rollbackToken is required from traffic rest service for apply: " + policyId);
+    }
+
+    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "ENABLED", rollbackToken);
     return new TrafficPolicyActionRecord("apply", updatedPolicy, pluginResult);
   }
 
   public TrafficPolicyActionRecord rollbackPolicy(Long policyId) {
     TrafficPolicyMapper.TrafficPolicyRow policy = requirePolicy(policyId);
+    validateMvpScope(policy);
     String rollbackToken = normalizeOptionalText(policy.getRollbackToken());
 
     if (rollbackToken == null) {
@@ -73,8 +84,7 @@ public class TrafficApplicationService {
         policy.getApp(),
         rollbackToken,
         "manual rollback"));
-    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "ENABLED", rollbackToken);
-
+    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "ROLLED_BACK", rollbackToken);
     return new TrafficPolicyActionRecord("rollback", updatedPolicy, pluginResult);
   }
 
@@ -86,7 +96,7 @@ public class TrafficApplicationService {
     TrafficPolicyMapper.TrafficPolicyRow policy = trafficPolicyMapper.findById(policyId);
 
     if (policy == null) {
-      throw new IllegalArgumentException("traffic policy not found: " + policyId);
+      throw new NotFoundException("traffic policy not found: " + policyId);
     }
 
     return policy;
@@ -106,10 +116,20 @@ public class TrafficApplicationService {
         policy.getOwner());
   }
 
+  private void validateMvpScope(TrafficPolicyMapper.TrafficPolicyRow policy) {
+    if (!MVP_PLUGIN_TYPE.equalsIgnoreCase(String.valueOf(policy.getPluginType()))) {
+      throw new IllegalArgumentException("traffic plugin is not supported in v0.0.5: " + policy.getPluginType());
+    }
+
+    if (!MVP_STRATEGY.equalsIgnoreCase(String.valueOf(policy.getStrategy()))) {
+      throw new IllegalArgumentException("traffic strategy is not supported in v0.0.5: " + policy.getStrategy());
+    }
+  }
+
   private TrafficPlugin requirePluginSupport(String pluginType, String action) {
     TrafficPlugin plugin = resolvePlugin(pluginType);
 
-    if (!"READY".equals(plugin.pluginStatus())) {
+    if (!READY_STATUS.equals(plugin.pluginStatus())) {
       throw new IllegalArgumentException("traffic plugin is not ready: " + pluginType);
     }
 
@@ -147,16 +167,6 @@ public class TrafficApplicationService {
         row.getStatus(),
         row.getPluginType(),
         normalizeOptionalText(row.getRollbackToken()));
-  }
-
-  private String getRollbackTokenOrGenerate(TrafficPolicyMapper.TrafficPolicyRow policy) {
-    String rollbackToken = normalizeOptionalText(policy.getRollbackToken());
-
-    if (rollbackToken != null) {
-      return rollbackToken;
-    }
-
-    return "traffic-rb-" + policy.getId();
   }
 
   private String normalizeLookupValue(String value) {

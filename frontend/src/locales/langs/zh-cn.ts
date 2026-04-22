@@ -1152,7 +1152,7 @@ const local: App.I18n.Schema = {
       trafficController: {
         hero: {
           title: '流量控制',
-          description: '展示流量策略记录与插件接入状态。EnvOps 0.0.4 不提供真实切流动作。'
+          description: '当前页面提供有限可用的 Traffic MVP，支持基于 REST 的 weighted routing 预览、应用和回滚。'
         },
         tags: {
           policiesLive: '3 条策略生效中',
@@ -1161,15 +1161,15 @@ const local: App.I18n.Schema = {
         summary: {
           policiesEnabled: {
             label: '策略记录',
-            desc: '当前仓库中的流量策略记录，不代表真实网关已生效'
+            desc: '当前控制器加载到的策略记录，包含受支持与不受支持的行'
           },
           canaryReleases: {
-            label: '预览策略',
-            desc: '处于预览或演示语义中的策略记录'
+            label: '可预览策略',
+            desc: '当前处于预览中或满足 MVP 预览边界的策略记录'
           },
           rollbackReady: {
-            label: '回滚令牌覆盖率',
-            desc: '仅表示记录层面存在回滚令牌，不代表外部系统已接通'
+            label: '可回滚覆盖率',
+            desc: '当前持有外部流量服务真实 rollbackToken 的记录占比'
           }
         },
         table: {
@@ -1189,7 +1189,13 @@ const local: App.I18n.Schema = {
         },
         messages: {
           latestAction: '最近一次流量动作',
-          notReadyWarning: '当前 NGINX / REST plugin 仍是 skeleton，页面只展示目录状态，不允许执行真实流量动作。',
+          notReadyWarning:
+            '当前 Traffic MVP 仅支持 REST 插件和 weighted routing。NGINX、blue-green、header canary 仍不在本次发布范围内。',
+          pluginNotReady: '插件未就绪',
+          pluginNotSupported: '当前版本暂不支持该插件',
+          strategyNotSupported: '当前版本暂不支持该策略',
+          rollbackTokenMissing: '缺少回滚令牌',
+          actionFailed: '流量动作执行失败',
           previewSuccess: '流量策略预览成功',
           applySuccess: '流量策略应用成功',
           rollbackSuccess: '流量策略回滚成功'

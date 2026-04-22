@@ -2,7 +2,7 @@
 
 ## 1. 文档定位
 
-本文档面向开发、联调、测试与维护人员，说明当前基线的工程版本字段、本地联调方式、验证命令，以及 Deploy / Task / Traffic 的技术边界。
+本文档面向开发、联调、测试与维护人员，说明当前基线的工程版本字段、本地联调方式、验证命令，以及 Deploy / Task / Traffic 的技术边界，其中 Traffic 已收敛到最小真实能力口径。
 
 ## 2. 版本字段
 
@@ -42,7 +42,10 @@ pnpm --dir frontend dev
 
 - `mvn -f backend/pom.xml -pl envops-asset -am -Dtest=DatabaseConnectionSecretProtectorTest,DatabaseConnectivityServiceTest test`
 - `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=AssetControllerTest test`
+- `mvn -f backend/pom.xml -pl envops-traffic -am -Dtest=RestTrafficPluginTest test`
+- `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=TrafficControllerTest test`
 - `pnpm --dir frontend exec vitest run src/views/asset/database-contract.spec.ts src/views/asset/database-connectivity.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
+- `pnpm --dir frontend exec vitest run src/views/traffic/traffic-contract.spec.ts`
 - `pnpm --dir frontend typecheck`
 - `pnpm --dir frontend build`
 - `bash backend/scripts/test-envops-boot.sh`
@@ -91,12 +94,16 @@ Task Center 当前明确是 deploy-only 队列视图：
 
 ### 5.4 Traffic
 
-Traffic 当前必须明确写成 not-ready：
+Traffic 当前技术边界已收敛为最小真实能力：
 
-- 当前页面与接口用于表达 skeleton / not-ready 边界
-- 页面应显示 not-ready warning
-- 动作按钮禁用
-- 当前不应把 `preview` / `apply` / `rollback` 写成用户已可执行的真实能力
+- 插件范围只覆盖 `REST`
+- 策略范围只覆盖 `weighted_routing`
+- 后端通过真实 REST 客户端调用外部流量服务执行 `preview`、`apply`、`rollback`
+- 外部调用失败时返回错误，不回写成功状态；外部服务不可用时统一映射为 `502 Bad Gateway`
+- `apply` 成功路径要求外部服务返回 `rollbackToken`，否则视为失败
+- `rollback` 只在记录已有 `rollbackToken` 时可执行
+- 页面只对 REST + weighted routing + 插件就绪的记录开放动作按钮，其余记录展示禁用原因
+- 当前不纳入多插件适配、多策略矩阵、审批重构、批量切流、高级编排与灰度报表
 
 ## 6. 账号与安全基线
 
@@ -108,6 +115,6 @@ Traffic 当前必须明确写成 not-ready：
 
 以下内容继续明确排除在当前基线之外：
 
-- Traffic 真实外部网关接通
+- Traffic 的多插件适配、多策略矩阵、审批重构、批量切流、高级编排与灰度报表
 - Task Center 跨域统一队列
 - Deploy 大规模主机检索与更深执行器增强
