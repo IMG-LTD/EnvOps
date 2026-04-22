@@ -22,4 +22,10 @@ envops:
   security:
     token-secret: ${ENVOPS_SECURITY_TOKEN_SECRET}
     credential-protection-secret: ${ENVOPS_CREDENTIAL_PROTECTION_SECRET}
+  traffic:
+    rest:
+      base-url: ${ENVOPS_TRAFFIC_REST_BASE_URL:}
+      token: ${ENVOPS_TRAFFIC_REST_TOKEN:}
+      connect-timeout-ms: ${ENVOPS_TRAFFIC_REST_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${ENVOPS_TRAFFIC_REST_READ_TIMEOUT_MS:5000}
 

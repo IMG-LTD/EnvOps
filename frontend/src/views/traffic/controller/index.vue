@@ -13,10 +13,17 @@ defineOptions({
   name: 'TrafficControllerPage'
 });
 
-type TrafficPolicyStatusKey = 'enabled' | 'preview' | 'review' | 'standby' | 'disabled';
+type TrafficPolicyStatusKey = 'enabled' | 'preview' | 'review' | 'standby' | 'disabled' | 'rolledBack';
 type TrafficPolicyTagType = 'success' | 'info' | 'warning' | 'default';
 type TrafficStrategyKey = 'headerCanary' | 'blueGreen' | 'weightedRouting' | 'emergencyRollback';
 type TrafficActionType = Api.Traffic.TrafficPolicyActionType;
+
+type TrafficActionDisplay = {
+  action: TrafficActionType;
+  app: string;
+  message: string;
+  type: 'success' | 'error';
+};
 
 const { t } = useI18n();
 
@@ -25,7 +32,7 @@ const requestToken = ref(0);
 const actingPolicyId = ref<number | null>(null);
 const trafficPolicyList = ref<Api.Traffic.TrafficPolicyRecord[]>([]);
 const trafficPluginList = ref<Api.Traffic.TrafficPluginRecord[]>([]);
-const latestActionResult = ref<Api.Traffic.TrafficPolicyActionRecord | null>(null);
+const latestActionResult = ref<TrafficActionDisplay | null>(null);
 
 const trafficPluginsByType = computed(() => {
   const directory = new Map<string, Api.Traffic.TrafficPluginRecord>();
@@ -46,6 +53,10 @@ const trafficPolicies = computed(() =>
     const statusKey = getTrafficPolicyStatusKey(item.status);
     const plugin = trafficPluginsByType.value.get(normalizeLookupValue(item.pluginType));
     const isPluginReady = normalizeLookupValue(plugin?.status) === 'ready';
+    const isRestPlugin = normalizeLookupValue(item.pluginType) === 'rest';
+    const isWeightedRouting = normalizeLookupValue(item.strategy) === 'weighted_routing';
+    const isSupportedPolicy = isPluginReady && isRestPlugin && isWeightedRouting;
+    const rollbackToken = normalizeOptionalText(item.rollbackToken);
 
     return {
       key: item.id,
@@ -55,14 +66,15 @@ const trafficPolicies = computed(() =>
       scope: getDisplayText(item.scope),
       ratio: getTrafficRatioLabel(item.trafficRatio),
       owner: getTrafficOwnerLabel(item.owner),
+      pluginType: getDisplayText(item.pluginType),
+      rollbackToken,
+      unsupportedReason: getUnsupportedReason({ isPluginReady, isRestPlugin, isWeightedRouting, rollbackToken }),
       status: getTrafficPolicyStatusLabel(statusKey),
       statusType: getTrafficPolicyTagType(statusKey),
       statusKey,
-      canPreview: isPluginReady && Boolean(plugin?.supportsPreview),
-      canApply: isPluginReady && Boolean(plugin?.supportsApply),
-      canRollback:
-        isPluginReady && Boolean(plugin?.supportsRollback) && Boolean(normalizeOptionalText(item.rollbackToken)),
-      rollbackToken: normalizeOptionalText(item.rollbackToken)
+      canPreview: isSupportedPolicy && Boolean(plugin?.supportsPreview),
+      canApply: isSupportedPolicy && Boolean(plugin?.supportsApply),
+      canRollback: isSupportedPolicy && Boolean(plugin?.supportsRollback) && Boolean(rollbackToken)
     };
   })
 );
@@ -122,7 +134,7 @@ const latestActionSummary = computed(() => {
     return '';
   }
 
-  return [getTrafficActionLabel(actionResult.action), actionResult.policy.app, actionResult.pluginResult.message]
+  return [getTrafficActionLabel(actionResult.action), actionResult.app, actionResult.message]
     .filter(Boolean)
     .join(' · ');
 });
@@ -169,13 +181,30 @@ async function handlePolicyAction(policyId: number, action: TrafficActionType) {
       rollback: fetchPostRollbackTrafficPolicy
     };
 
+    const targetPolicy = trafficPolicyList.value.find(item => item.id === policyId);
+    const targetApp = getDisplayText(targetPolicy?.app);
     const { data, error } = await actionRequestMap[action](policyId);
 
-    if (!error) {
-      latestActionResult.value = data;
-      window.$message?.success(getTrafficActionSuccessMessage(action));
-      await loadTrafficData();
+    if (error) {
+      const message = String(error.message || t('page.envops.trafficController.messages.actionFailed'));
+      latestActionResult.value = {
+        action,
+        app: targetApp,
+        message,
+        type: 'error'
+      };
+      window.$message?.error(message);
+      return;
     }
+
+    latestActionResult.value = {
+      action,
+      app: getDisplayText(data?.policy?.app ?? targetPolicy?.app),
+      message: String(data?.pluginResult?.message || ''),
+      type: 'success'
+    };
+    window.$message?.success(getTrafficActionSuccessMessage(action));
+    await loadTrafficData();
   } finally {
     actingPolicyId.value = null;
   }
@@ -295,6 +324,10 @@ function getTrafficOwnerLabel(value?: string | null) {
 function getTrafficPolicyStatusKey(value?: string | null): TrafficPolicyStatusKey {
   const normalizedStatus = normalizeLookupValue(value);
 
+  if (normalizedStatus.includes('rolled_back')) {
+    return 'rolledBack';
+  }
+
   if (normalizedStatus.includes('enable')) {
     return 'enabled';
   }
@@ -324,7 +357,8 @@ function getTrafficPolicyStatusLabel(statusKey: TrafficPolicyStatusKey) {
     preview: t('page.envops.common.status.preview'),
     review: t('page.envops.common.status.review'),
     standby: t('page.envops.common.status.standby'),
-    disabled: t('page.envops.common.status.disabled')
+    disabled: t('page.envops.common.status.disabled'),
+    rolledBack: t('page.envops.common.status.disabled')
   };
 
   return labelMap[statusKey];
@@ -336,10 +370,36 @@ function getTrafficPolicyTagType(statusKey: TrafficPolicyStatusKey): TrafficPoli
     preview: 'info',
     review: 'warning',
     standby: 'default',
-    disabled: 'default'
+    disabled: 'default',
+    rolledBack: 'default'
   };
 
   return typeMap[statusKey];
+}
+
+function getUnsupportedReason(input: {
+  isPluginReady: boolean;
+  isRestPlugin: boolean;
+  isWeightedRouting: boolean;
+  rollbackToken: string | null;
+}) {
+  if (!input.isPluginReady) {
+    return t('page.envops.trafficController.messages.pluginNotReady');
+  }
+
+  if (!input.isRestPlugin) {
+    return t('page.envops.trafficController.messages.pluginNotSupported');
+  }
+
+  if (!input.isWeightedRouting) {
+    return t('page.envops.trafficController.messages.strategyNotSupported');
+  }
+
+  if (!input.rollbackToken) {
+    return t('page.envops.trafficController.messages.rollbackTokenMissing');
+  }
+
+  return '';
 }
 
 function getTrafficActionLabel(action: TrafficActionType) {
@@ -398,7 +458,7 @@ onMounted(() => {
       </NGi>
     </NGrid>
 
-    <NAlert v-if="latestActionResult" type="success" :show-icon="false">
+    <NAlert v-if="latestActionResult" :type="latestActionResult.type" :show-icon="false">
       <div class="font-medium">{{ t('page.envops.trafficController.messages.latestAction') }}</div>
       <div class="mt-8px">{{ latestActionSummary }}</div>
     </NAlert>
@@ -426,6 +486,10 @@ onMounted(() => {
               <td>{{ item.owner }}</td>
               <td>
                 <NTag :type="item.statusType" size="small">{{ item.status }}</NTag>
+                <div class="mt-4px text-12px text-#999">
+                  {{ item.pluginType }}
+                  <template v-if="item.unsupportedReason">· {{ item.unsupportedReason }}</template>
+                </div>
               </td>
               <td>
                 <NSpace size="small">

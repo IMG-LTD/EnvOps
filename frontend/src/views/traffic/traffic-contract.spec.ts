@@ -22,22 +22,28 @@ const translations = vi.hoisted(() => ({
   'page.envops.trafficController.actions.preview': 'Preview',
   'page.envops.trafficController.actions.rollback': 'Rollback',
   'page.envops.trafficController.hero.description':
-    'Show policy records and plugin readiness. EnvOps 0.0.4 does not provide real traffic switching actions.',
+    'Execute a limited Traffic MVP with real REST-based preview, apply, and rollback for weighted routing policies.',
   'page.envops.trafficController.hero.title': 'Traffic Controller',
+  'page.envops.trafficController.messages.actionFailed': 'Traffic action failed',
   'page.envops.trafficController.messages.applySuccess': 'Traffic policy applied successfully',
   'page.envops.trafficController.messages.latestAction': 'Latest Traffic Action',
   'page.envops.trafficController.messages.notReadyWarning':
-    'The current NGINX / REST plugins are still skeletons. This page only shows directory status and does not allow real traffic actions.',
+    'Traffic MVP currently supports REST plugin and weighted routing only. NGINX, blue-green, and header canary remain outside this release.',
+  'page.envops.trafficController.messages.pluginNotReady': 'Plugin not ready',
+  'page.envops.trafficController.messages.pluginNotSupported': 'Plugin not supported in v0.0.5',
   'page.envops.trafficController.messages.previewSuccess': 'Traffic policy previewed successfully',
   'page.envops.trafficController.messages.rollbackSuccess': 'Traffic policy rolled back successfully',
-  'page.envops.trafficController.summary.canaryReleases.desc': 'Policy records currently in preview or demo semantics',
-  'page.envops.trafficController.summary.canaryReleases.label': 'Preview Records',
+  'page.envops.trafficController.messages.rollbackTokenMissing': 'Rollback token required',
+  'page.envops.trafficController.messages.strategyNotSupported': 'Strategy not supported in v0.0.5',
+  'page.envops.trafficController.summary.canaryReleases.desc':
+    'Policies currently in preview or ready for preview within the MVP boundary',
+  'page.envops.trafficController.summary.canaryReleases.label': 'Preview-ready Policies',
   'page.envops.trafficController.summary.policiesEnabled.desc':
-    'Traffic policy records in the current store; they do not mean real gateway rules are active',
+    'Traffic policy records loaded into the controller, including supported and unsupported rows',
   'page.envops.trafficController.summary.policiesEnabled.label': 'Policy Records',
   'page.envops.trafficController.summary.rollbackReady.desc':
-    'Only indicates rollback tokens exist at the record level; it does not mean external systems are connected',
-  'page.envops.trafficController.summary.rollbackReady.label': 'Rollback Token Coverage',
+    'Share of records that currently hold a usable rollback token from the external traffic service',
+  'page.envops.trafficController.summary.rollbackReady.label': 'Rollback-ready Coverage',
   'page.envops.trafficController.table.application': 'Application',
   'page.envops.trafficController.table.operation': 'Action',
   'page.envops.trafficController.table.owner': 'Owner',
@@ -189,10 +195,6 @@ async function mountTrafficPage() {
   };
 }
 
-function getButtonsByText(container: HTMLElement, label: string) {
-  return Array.from(container.querySelectorAll('button')).filter(button => button.textContent?.includes(label));
-}
-
 describe('traffic controller contract wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -212,32 +214,32 @@ describe('traffic controller contract wiring', () => {
         {
           id: 3001,
           app: 'checkout-gateway',
-          strategy: 'header_canary',
-          scope: 'prod / cn-shanghai-a',
-          trafficRatio: '20%',
-          owner: 'traffic-team',
-          status: 'ENABLED',
-          pluginType: 'NGINX',
-          rollbackToken: 'traffic-rb-3001'
-        },
-        {
-          id: 3002,
-          app: 'billing-admin',
-          strategy: 'blue_green',
-          scope: 'staging / all',
-          trafficRatio: '100%',
-          owner: 'release-team',
-          status: 'PREVIEW',
-          pluginType: 'REST',
-          rollbackToken: 'traffic-rb-3002'
-        },
-        {
-          id: 3003,
-          app: 'ops-worker',
           strategy: 'weighted_routing',
           scope: 'prod / cn-beijing-b',
           trafficRatio: '10%',
           owner: 'platform-team',
+          status: 'REVIEW',
+          pluginType: 'REST',
+          rollbackToken: null
+        },
+        {
+          id: 3002,
+          app: 'billing-admin',
+          strategy: 'weighted_routing',
+          scope: 'staging / all',
+          trafficRatio: '20%',
+          owner: 'release-team',
+          status: 'PREVIEW',
+          pluginType: 'REST',
+          rollbackToken: 'rb-apply-3002'
+        },
+        {
+          id: 3003,
+          app: 'ops-worker',
+          strategy: 'header_canary',
+          scope: 'prod / cn-shanghai-a',
+          trafficRatio: '5%',
+          owner: 'traffic-team',
           status: 'REVIEW',
           pluginType: 'NGINX',
           rollbackToken: null
@@ -249,17 +251,17 @@ describe('traffic controller contract wiring', () => {
       error: null,
       data: [
         {
-          type: 'NGINX',
-          name: 'Nginx traffic plugin',
-          status: 'NOT_IMPLEMENTED',
-          supportsPreview: false,
-          supportsApply: false,
-          supportsRollback: false
+          type: 'REST',
+          name: 'REST Traffic Plugin',
+          status: 'READY',
+          supportsPreview: true,
+          supportsApply: true,
+          supportsRollback: true
         },
         {
-          type: 'REST',
-          name: 'Rest traffic plugin',
-          status: 'NOT_IMPLEMENTED',
+          type: 'NGINX',
+          name: 'Nginx Traffic Plugin',
+          status: 'NOT_READY',
           supportsPreview: false,
           supportsApply: false,
           supportsRollback: false
@@ -276,120 +278,119 @@ describe('traffic controller contract wiring', () => {
     vi.resetModules();
   });
 
-  it('renders degraded summaries, tags, warning and disabled actions from api data', async () => {
+  it('enables actions only for REST weighted-routing policies and keeps unsupported rows disabled', async () => {
     const page = await mountTrafficPage();
 
     try {
-      expect(mocks.fetchGetTrafficPolicies).toHaveBeenCalledTimes(1);
-      expect(mocks.fetchGetTrafficPlugins).toHaveBeenCalledTimes(1);
-
-      const policyRecordsCard = page.container.querySelector('[data-summary-key="policiesEnabled"]');
-      const previewRecordsCard = page.container.querySelector('[data-summary-key="canaryReleases"]');
-      const rollbackCoverageCard = page.container.querySelector('[data-summary-key="rollbackReady"]');
-
-      expect(policyRecordsCard?.textContent).toContain('Policy Records');
-      expect(policyRecordsCard?.textContent).toContain('3');
-      expect(previewRecordsCard?.textContent).toContain('Preview Records');
-      expect(previewRecordsCard?.textContent).toContain('2');
-      expect(rollbackCoverageCard?.textContent).toContain('Rollback Token Coverage');
-      expect(rollbackCoverageCard?.textContent).toContain('67%');
-
-      expect(page.container.textContent).toContain('3 / Policy Records');
-      expect(page.container.textContent).toContain('2 / Preview Records');
       expect(page.container.textContent).toContain(
-        'The current NGINX / REST plugins are still skeletons. This page only shows directory status and does not allow real traffic actions.'
+        'Traffic MVP currently supports REST plugin and weighted routing only'
       );
-
-      const rows = page.container.querySelectorAll('tbody tr');
-      expect(rows).toHaveLength(3);
-      expect(page.container.textContent).toContain('checkout-gateway');
-      expect(page.container.textContent).toContain('billing-admin');
-      expect(page.container.textContent).toContain('ops-worker');
-
-      const previewButtons = getButtonsByText(page.container, 'Preview');
-      const applyButtons = getButtonsByText(page.container, 'Apply');
-      const rollbackButtons = getButtonsByText(page.container, 'Rollback');
-
-      expect(previewButtons).toHaveLength(3);
-      expect(applyButtons).toHaveLength(3);
-      expect(rollbackButtons).toHaveLength(3);
-      expect(previewButtons.every(button => button.hasAttribute('disabled'))).toBe(true);
-      expect(applyButtons.every(button => button.hasAttribute('disabled'))).toBe(true);
-      expect(rollbackButtons.every(button => button.hasAttribute('disabled'))).toBe(true);
-    } finally {
-      page.unmount();
-    }
-  });
-
-  it('does not submit traffic actions or show success feedback when plugins are not ready', async () => {
-    const page = await mountTrafficPage();
-
-    try {
-      const previewButtons = getButtonsByText(page.container, 'Preview');
-      const applyButtons = getButtonsByText(page.container, 'Apply');
-      const rollbackButtons = getButtonsByText(page.container, 'Rollback');
-
-      previewButtons[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      applyButtons[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      rollbackButtons[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await settleRender();
-
-      expect(mocks.fetchPostPreviewTrafficPolicy).not.toHaveBeenCalled();
-      expect(mocks.fetchPostApplyTrafficPolicy).not.toHaveBeenCalled();
-      expect(mocks.fetchPostRollbackTrafficPolicy).not.toHaveBeenCalled();
-      expect(mocks.fetchGetTrafficPolicies).toHaveBeenCalledTimes(1);
-      expect(mocks.fetchGetTrafficPlugins).toHaveBeenCalledTimes(1);
-      expect(page.container.textContent).not.toContain('Latest Traffic Action');
-
-      const successMock = window.$message?.success as ReturnType<typeof vi.fn> | undefined;
-      expect(successMock).toBeDefined();
-      expect(successMock?.mock.calls).toHaveLength(0);
-    } finally {
-      page.unmount();
-    }
-  });
-
-  it('maps standard ENABLED status to enabled display instead of the conservative fallback', async () => {
-    const page = await mountTrafficPage();
-
-    try {
       const rows = Array.from(page.container.querySelectorAll('tbody tr'));
-      const enabledRow = rows.find(row => row.textContent?.includes('checkout-gateway'));
+      expect(rows).toHaveLength(3);
 
-      expect(enabledRow).toBeTruthy();
-      expect(enabledRow?.textContent).toContain('Enabled');
-      expect(enabledRow?.textContent).not.toContain('Standby');
+      const checkoutButtons = Array.from(rows[0].querySelectorAll('button'));
+      const billingButtons = Array.from(rows[1].querySelectorAll('button'));
+      const opsButtons = Array.from(rows[2].querySelectorAll('button'));
+
+      expect(checkoutButtons[0]?.hasAttribute('disabled')).toBe(false);
+      expect(checkoutButtons[1]?.hasAttribute('disabled')).toBe(false);
+      expect(checkoutButtons[2]?.hasAttribute('disabled')).toBe(true);
+
+      expect(billingButtons[0]?.hasAttribute('disabled')).toBe(false);
+      expect(billingButtons[1]?.hasAttribute('disabled')).toBe(false);
+      expect(billingButtons[2]?.hasAttribute('disabled')).toBe(false);
+
+      expect(opsButtons[0]?.hasAttribute('disabled')).toBe(true);
+      expect(opsButtons[1]?.hasAttribute('disabled')).toBe(true);
+      expect(opsButtons[2]?.hasAttribute('disabled')).toBe(true);
+
+      expect(rows[0]?.textContent).toContain('REST');
+      expect(rows[0]?.textContent).toContain('Rollback token required');
+      expect(rows[2]?.textContent).toContain('NGINX');
+      expect(rows[2]?.textContent).toContain('Plugin not ready');
     } finally {
       page.unmount();
     }
   });
 
-  it('maps unknown policy status to standby instead of an optimistic state', async () => {
-    mocks.fetchGetTrafficPolicies.mockResolvedValueOnce({
+  it('refreshes the page and shows latest success summary after apply succeeds', async () => {
+    mocks.fetchPostApplyTrafficPolicy.mockResolvedValueOnce({
       error: null,
-      data: [
-        {
-          id: 4001,
-          app: 'shadow-router',
+      data: {
+        action: 'apply',
+        policy: {
+          id: 3001,
+          app: 'checkout-gateway',
           strategy: 'weighted_routing',
-          scope: 'lab / all',
-          trafficRatio: '5%',
+          scope: 'prod / cn-beijing-b',
+          trafficRatio: '10%',
           owner: 'platform-team',
-          status: 'CUSTOM_STATE',
-          pluginType: 'NGINX',
-          rollbackToken: null
+          status: 'ENABLED',
+          pluginType: 'REST',
+          rollbackToken: 'rb-apply-3001'
+        },
+        pluginResult: {
+          pluginType: 'REST',
+          status: 'READY',
+          action: 'apply',
+          message: 'traffic rule applied',
+          app: 'checkout-gateway',
+          strategy: 'weighted_routing',
+          scope: 'prod / cn-beijing-b',
+          trafficRatio: '10%',
+          owner: 'platform-team',
+          rollbackToken: 'rb-apply-3001',
+          reason: null
         }
-      ]
+      }
     });
 
     const page = await mountTrafficPage();
 
     try {
-      const rows = page.container.querySelectorAll('tbody tr');
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.textContent).toContain('shadow-router');
-      expect(rows[0]?.textContent).toContain('Standby');
-      expect(rows[0]?.textContent).not.toContain('Enabled');
+      const rows = Array.from(page.container.querySelectorAll('tbody tr'));
+      const checkoutApplyButton = Array.from(rows[0].querySelectorAll('button')).find(button =>
+        button.textContent?.includes('Apply')
+      );
+
+      checkoutApplyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await settleRender();
+
+      expect(mocks.fetchPostApplyTrafficPolicy).toHaveBeenCalledWith(3001);
+      expect(mocks.fetchGetTrafficPolicies).toHaveBeenCalledTimes(2);
+      expect(mocks.fetchGetTrafficPlugins).toHaveBeenCalledTimes(2);
+      expect(page.container.textContent).toContain('Latest Traffic Action');
+      expect(page.container.textContent).toContain('Apply · checkout-gateway · traffic rule applied');
+
+      const successMock = window.$message?.success as ReturnType<typeof vi.fn> | undefined;
+      expect(successMock?.mock.calls[0]?.[0]).toContain('Traffic policy applied successfully');
+    } finally {
+      page.unmount();
+    }
+  });
+
+  it('shows error feedback and latest failure summary when a traffic action fails', async () => {
+    mocks.fetchPostApplyTrafficPolicy.mockResolvedValueOnce({
+      error: { message: 'traffic rest service is unavailable' },
+      data: null
+    });
+
+    const page = await mountTrafficPage();
+
+    try {
+      const rows = Array.from(page.container.querySelectorAll('tbody tr'));
+      const checkoutApplyButton = Array.from(rows[0].querySelectorAll('button')).find(button =>
+        button.textContent?.includes('Apply')
+      );
+
+      checkoutApplyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await settleRender();
+
+      expect(mocks.fetchPostApplyTrafficPolicy).toHaveBeenCalledWith(3001);
+      const errorMock = window.$message?.error as ReturnType<typeof vi.fn> | undefined;
+      expect(errorMock?.mock.calls[0]?.[0]).toContain('traffic rest service is unavailable');
+      expect(page.container.textContent).toContain('Latest Traffic Action');
+      expect(page.container.textContent).toContain('Apply · checkout-gateway · traffic rest service is unavailable');
     } finally {
       page.unmount();
     }
