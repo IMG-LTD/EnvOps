@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp, defineComponent, h, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatLocalDateTimeRange } from './shared/query';
+import { formatLocalDateTimeRange, normalizeTaskCenterRouteQuery, toTaskCenterApiQuery } from './shared/query';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const deployTaskPage = readFileSync(path.resolve(__dirname, '../deploy/task/index.vue'), 'utf8');
@@ -25,12 +25,14 @@ const mocks = vi.hoisted(() => {
   const routerPushByKey = vi.fn(async (_key: string, payload?: { query?: Record<string, string> }) => {
     mocks.route.query = payload?.query ?? {};
   });
+  const routerPush = vi.fn(async (_to: string) => undefined);
   const fetchGetApps = vi.fn();
   const fetchGetDeployTasks = vi.fn();
   const fetchGetDeployTask = vi.fn();
   const fetchGetDeployTaskHosts = vi.fn();
   const fetchGetDeployTaskLogs = vi.fn();
   const fetchGetTaskCenterTasks = vi.fn();
+  const fetchGetTaskCenterTaskDetail = vi.fn();
   const fetchGetAppVersions = vi.fn();
   const fetchGetAssetHosts = vi.fn();
   const fetchPostCreateDeployTask = vi.fn();
@@ -46,12 +48,14 @@ const mocks = vi.hoisted(() => {
   return {
     route,
     routerPushByKey,
+    routerPush,
     fetchGetApps,
     fetchGetDeployTasks,
     fetchGetDeployTask,
     fetchGetDeployTaskHosts,
     fetchGetDeployTaskLogs,
     fetchGetTaskCenterTasks,
+    fetchGetTaskCenterTaskDetail,
     fetchGetAppVersions,
     fetchGetAssetHosts,
     fetchPostCreateDeployTask,
@@ -72,7 +76,10 @@ vi.mock('vue-router', async () => {
   mocks.route = route;
 
   return {
-    useRoute: () => route
+    useRoute: () => route,
+    useRouter: () => ({
+      push: mocks.routerPush
+    })
   };
 });
 
@@ -91,8 +98,23 @@ const drawerStub = defineComponent({
       default: true
     }
   },
-  setup(props, { attrs, slots }) {
-    return () => (props.show ? h('div', attrs, slots.default?.()) : null);
+  emits: ['update:show'],
+  setup(props, { attrs, slots, emit }) {
+    return () =>
+      props.show
+        ? h('div', { ...attrs, 'data-drawer': 'true' }, [
+            h(
+              'button',
+              {
+                type: 'button',
+                'data-drawer-close': 'true',
+                onClick: () => emit('update:show', false)
+              },
+              'drawer-close'
+            ),
+            ...(slots.default?.() ?? [])
+          ])
+        : null;
   }
 });
 
@@ -243,6 +265,7 @@ vi.mock('@/service/api', () => ({
   fetchGetDeployTaskHosts: mocks.fetchGetDeployTaskHosts,
   fetchGetDeployTaskLogs: mocks.fetchGetDeployTaskLogs,
   fetchGetTaskCenterTasks: mocks.fetchGetTaskCenterTasks,
+  fetchGetTaskCenterTaskDetail: mocks.fetchGetTaskCenterTaskDetail,
   fetchGetAppVersions: mocks.fetchGetAppVersions,
   fetchGetAssetHosts: mocks.fetchGetAssetHosts,
   fetchPostCreateDeployTask: mocks.fetchPostCreateDeployTask,
@@ -334,22 +357,36 @@ function getTaskRowActionButton(container: HTMLElement, taskId: number, actionKe
 function createTaskCenterRecord(id: number, overrides: Record<string, unknown> = {}) {
   return {
     id,
-    sourceType: 'DEPLOY',
-    taskNo: `TC-${id}`,
+    taskType: 'deploy',
     taskName: `Task center item ${id}`,
-    taskType: 'INSTALL',
-    status: 'PENDING',
-    appId: 100 + id,
-    appName: `service-${id}`,
-    versionId: 200 + id,
-    versionNo: `v1.0.${id}`,
-    priority: 'P3',
-    targetCount: 1,
-    successCount: 0,
-    failCount: 0,
-    operatorName: `operator-${id}`,
-    createdAt: `2026-04-18T11:0${id}:00`,
-    updatedAt: `2026-04-18T11:0${id}:30`,
+    status: 'pending',
+    triggeredBy: `operator-${id}`,
+    startedAt: `2026-04-18T11:0${id}:00`,
+    finishedAt: null,
+    summary: `Summary ${id}`,
+    sourceRoute: `/deploy/task?taskId=${1000 + id}`,
+    errorSummary: null,
+    ...overrides
+  };
+}
+
+function createTaskCenterTaskDetail(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    taskType: 'deploy',
+    taskName: `Task center item ${id}`,
+    status: 'pending',
+    triggeredBy: `operator-${id}`,
+    startedAt: `2026-04-18T11:0${id}:00`,
+    finishedAt: null,
+    summary: `Summary ${id}`,
+    detailPreview: {
+      app: `service-${id}`,
+      environment: 'production',
+      sourceRoute: `/deploy/task?taskId=${1000 + id}`
+    },
+    sourceRoute: `/deploy/task?taskId=${1000 + id}`,
+    errorSummary: null,
     ...overrides
   };
 }
@@ -372,9 +409,27 @@ async function mountTaskCenterPage() {
     'NTable',
     'NEmpty',
     'NPagination',
-    'NTag'
+    'NTag',
+    'NDrawer',
+    'NDrawerContent',
+    'NDescriptions',
+    'NDescriptionsItem',
+    'NDatePicker'
   ].forEach(name => {
-    app.component(name, name === 'NButton' ? buttonStub : name === 'NTable' ? tableStub : passthroughStub);
+    app.component(
+      name,
+      name === 'NButton'
+        ? buttonStub
+        : name === 'NInput'
+          ? inputStub
+          : name === 'NSelect'
+            ? selectStub
+            : name === 'NDrawer'
+              ? drawerStub
+              : name === 'NTable'
+                ? tableStub
+                : passthroughStub
+    );
   });
   app.mount(container);
   await nextTick();
@@ -562,6 +617,10 @@ describe('task pages contract wiring', () => {
         total: 1,
         records: [createTaskCenterRecord(1)]
       }
+    });
+    mocks.fetchGetTaskCenterTaskDetail.mockResolvedValue({
+      error: null,
+      data: createTaskCenterTaskDetail(1)
     });
     mocks.fetchGetDeployTaskHosts.mockImplementation(
       async (_id: number, params: { page: number; pageSize: number }) => {
@@ -1243,10 +1302,12 @@ describe('task pages contract wiring', () => {
     expect(taskApiSource).toMatch(/url:\s*`\/api\/deploy\/tasks\/\$\{id\}\/logs`/);
     expect(taskApiSource).toMatch(/export function fetchGetTaskCenterTasks\s*\(/);
     expect(taskApiSource).toMatch(/url:\s*['"]\/api\/task-center\/tasks['"]/);
+    expect(taskApiSource).toMatch(/export function fetchGetTaskCenterTaskDetail\s*\(/);
+    expect(taskApiSource).toMatch(/url:\s*`\/api\/task-center\/tasks\/\$\{id\}`/);
     expect(apiIndexSource).toContain("export * from './task'");
   });
 
-  it('defines frontend task typings for deploy and task center rows', () => {
+  it('defines frontend task typings for deploy and unified task center rows', () => {
     expect(taskTypingSource).toContain('namespace Task');
     expect(taskTypingSource).toContain('type TaskSortBy');
     expect(taskTypingSource).toContain("'createdAt' | 'updatedAt' | 'taskNo' | 'status'");
@@ -1271,9 +1332,31 @@ describe('task pages contract wiring', () => {
     expect(taskTypingSource).toContain('interface DeployTaskLogQuery');
     expect(taskTypingSource).toContain('interface DeployTaskLogPage');
     expect(taskTypingSource).toContain('interface DeployTaskLogRecord');
+    expect(taskTypingSource).toContain(
+      "type TaskCenterTaskType = 'deploy' | 'database_connectivity' | 'traffic_action'"
+    );
+    expect(taskTypingSource).toContain("type UnifiedTaskStatus = 'pending' | 'running' | 'success' | 'failed'");
     expect(taskTypingSource).toContain('interface TaskCenterListQuery');
+    expect(taskTypingSource).toContain('startedFrom?: string;');
+    expect(taskTypingSource).toContain('startedTo?: string;');
+    expect(taskTypingSource).not.toContain('sourceType?: string;');
+    expect(taskTypingSource).not.toContain('priority?: string;');
+    expect(taskTypingSource).not.toContain('sortBy: TaskSortBy;');
+    expect(taskTypingSource).not.toContain('sortOrder: TaskSortOrder;');
     expect(taskTypingSource).toContain('interface TaskCenterPage');
     expect(taskTypingSource).toContain('interface TaskCenterRecord');
+    expect(taskTypingSource).toContain('taskType: TaskCenterTaskType;');
+    expect(taskTypingSource).toContain('status: UnifiedTaskStatus;');
+    expect(taskTypingSource).toContain('triggeredBy: string;');
+    expect(taskTypingSource).toContain('startedAt: string;');
+    expect(taskTypingSource).toContain('finishedAt?: string | null;');
+    expect(taskTypingSource).toContain('summary: string;');
+    expect(taskTypingSource).toContain('sourceRoute: string;');
+    expect(taskTypingSource).toContain('interface TaskCenterTaskDetail extends TaskCenterRecord');
+    expect(taskTypingSource).toContain('detailPreview: Record<string, unknown>;');
+    expect(taskTypingSource).toContain('errorSummary?: string | null;');
+    expect(taskTypingSource).not.toContain('sourceType: string;');
+    expect(taskTypingSource).not.toContain('priority?: string | null;');
   });
 
   it('exposes paginated task api fetchers with params', () => {
@@ -1324,6 +1407,10 @@ describe('task pages contract wiring', () => {
     );
     expect(taskApiSource).toMatch(
       /request<Api\.Task\.TaskCenterPage>\(\{\s*url:\s*['"]\/api\/task-center\/tasks['"],\s*params\s*\}/s
+    );
+    expect(taskApiSource).toMatch(/export function fetchGetTaskCenterTaskDetail\s*\(id: number\)/);
+    expect(taskApiSource).toMatch(
+      /request<Api\.Task\.TaskCenterDetail>\(\{\s*url:\s*`\/api\/task-center\/tasks\/\$\{id\}`\s*\}/s
     );
   });
 
@@ -1376,24 +1463,30 @@ describe('task pages contract wiring', () => {
 
   it('loads task center page from real api data instead of static mock arrays', () => {
     expect(taskCenterPage).toContain('fetchGetTaskCenterTasks');
+    expect(taskCenterPage).toContain('fetchGetTaskCenterTaskDetail');
     expect(taskCenterPage).toContain('await fetchGetTaskCenterTasks(');
     expect(taskCenterPage).toContain('const taskList = ref');
     expect(taskCenterPage).toContain('taskList.value =');
+    expect(taskCenterPage).toContain('NDrawer');
     expect(taskCenterPage).toContain('NEmpty');
     expect(taskCenterPage).not.toContain('const taskList = computed(() => [');
   });
 
-  it('drives task center list from route query pagination and deploy-detail navigation', () => {
+  it('drives unified task center list from route query pagination and detail drawer loading', () => {
     expect(taskCenterPage).toContain('useRoute(');
+    expect(taskCenterPage).toContain('useRouter(');
     expect(taskCenterPage).toContain('routerPushByKey');
     expect(taskCenterPage).toContain('normalizeTaskCenterRouteQuery');
     expect(taskCenterPage).toContain('toTaskCenterApiQuery');
     expect(taskCenterPage).toContain('route.query');
     expect(taskCenterPage).toContain('fetchGetTaskCenterTasks(toTaskCenterApiQuery(query))');
+    expect(taskCenterPage).toContain('fetchGetTaskCenterTaskDetail(taskId)');
     expect(taskCenterPage).toContain('filterForm.keyword = query.keyword');
     expect(taskCenterPage).toContain('filterForm.status = query.status || null');
     expect(taskCenterPage).toContain('filterForm.taskType = query.taskType || null');
-    expect(taskCenterPage).toContain('filterForm.priority = query.priority || null');
+    expect(taskCenterPage).toContain(
+      'filterForm.startedRange = getStartedRangeValue(query.startedFrom, query.startedTo)'
+    );
     expect(taskCenterPage).toContain(
       'const pendingTaskCenterRouteQuery = ref<TaskCenterRouteQuery>(normalizedRouteQuery.value)'
     );
@@ -1410,45 +1503,111 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain('handleResetFilters');
     expect(taskCenterPage).toContain('handlePageChange');
     expect(taskCenterPage).toContain('handlePageSizeChange');
-    expect(taskCenterPage).toContain('NPagination');
-    expect(taskCenterPage).toContain("routerPushByKey('deploy_task', { query: { taskId: String(taskId) } })");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openDeployDetail')");
+    expect(taskCenterPage).toContain('handleOpenTaskDetail');
+    expect(taskCenterPage).toContain('showTaskDetailDrawer');
+    expect(taskCenterPage).toContain('showTaskDetailDrawer.value = true');
+    expect(taskCenterPage).toContain('closeTaskDetailDrawer');
+    expect(taskCenterPage).toContain('detailRequestToken.value += 1');
+    expect(taskCenterPage).toContain('detailLoadingToken.value += 1');
+    expect(taskCenterPage).toContain('@update:show="handleTaskDetailDrawerShowChange"');
+    expect(taskCenterPage).toContain('activeTaskDetail');
+    expect(taskCenterPage).toContain('router.push(activeTaskDetail.value.sourceRoute)');
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.keyword')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.status')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.taskType')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.priority')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.startedFrom')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.startedTo')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.search')");
     expect(taskCenterPage).toContain("t('page.envops.taskCenter.filters.reset')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.createdAt')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.updatedAt')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.taskNo')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.status')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.asc')");
-    expect(taskCenterPage).toContain("t('page.envops.taskCenter.sorting.desc')");
-    expect(taskCenterPage).not.toContain('fetchGetTaskCenterTasks()');
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openTaskDetail')");
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openSourceDetail')");
+    expect(taskCenterPage).toContain('NDatePicker');
+    expect(taskCenterPage).toContain('NPagination');
+    expect(taskCenterPage).not.toContain('filterForm.priority');
+    expect(taskCenterPage).not.toContain('sortByOptions');
+    expect(taskCenterPage).not.toContain("routerPushByKey('deploy_task'");
+    expect(taskCenterPage).not.toContain('metrics = computed');
   });
 
-  it('maps upgrade and rollback task types into deploy task labels', () => {
-    expect(taskCenterPage).toContain("normalizedValue.includes('upgrade')");
-    expect(taskCenterPage).toContain("normalizedValue.includes('rollback')");
+  it('normalizes unified task center route query and maps it to api params', () => {
+    const normalized = normalizeTaskCenterRouteQuery({
+      keyword: ['deploy'],
+      status: 'running',
+      taskType: 'traffic_action',
+      startedFrom: 'bad-date',
+      startedTo: '2026-04-18T08:30:45.000Z',
+      page: '-2',
+      pageSize: '0'
+    });
+
+    expect(normalized).toEqual({
+      keyword: '',
+      status: 'running',
+      taskType: 'traffic_action',
+      startedFrom: '',
+      startedTo: formatLocalDateTimeRange([
+        new Date('2026-04-18T08:30:45.000Z').getTime(),
+        new Date('2026-04-18T08:30:45.000Z').getTime()
+      ])[1],
+      page: 1,
+      pageSize: 10
+    });
+
+    expect(toTaskCenterApiQuery(normalized)).toEqual({
+      status: 'running',
+      taskType: 'traffic_action',
+      startedTo: formatLocalDateTimeRange([
+        new Date('2026-04-18T08:30:45.000Z').getTime(),
+        new Date('2026-04-18T08:30:45.000Z').getTime()
+      ])[1],
+      page: 1,
+      pageSize: 10
+    });
   });
 
-  it('maps cancelled task status into cancelled label instead of queued', () => {
-    expect(taskCenterPage).toContain("normalizedStatus.includes('cancel')");
-    expect(taskCenterPage).toContain("cancelled: t('page.envops.common.status.cancelled')");
-    expect(taskCenterPage).toContain("cancelled: 'warning'");
+  it('drops unsupported task center taskType and status values at runtime', () => {
+    const normalized = normalizeTaskCenterRouteQuery({
+      taskType: 'rollback',
+      status: 'cancelled',
+      page: '2',
+      pageSize: '20'
+    });
+
+    expect(normalized).toEqual({
+      keyword: '',
+      status: '',
+      taskType: '',
+      startedFrom: '',
+      startedTo: '',
+      page: 2,
+      pageSize: 20
+    });
+
+    expect(toTaskCenterApiQuery(normalized)).toEqual({
+      page: 2,
+      pageSize: 20
+    });
   });
 
-  it('treats cancel requested task center status as running-like instead of cancelled', () => {
-    expect(taskCenterPage).toContain("normalizedStatus.includes('cancel_requested')");
-    expect(taskCenterPage.indexOf("normalizedStatus.includes('cancel_requested')")).toBeLessThan(
-      taskCenterPage.indexOf("normalizedStatus.includes('cancel')")
-    );
-    expect(taskCenterPage).toContain("return 'running'");
-    expect(taskCenterPage).toContain("if (!['queued', 'running'].includes(statusKey)) {");
+  it('limits task center supported task type filters to deploy database connectivity and traffic actions', () => {
+    expect(taskCenterPage).toContain("value: 'deploy'");
+    expect(taskCenterPage).toContain("value: 'database_connectivity'");
+    expect(taskCenterPage).toContain("value: 'traffic_action'");
+    expect(taskCenterPage).not.toContain("value: 'INSTALL'");
+    expect(taskCenterPage).not.toContain("value: 'ROLLBACK'");
   });
 
-  it('renders cancel requested task center rows with running status and fallback p2 priority', async () => {
+  it('maps unified task center normalized statuses into localized labels', () => {
+    expect(taskCenterPage).toContain("pending: t('page.envops.common.status.pending')");
+    expect(taskCenterPage).toContain("running: t('page.envops.common.status.running')");
+    expect(taskCenterPage).toContain("success: t('page.envops.common.status.success')");
+    expect(taskCenterPage).toContain("failed: t('page.envops.common.status.failed')");
+    expect(taskCenterPage).not.toContain('pendingApproval');
+    expect(taskCenterPage).not.toContain('cancelled');
+    expect(taskCenterPage).not.toContain('rejected');
+  });
+
+  it('opens task center detail drawer and deep links to the source module', async () => {
     mocks.fetchGetTaskCenterTasks.mockResolvedValue({
       error: null,
       data: {
@@ -1457,25 +1616,227 @@ describe('task pages contract wiring', () => {
         total: 1,
         records: [
           createTaskCenterRecord(7, {
-            status: 'CANCEL_REQUESTED',
-            priority: null,
-            failCount: 0,
-            targetCount: 1
+            taskType: 'database_connectivity',
+            status: 'failed',
+            sourceRoute: '/asset/database',
+            summary: 'Batch database connectivity check'
           })
         ]
       }
     });
+    mocks.fetchGetTaskCenterTaskDetail.mockResolvedValue({
+      error: null,
+      data: createTaskCenterTaskDetail(7, {
+        taskType: 'database_connectivity',
+        status: 'failed',
+        sourceRoute: '/asset/database',
+        summary: 'Batch database connectivity check',
+        detailPreview: {
+          mode: 'batch',
+          total: 20,
+          failed: 3,
+          sourceRoute: '/asset/database'
+        },
+        errorSummary: '3 databases failed authentication'
+      })
+    });
 
     const page = await mountTaskCenterPage();
-    const row = page.container.querySelector('tbody tr');
 
-    expect(row).toBeTruthy();
+    const detailButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.taskCenter.actions.openTaskDetail')
+    );
 
-    const cells = row ? Array.from(row.querySelectorAll('td')).map(cell => cell.textContent?.trim() ?? '') : [];
+    expect(detailButton).toBeTruthy();
 
-    expect(cells[4]).toBe('P2');
-    expect(cells[5]).toContain('page.envops.common.status.running');
-    expect(cells[5]).not.toContain('page.envops.common.status.cancelled');
+    detailButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.fetchGetTaskCenterTaskDetail).toHaveBeenCalledWith(7);
+
+    const sourceButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.taskCenter.actions.openSourceDetail')
+    );
+
+    expect(sourceButton).toBeTruthy();
+
+    sourceButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.routerPush).toHaveBeenCalledWith('/asset/database');
+
+    page.unmount();
+  });
+
+  it('accepts only the latest task center detail response during rapid row clicks', async () => {
+    const firstDetail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+    const secondDetail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+
+    mocks.fetchGetTaskCenterTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 2,
+        records: [
+          createTaskCenterRecord(7, {
+            taskType: 'database_connectivity',
+            status: 'failed',
+            sourceRoute: '/asset/database',
+            summary: 'Database detail row'
+          }),
+          createTaskCenterRecord(8, {
+            taskType: 'traffic_action',
+            status: 'success',
+            sourceRoute: '/traffic/strategy',
+            summary: 'Traffic detail row'
+          })
+        ]
+      }
+    });
+    mocks.fetchGetTaskCenterTaskDetail.mockImplementation((id: number) => {
+      if (id === 7) {
+        return firstDetail.promise;
+      }
+
+      if (id === 8) {
+        return secondDetail.promise;
+      }
+
+      return Promise.resolve({ error: null, data: null });
+    });
+
+    const page = await mountTaskCenterPage();
+    const detailButtons = Array.from(page.container.querySelectorAll('button')).filter(button =>
+      button.textContent?.includes('page.envops.taskCenter.actions.openTaskDetail')
+    );
+
+    expect(detailButtons).toHaveLength(2);
+
+    detailButtons[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+    detailButtons[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.fetchGetTaskCenterTaskDetail).toHaveBeenNthCalledWith(1, 7);
+    expect(mocks.fetchGetTaskCenterTaskDetail).toHaveBeenNthCalledWith(2, 8);
+    expect(page.container.querySelector('[data-drawer="true"]')).toBeTruthy();
+
+    firstDetail.resolve({
+      error: null,
+      data: createTaskCenterTaskDetail(7, {
+        taskType: 'database_connectivity',
+        status: 'failed',
+        sourceRoute: '/asset/database',
+        detailPreview: {
+          marker: 'first-detail-marker'
+        },
+        errorSummary: 'first detail should stay stale'
+      })
+    });
+    await settleRender();
+
+    expect(page.container.textContent).not.toContain('first-detail-marker');
+    expect(page.container.textContent).not.toContain('first detail should stay stale');
+
+    secondDetail.resolve({
+      error: null,
+      data: createTaskCenterTaskDetail(8, {
+        taskType: 'traffic_action',
+        status: 'success',
+        sourceRoute: '/traffic/strategy',
+        detailPreview: {
+          marker: 'second-detail-marker'
+        },
+        errorSummary: 'second detail is current'
+      })
+    });
+    await settleRender();
+
+    expect(page.container.textContent).toContain('second-detail-marker');
+    expect(page.container.textContent).toContain('second detail is current');
+    expect(page.container.textContent).not.toContain('first-detail-marker');
+
+    const sourceButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.taskCenter.actions.openSourceDetail')
+    );
+
+    expect(sourceButton).toBeTruthy();
+
+    sourceButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.routerPush).toHaveBeenCalledWith('/traffic/strategy');
+
+    page.unmount();
+  });
+
+  it('keeps task center detail drawer closed after a manual close during in-flight loading', async () => {
+    const pendingDetail = createDeferred<{ error: null; data: Record<string, unknown> }>();
+
+    mocks.fetchGetTaskCenterTasks.mockResolvedValue({
+      error: null,
+      data: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        records: [
+          createTaskCenterRecord(9, {
+            taskType: 'database_connectivity',
+            status: 'running',
+            sourceRoute: '/asset/database',
+            summary: 'Pending database detail row'
+          })
+        ]
+      }
+    });
+    mocks.fetchGetTaskCenterTaskDetail.mockImplementation((id: number) => {
+      if (id === 9) {
+        return pendingDetail.promise;
+      }
+
+      return Promise.resolve({ error: null, data: null });
+    });
+
+    const page = await mountTaskCenterPage();
+
+    const detailButton = Array.from(page.container.querySelectorAll('button')).find(button =>
+      button.textContent?.includes('page.envops.taskCenter.actions.openTaskDetail')
+    );
+
+    expect(detailButton).toBeTruthy();
+
+    detailButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(page.container.querySelector('[data-drawer="true"]')).toBeTruthy();
+
+    const closeButton = page.container.querySelector('[data-drawer-close="true"]');
+
+    expect(closeButton).toBeTruthy();
+
+    closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(page.container.querySelector('[data-drawer="true"]')).toBeNull();
+
+    pendingDetail.resolve({
+      error: null,
+      data: createTaskCenterTaskDetail(9, {
+        taskType: 'database_connectivity',
+        status: 'success',
+        sourceRoute: '/asset/database',
+        detailPreview: {
+          marker: 'closed-detail-marker'
+        },
+        errorSummary: 'closed detail should not reopen'
+      })
+    });
+    await settleRender();
+
+    expect(page.container.querySelector('[data-drawer="true"]')).toBeNull();
+    expect(page.container.textContent).not.toContain('closed-detail-marker');
+    expect(page.container.textContent).not.toContain('closed detail should not reopen');
 
     page.unmount();
   });
@@ -1486,12 +1847,7 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain("cancelled: 'warning'");
   });
 
-  it('maps approval and rejected statuses to explicit frontend labels', () => {
-    expect(taskCenterPage).toContain("normalizedStatus.includes('approval')");
-    expect(taskCenterPage).toContain("normalizedStatus.includes('reject')");
-    expect(taskCenterPage).toContain("pendingApproval: t('page.envops.common.status.pendingApproval')");
-    expect(taskCenterPage).toContain("pendingApproval: 'warning'");
-    expect(taskCenterPage).toContain("rejected: t('page.envops.common.status.rejected')");
+  it('maps approval and rejected statuses to explicit deploy frontend labels', () => {
     expect(deployTaskPage).toContain("normalizedStatus.includes('approval')");
     expect(deployTaskPage).toContain("normalizedStatus.includes('reject')");
     expect(deployTaskPage).toContain("pendingApproval: t('page.envops.common.status.pendingApproval')");
@@ -1617,13 +1973,9 @@ describe('task pages contract wiring', () => {
     page.unmount();
   });
 
-  it('counts pending approval tasks in task center queued summary', () => {
-    expect(taskCenterPage).toContain("item.statusKey === 'queued' || item.statusKey === 'pendingApproval'");
-  });
-
-  it('keeps running filter options sending RUNNING for deploy task and task center pages', () => {
+  it('keeps running filter options sending RUNNING for deploy task page and running for unified task center page', () => {
     expect(deployTaskPage).toContain("{ label: t('page.envops.common.status.running'), value: 'RUNNING' }");
-    expect(taskCenterPage).toContain("{ label: t('page.envops.common.status.running'), value: 'RUNNING' }");
+    expect(taskCenterPage).toContain("{ label: t('page.envops.common.status.running'), value: 'running' }");
     expect(deployTaskPage).not.toContain("value: 'RUNNING_LIKE'");
     expect(taskCenterPage).not.toContain("value: 'RUNNING_LIKE'");
   });
@@ -1855,17 +2207,25 @@ describe('task pages contract wiring', () => {
     page.unmount();
   });
 
-  it('uses pending backend status for the queued task center filter option', () => {
-    expect(taskCenterPage).toContain("{ label: t('page.envops.common.status.queued'), value: 'PENDING' }");
-    expect(taskCenterPage).not.toContain("{ label: t('page.envops.common.status.queued'), value: 'QUEUED' }");
+  it('uses pending normalized status for the pending task center filter option', () => {
+    expect(taskCenterPage).toContain("{ label: t('page.envops.common.status.pending'), value: 'pending' }");
+    expect(taskCenterPage).not.toContain("{ label: t('page.envops.common.status.queued'), value: 'PENDING' }");
   });
 
-  it('restricts task center deploy-detail action to exact deploy source type', () => {
-    expect(taskCenterPage).toContain("const normalizedValue = String(value || '')");
-    expect(taskCenterPage).toContain('.trim()');
-    expect(taskCenterPage).toContain('.toLowerCase()');
-    expect(taskCenterPage).toContain("return normalizedValue === 'deploy'");
-    expect(taskCenterPage).not.toContain("return String(value || '').toLowerCase().includes('deploy')");
+  it('keeps drawer-first flow and minimal task center scope', () => {
+    expect(taskCenterPage).toContain('startedFrom');
+    expect(taskCenterPage).toContain('startedTo');
+    expect(taskCenterPage).toContain('fetchGetTaskCenterTaskDetail');
+    expect(taskCenterPage).toContain('showTaskDetailDrawer.value = true');
+    expect(taskCenterPage).toContain('router.push(activeTaskDetail.value.sourceRoute)');
+    expect(taskCenterPage).not.toContain('filterForm.priority');
+    expect(taskCenterPage).not.toContain("routerPushByKey('deploy_task'");
+  });
+
+  it('opens task center source links from backend-provided sourceRoute instead of source-type branching', () => {
+    expect(taskCenterPage).toContain('activeTaskDetail.value.sourceRoute');
+    expect(taskCenterPage).not.toContain("return normalizedValue === 'deploy'");
+    expect(taskCenterPage).not.toContain("routerPushByKey('deploy_task'");
   });
 
   it('declares deploy task detail i18n keys in locale schema and messages', () => {
@@ -1920,49 +2280,74 @@ describe('task pages contract wiring', () => {
     expect(enLocaleSource).toContain('Rollback Command');
   });
 
-  it('declares task center locale schema for actions filters and sorting', () => {
+  it('declares task center locale schema for unified actions filters table and drawer', () => {
     const taskCenterTypingBlock = extractSection(appTypingSource, 'taskCenter', 'trafficController');
     const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
     const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
-    const taskCenterTypingFiltersBlock = extractSection(taskCenterTypingBlock, 'filters', 'sorting');
-    const taskCenterZhFiltersBlock = extractSection(taskCenterZhBlock, 'filters', 'sorting');
-    const taskCenterEnFiltersBlock = extractSection(taskCenterEnBlock, 'filters', 'sorting');
+    const taskCenterTypingFiltersBlock = extractSection(taskCenterTypingBlock, 'filters', 'taskTypes');
+    const taskCenterZhFiltersBlock = extractSection(taskCenterZhBlock, 'filters', 'taskTypes');
+    const taskCenterEnFiltersBlock = extractSection(taskCenterEnBlock, 'filters', 'taskTypes');
 
     expect(taskCenterTypingBlock).toContain('actions: {');
-    expect(taskCenterTypingBlock).toContain('openDeployDetail: string');
+    expect(taskCenterTypingBlock).toContain('openTaskDetail: string');
+    expect(taskCenterTypingBlock).toContain('openSourceDetail: string');
     expect(taskCenterTypingBlock).toContain('filters: {');
     expect(taskCenterTypingFiltersBlock).toContain('keyword: string');
     expect(taskCenterTypingFiltersBlock).toContain('status: string');
-    expect(taskCenterTypingFiltersBlock).not.toContain('sourceType: string');
     expect(taskCenterTypingFiltersBlock).toContain('taskType: string');
-    expect(taskCenterTypingFiltersBlock).toContain('priority: string');
+    expect(taskCenterTypingFiltersBlock).toContain('startedFrom: string');
+    expect(taskCenterTypingFiltersBlock).toContain('startedTo: string');
     expect(taskCenterTypingFiltersBlock).toContain('search: string');
     expect(taskCenterTypingFiltersBlock).toContain('reset: string');
-    expect(taskCenterTypingBlock).toContain('sorting: {');
-    expect(taskCenterTypingBlock).toContain('createdAt: string');
-    expect(taskCenterTypingBlock).toContain('updatedAt: string');
-    expect(taskCenterTypingBlock).toContain('taskNo: string');
+    expect(taskCenterTypingFiltersBlock).not.toContain('priority: string');
+    expect(taskCenterTypingBlock).toContain('taskTypes: {');
+    expect(taskCenterTypingBlock).toContain('deploy: string');
+    expect(taskCenterTypingBlock).toContain('databaseConnectivity: string');
+    expect(taskCenterTypingBlock).toContain('trafficAction: string');
+    expect(taskCenterTypingBlock).toContain('table: {');
+    expect(taskCenterTypingBlock).toContain('taskName: string');
+    expect(taskCenterTypingBlock).toContain('taskType: string');
+    expect(taskCenterTypingBlock).toContain('triggeredBy: string');
+    expect(taskCenterTypingBlock).toContain('startedAt: string');
+    expect(taskCenterTypingBlock).toContain('finishedAt: string');
+    expect(taskCenterTypingBlock).toContain('summary: string');
     expect(taskCenterTypingBlock).toContain('status: string');
-    expect(taskCenterTypingBlock).toContain('asc: string');
-    expect(taskCenterTypingBlock).toContain('desc: string');
+    expect(taskCenterTypingBlock).toContain('drawer: {');
+    expect(taskCenterTypingBlock).toContain('title: string');
+    expect(taskCenterTypingBlock).toContain('taskType: string');
+    expect(taskCenterTypingBlock).toContain('taskName: string');
+    expect(taskCenterTypingBlock).toContain('triggeredBy: string');
+    expect(taskCenterTypingBlock).toContain('startedAt: string');
+    expect(taskCenterTypingBlock).toContain('finishedAt: string');
+    expect(taskCenterTypingBlock).toContain('summary: string');
+    expect(taskCenterTypingBlock).toContain('errorSummary: string');
+    expect(taskCenterTypingBlock).toContain('detailPreview: string');
 
-    expect(taskCenterZhBlock).toContain('openDeployDetail');
-    expect(taskCenterZhFiltersBlock).not.toContain('sourceType');
-    expect(taskCenterZhBlock).toContain('priority');
-    expect(taskCenterZhBlock).toContain('createdAt');
-    expect(taskCenterZhBlock).toContain('updatedAt');
-    expect(taskCenterZhBlock).toContain('taskNo');
-    expect(taskCenterZhBlock).toContain('asc');
-    expect(taskCenterZhBlock).toContain('desc');
+    expect(taskCenterZhBlock).toContain('openTaskDetail');
+    expect(taskCenterZhBlock).toContain('openSourceDetail');
+    expect(taskCenterZhFiltersBlock).toContain('startedFrom');
+    expect(taskCenterZhFiltersBlock).toContain('startedTo');
+    expect(taskCenterZhFiltersBlock).not.toContain('priority');
+    expect(taskCenterZhBlock).toContain('taskTypes');
+    expect(taskCenterZhBlock).toContain('databaseConnectivity');
+    expect(taskCenterZhBlock).toContain('trafficAction');
+    expect(taskCenterZhBlock).toContain('taskName');
+    expect(taskCenterZhBlock).toContain('triggeredBy');
+    expect(taskCenterZhBlock).toContain('drawer');
+    expect(taskCenterZhBlock).toContain('detailPreview');
 
-    expect(taskCenterEnBlock).toContain('openDeployDetail');
-    expect(taskCenterEnFiltersBlock).not.toContain('sourceType');
-    expect(taskCenterEnBlock).toContain('priority');
-    expect(taskCenterEnBlock).toContain('createdAt');
-    expect(taskCenterEnBlock).toContain('updatedAt');
-    expect(taskCenterEnBlock).toContain('taskNo');
-    expect(taskCenterEnBlock).toContain('asc');
-    expect(taskCenterEnBlock).toContain('desc');
+    expect(taskCenterEnBlock).toContain('openTaskDetail');
+    expect(taskCenterEnBlock).toContain('openSourceDetail');
+    expect(taskCenterEnFiltersBlock).toContain('startedFrom');
+    expect(taskCenterEnFiltersBlock).toContain('startedTo');
+    expect(taskCenterEnFiltersBlock).not.toContain('priority');
+    expect(taskCenterEnBlock).toContain('taskTypes');
+    expect(taskCenterEnBlock).toContain('databaseConnectivity');
+    expect(taskCenterEnBlock).toContain('trafficAction');
+    expect(taskCenterEnBlock).toContain('taskName');
+    expect(taskCenterEnBlock).toContain('triggeredBy');
+    expect(taskCenterEnBlock).toContain('drawer');
+    expect(taskCenterEnBlock).toContain('detailPreview');
   });
 
   it('adds deploy task detail tabs local filters and guarded auto refresh wiring', () => {
@@ -2103,7 +2488,6 @@ describe('task pages contract wiring', () => {
     expect(appTypingSource).toContain('updatedAt: string');
     expect(appTypingSource).toContain('taskNo: string');
     expect(appTypingSource).toContain('keyword: string');
-    expect(appTypingSource).not.toContain('keywordPlaceholder: string');
     expect(appTypingSource).not.toContain('sortByCreatedAt: string');
     expect(appTypingSource).not.toContain('sortByUpdatedAt: string');
     expect(appTypingSource).not.toContain('sortByTaskId: string');
@@ -2118,15 +2502,21 @@ describe('task pages contract wiring', () => {
     expect(enLocaleSource).toContain('sorting');
   });
 
-  it('keeps task center copy aligned with the deploy-only scope we actually ship', () => {
+  it('keeps task center copy aligned with the limited unified scope we actually ship', () => {
     const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
     const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
 
+    expect(taskCenterZhBlock).toContain('统一任务中心');
+    expect(taskCenterZhBlock).toContain('Deploy');
+    expect(taskCenterZhBlock).toContain('数据库连通性检测');
+    expect(taskCenterZhBlock).toContain('Traffic 动作');
+    expect(taskCenterZhBlock).not.toContain('全域');
     expect(taskCenterZhBlock).not.toContain('跨域任务追踪视图');
-    expect(taskCenterZhBlock).toContain('Deploy 任务');
-    expect(taskCenterZhBlock).toContain('Deploy 队列');
+    expect(taskCenterEnBlock).toContain('Unified Task Center');
+    expect(taskCenterEnBlock).toContain('Deploy');
+    expect(taskCenterEnBlock).toContain('Database Connectivity');
+    expect(taskCenterEnBlock).toContain('Traffic Action');
+    expect(taskCenterEnBlock).not.toContain('global task center');
     expect(taskCenterEnBlock).not.toContain('cross-domain task tracing');
-    expect(taskCenterEnBlock).toContain('deploy queue');
-    expect(taskCenterEnBlock).toContain('Deploy Queue');
   });
 });

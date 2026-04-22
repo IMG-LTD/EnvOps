@@ -1110,54 +1110,47 @@ const local: App.I18n.Schema = {
       },
       taskCenter: {
         hero: {
-          title: 'Task Center',
-          description: 'A deploy queue view for approval, execution visibility and task status tracking.'
-        },
-        tags: {
-          queueBalanced: 'Queue balanced',
-          jobsNearingSla: '2 jobs nearing SLA'
-        },
-        summary: {
-          queued: {
-            label: 'Queued',
-            desc: 'Deploy tasks waiting for approval or executor pickup'
-          },
-          running: {
-            label: 'Running',
-            desc: 'Deploy tasks currently executing'
-          },
-          slaBreachRisk: {
-            label: 'SLA Breach Risk',
-            desc: 'Deploy tasks close to timeout thresholds'
-          }
+          title: 'Unified Task Center',
+          description: 'View Deploy, Database Connectivity, and Traffic Action tasks in one place.'
         },
         filters: {
           keyword: 'Keyword',
           status: 'Status',
           taskType: 'Task Type',
-          priority: 'Priority',
+          startedFrom: 'Started From',
+          startedTo: 'Started To',
           search: 'Search',
           reset: 'Reset'
         },
-        sorting: {
-          createdAt: 'Created At',
-          updatedAt: 'Updated At',
-          taskNo: 'Task ID',
-          status: 'Status',
-          asc: 'ASC',
-          desc: 'DESC'
+        taskTypes: {
+          deploy: 'Deploy',
+          databaseConnectivity: 'Database Connectivity',
+          trafficAction: 'Traffic Action'
         },
         table: {
-          title: 'Deploy Queue',
-          taskId: 'Task ID',
-          type: 'Type',
-          source: 'Source',
-          executor: 'Executor',
-          priority: 'Priority',
+          title: 'Unified Task List',
+          taskName: 'Task Name',
+          taskType: 'Task Type',
+          triggeredBy: 'Triggered By',
+          startedAt: 'Started At',
+          finishedAt: 'Finished At',
+          summary: 'Summary',
           status: 'Status'
         },
         actions: {
-          openDeployDetail: 'Open Deploy Detail'
+          openTaskDetail: 'View Task Detail',
+          openSourceDetail: 'View Source Detail'
+        },
+        drawer: {
+          title: 'Task Detail',
+          taskType: 'Task Type',
+          taskName: 'Task Name',
+          triggeredBy: 'Triggered By',
+          startedAt: 'Started At',
+          finishedAt: 'Finished At',
+          summary: 'Summary',
+          errorSummary: 'Failure Reason',
+          detailPreview: 'Detail Preview'
         }
       },
       trafficController: {

@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -151,6 +152,22 @@ class TrafficControllerTest {
     JsonNode policy = getPolicyAfterLogin(accessToken, 3001);
     assertThat(policy.path("status").asText()).isEqualTo("PREVIEW");
     assertThat(policy.path("rollbackToken").asText()).isEqualTo("rb-preview-3001");
+
+    JsonNode task = getLatestTrafficTask(accessToken, "Preview checkout-gateway", null);
+    assertThat(task.path("taskName").asText()).isEqualTo("Traffic Preview");
+    assertThat(task.path("status").asText()).isEqualTo("success");
+    assertThat(task.path("summary").asText()).isEqualTo("Preview checkout-gateway，策略 weighted_routing，插件 REST");
+    assertThat(task.path("sourceRoute").asText()).isEqualTo("/traffic/controller");
+    assertThat(task.path("errorSummary").isNull()).isTrue();
+
+    JsonNode detail = getTaskDetail(accessToken, task.path("id").asLong());
+    assertThat(detail.path("detailPreview").path("action").asText()).isEqualTo("preview");
+    assertThat(detail.path("detailPreview").path("app").asText()).isEqualTo("checkout-gateway");
+    assertThat(detail.path("detailPreview").path("strategy").asText()).isEqualTo("weighted_routing");
+    assertThat(detail.path("detailPreview").path("plugin").asText()).isEqualTo("REST");
+    assertThat(detail.path("detailPreview").path("rollbackTokenAvailable").asBoolean()).isTrue();
+    assertThat(detail.path("detailPreview").path("sourceRoute").asText()).isEqualTo("/traffic/controller");
+    assertThat(detail.path("detailPreview").path("errorSummary").isNull()).isTrue();
   }
 
   @Test
@@ -174,6 +191,18 @@ class TrafficControllerTest {
     JsonNode policy = getPolicyAfterLogin(accessToken, 3001);
     assertThat(policy.path("status").asText()).isEqualTo("ENABLED");
     assertThat(policy.path("rollbackToken").asText()).isEqualTo("rb-apply-3001");
+
+    JsonNode task = getLatestTrafficTask(accessToken, "Apply checkout-gateway", null);
+    assertThat(task.path("taskName").asText()).isEqualTo("Traffic Apply");
+    assertThat(task.path("status").asText()).isEqualTo("success");
+    assertThat(task.path("summary").asText()).isEqualTo("Apply checkout-gateway，策略 weighted_routing，插件 REST");
+    assertThat(task.path("sourceRoute").asText()).isEqualTo("/traffic/controller");
+    assertThat(task.path("errorSummary").isNull()).isTrue();
+
+    JsonNode detail = getTaskDetail(accessToken, task.path("id").asLong());
+    assertThat(detail.path("detailPreview").path("action").asText()).isEqualTo("apply");
+    assertThat(detail.path("detailPreview").path("rollbackTokenAvailable").asBoolean()).isTrue();
+    assertThat(detail.path("detailPreview").path("errorSummary").isNull()).isTrue();
   }
 
   @Test
@@ -197,6 +226,17 @@ class TrafficControllerTest {
     JsonNode policy = getPolicyAfterLogin(accessToken, 3002);
     assertThat(policy.path("status").asText()).isEqualTo("ROLLED_BACK");
     assertThat(policy.path("rollbackToken").asText()).isEqualTo("rb-apply-3002");
+
+    JsonNode task = getLatestTrafficTask(accessToken, "Rollback billing-admin", null);
+    assertThat(task.path("taskName").asText()).isEqualTo("Traffic Rollback");
+    assertThat(task.path("status").asText()).isEqualTo("success");
+    assertThat(task.path("summary").asText()).isEqualTo("Rollback billing-admin，策略 weighted_routing，插件 REST");
+    assertThat(task.path("errorSummary").isNull()).isTrue();
+
+    JsonNode detail = getTaskDetail(accessToken, task.path("id").asLong());
+    assertThat(detail.path("detailPreview").path("action").asText()).isEqualTo("rollback");
+    assertThat(detail.path("detailPreview").path("rollbackTokenAvailable").asBoolean()).isTrue();
+    assertThat(detail.path("detailPreview").path("sourceRoute").asText()).isEqualTo("/traffic/controller");
   }
 
   @Test
@@ -212,6 +252,9 @@ class TrafficControllerTest {
     JsonNode policy = getPolicyAfterLogin(accessToken, 3003);
     assertThat(policy.path("status").asText()).isEqualTo("REVIEW");
     assertThat(policy.path("rollbackToken").isNull()).isTrue();
+
+    JsonNode tasks = getTrafficTasks(accessToken, "ops-worker", null);
+    assertThat(tasks).isEmpty();
   }
 
   @Test
@@ -233,6 +276,17 @@ class TrafficControllerTest {
     JsonNode policy = getPolicyAfterLogin(accessToken, 3001);
     assertThat(policy.path("status").asText()).isEqualTo("REVIEW");
     assertThat(policy.path("rollbackToken").isNull()).isTrue();
+
+    JsonNode task = getLatestTrafficTask(accessToken, "Apply checkout-gateway", "failed");
+    assertThat(task.path("taskName").asText()).isEqualTo("Traffic Apply");
+    assertThat(task.path("status").asText()).isEqualTo("failed");
+    assertThat(task.path("summary").asText()).isEqualTo("Apply checkout-gateway，策略 weighted_routing，插件 REST");
+    assertThat(task.path("errorSummary").asText()).isEqualTo("rollbackToken is required from traffic rest service");
+
+    JsonNode detail = getTaskDetail(accessToken, task.path("id").asLong());
+    assertThat(detail.path("detailPreview").path("action").asText()).isEqualTo("apply");
+    assertThat(detail.path("detailPreview").path("rollbackTokenAvailable").asBoolean()).isFalse();
+    assertThat(detail.path("detailPreview").path("errorSummary").asText()).isEqualTo("rollbackToken is required from traffic rest service");
   }
 
   @Test
@@ -244,6 +298,9 @@ class TrafficControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("400"))
         .andExpect(jsonPath("$.msg").value("rollbackToken is required for policy: 3001"));
+
+    JsonNode tasks = getTrafficTasks(accessToken, "Rollback checkout-gateway", null);
+    assertThat(tasks).isEmpty();
   }
 
   @Test
@@ -261,6 +318,17 @@ class TrafficControllerTest {
     JsonNode policy = getPolicyAfterLogin(accessToken, 3002);
     assertThat(policy.path("status").asText()).isEqualTo("PREVIEW");
     assertThat(policy.path("rollbackToken").asText()).isEqualTo("rb-apply-3002");
+
+    JsonNode task = getLatestTrafficTask(accessToken, "Rollback billing-admin", "failed");
+    assertThat(task.path("taskName").asText()).isEqualTo("Traffic Rollback");
+    assertThat(task.path("status").asText()).isEqualTo("failed");
+    assertThat(task.path("summary").asText()).isEqualTo("Rollback billing-admin，策略 weighted_routing，插件 REST");
+    assertThat(task.path("errorSummary").asText()).isEqualTo("traffic rest service is unavailable");
+
+    JsonNode detail = getTaskDetail(accessToken, task.path("id").asLong());
+    assertThat(detail.path("detailPreview").path("action").asText()).isEqualTo("rollback");
+    assertThat(detail.path("detailPreview").path("rollbackTokenAvailable").asBoolean()).isTrue();
+    assertThat(detail.path("detailPreview").path("errorSummary").asText()).isEqualTo("traffic rest service is unavailable");
 
     trafficRestServer = new MockWebServer();
     trafficRestServer.start();
@@ -287,6 +355,38 @@ class TrafficControllerTest {
     return findObjectById(readData(result), policyId);
   }
 
+  private JsonNode getLatestTrafficTask(String accessToken, String keyword, String statusFilter) throws Exception {
+    JsonNode tasks = getTrafficTasks(accessToken, keyword, statusFilter);
+    assertThat(tasks.isArray()).isTrue();
+    assertThat(tasks).isNotEmpty();
+    return tasks.get(0);
+  }
+
+  private JsonNode getTrafficTasks(String accessToken, String keyword, String statusFilter) throws Exception {
+    var requestBuilder = get("/api/task-center/tasks")
+        .param("taskType", "traffic_action")
+        .param("keyword", keyword)
+        .header("Authorization", "Bearer " + accessToken);
+    if (statusFilter != null) {
+      requestBuilder.param("status", statusFilter);
+    }
+
+    MvcResult result = mockMvc.perform(requestBuilder)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andReturn();
+    return readData(result).path("records");
+  }
+
+  private JsonNode getTaskDetail(String accessToken, long taskId) throws Exception {
+    MvcResult result = mockMvc.perform(get("/api/task-center/tasks/{id}", taskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andReturn();
+    return readData(result);
+  }
+
   private JsonNode findObjectById(JsonNode arrayNode, long id) {
     for (JsonNode item : arrayNode) {
       if (item.path("id").asLong() == id) {
@@ -308,7 +408,7 @@ class TrafficControllerTest {
   }
 
   private JsonNode readData(MvcResult result) throws Exception {
-    return objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    return objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
   }
 
   private List<String> collectTextValues(JsonNode arrayNode, String fieldName) {

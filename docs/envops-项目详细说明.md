@@ -13,7 +13,8 @@
 - 系统账号密码已改为哈希存储与校验。
 - Deploy 创建契约对外只承诺真实执行参数，不再承诺 `deployDir`。
 - 资产中心当前覆盖主机、凭据、分组、标签、数据库资源五类资产，其中数据库范围已支持目录登记、关系维护与真实连通性检测，但仍不承诺版本治理或数据库专用生命周期。
-- Task Center 当前收敛为 deploy-only 队列视图。
+- Task Center 当前已收敛为最小真实统一任务中心，统一纳入 Deploy、数据库连通性检测、Traffic 动作三类任务。
+- Deploy 历史通过统一投影补录；数据库检测与 Traffic 动作从当前版本起记录新增任务；数据库批量检测按一批一条记录。
 - Traffic 页面与接口当前已收敛为最小真实切流 MVP，只覆盖 REST 插件、`weighted_routing` 策略，以及 `preview` / `apply` / `rollback` 真闭环。
 
 ## 3. 仓库结构
@@ -88,11 +89,15 @@ pnpm --dir frontend dev
 
 ### 5.3 Task Center
 
-Task Center 当前明确是 deploy-only 队列视图：
+Task Center 当前已收敛为最小真实统一任务中心：
 
-- 用于查看 Deploy 任务列表、状态与摘要
-- 支持从队列跳转到 Deploy 详情
-- 不对外表述为跨域统一队列
+- 统一纳入 `deploy`、`database_connectivity`、`traffic_action` 三类任务
+- 统一状态口径为 `pending`、`running`、`success`、`failed`
+- Deploy 历史通过统一投影补录
+- 数据库检测与 Traffic 动作从当前版本起记录新增任务
+- 数据库批量检测按一批一条记录
+- 前端以统一列表承载任务入口，点击任务后先打开轻量详情抽屉，再通过“查看原始详情”深链回原模块
+- 当前范围只覆盖统一列表、轻量详情抽屉与原模块深链，不新增任务内重试/取消、多任务编排、数据库与 Traffic 既有历史补录或新的执行器抽象层
 
 ### 5.4 Traffic
 
@@ -111,10 +116,14 @@ Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 
 建议按以下命令验证当前基线：
 
-- `bash backend/scripts/test-envops-boot.sh`
-- `pnpm --dir frontend test:unit`
+- `mvn -f backend/pom.xml -pl envops-task -am -Dtest=UnifiedTaskCenterApplicationServiceTest test`
+- `mvn -f backend/pom.xml -pl envops-asset -am -Dtest=DatabaseConnectionSecretProtectorTest,DatabaseConnectivityServiceTest test`
+- `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=DeployTaskControllerTest,AssetControllerTest,TrafficControllerTest test`
+- `pnpm --dir frontend exec vitest run src/views/task/task-contract.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
 - `pnpm --dir frontend typecheck`
 - `pnpm --dir frontend build`
+- `bash backend/scripts/test-envops-boot.sh`
+- `pnpm --dir frontend test:unit`
 - `pnpm --dir frontend build:test`
 - `pnpm --dir frontend exec oxlint .`
 - `pnpm --dir frontend exec eslint .`
@@ -124,7 +133,7 @@ Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 以下内容明确继续保留在当前基线之外：
 
 - Traffic 的多插件适配、多策略矩阵、审批体系重构、批量切流、高级编排与灰度报表
-- Task Center 跨域统一队列
+- 任务中心内直接重试/取消、多任务编排、数据库与 Traffic 既有历史补录，以及新的执行器抽象层
 - Deploy 大规模主机检索与更深执行器增强
 
 ## 8. 文档同步要求
@@ -132,5 +141,4 @@ Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 当前项目口径需要与以下材料保持一致：
 
 - `README.md`
-- `release/0.0.5-release-notes.md`
-- `release/0.0.4-checklist.md`
+- `release/0.0.6-release-notes.md`

@@ -19,8 +19,6 @@ const DEPLOY_ENVIRONMENT_ALIAS_TO_CANONICAL: Record<string, string> = {
   dev: 'sandbox',
   development: 'sandbox'
 };
-const TASK_CENTER_SOURCE_TYPES = ['DEPLOY'];
-const TASK_CENTER_PRIORITIES = ['P1', 'P2', 'P3'];
 
 type DeployTaskRouteQuery = {
   status: string;
@@ -39,14 +37,12 @@ type DeployTaskRouteQuery = {
 
 type TaskCenterRouteQuery = {
   keyword: string;
-  status: string;
-  sourceType: string;
-  taskType: string;
-  priority: string;
+  status: '' | Api.Task.UnifiedTaskStatus;
+  taskType: '' | Api.Task.TaskCenterTaskType;
+  startedFrom: string;
+  startedTo: string;
   page: number;
   pageSize: number;
-  sortBy: Api.Task.TaskSortBy;
-  sortOrder: Api.Task.TaskSortOrder;
 };
 
 function normalizeString(value: unknown) {
@@ -81,30 +77,37 @@ function normalizeNullableNumber(value: unknown) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-function normalizeTaskCenterSourceType(value: unknown) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  const normalized = value.trim().toUpperCase();
-
-  return TASK_CENTER_SOURCE_TYPES.includes(normalized) ? normalized : '';
-}
-
-function normalizeTaskCenterPriority(value: unknown) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  const normalized = value.trim().toUpperCase();
-
-  return TASK_CENTER_PRIORITIES.includes(normalized) ? normalized : '';
-}
+const TASK_CENTER_TASK_TYPES: Api.Task.TaskCenterTaskType[] = ['deploy', 'database_connectivity', 'traffic_action'];
+const TASK_CENTER_STATUSES: Api.Task.UnifiedTaskStatus[] = ['pending', 'running', 'success', 'failed'];
 
 function normalizePositiveInt(value: unknown, fallback: number) {
   const normalized = normalizeNullableNumber(value);
 
   return normalized ?? fallback;
+}
+
+function normalizeTaskCenterTaskType(value: unknown): '' | Api.Task.TaskCenterTaskType {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return TASK_CENTER_TASK_TYPES.includes(normalized as Api.Task.TaskCenterTaskType)
+    ? (normalized as Api.Task.TaskCenterTaskType)
+    : '';
+}
+
+function normalizeTaskCenterStatus(value: unknown): '' | Api.Task.UnifiedTaskStatus {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return TASK_CENTER_STATUSES.includes(normalized as Api.Task.UnifiedTaskStatus)
+    ? (normalized as Api.Task.UnifiedTaskStatus)
+    : '';
 }
 
 function normalizeSortBy(value: unknown): Api.Task.TaskSortBy {
@@ -253,14 +256,12 @@ export function normalizeDeployTaskRouteQuery(query: Record<string, unknown>): D
 export function normalizeTaskCenterRouteQuery(query: Record<string, unknown>): TaskCenterRouteQuery {
   return {
     keyword: normalizeString(query.keyword),
-    status: normalizeString(query.status),
-    sourceType: normalizeTaskCenterSourceType(query.sourceType),
-    taskType: normalizeString(query.taskType),
-    priority: normalizeTaskCenterPriority(query.priority),
+    status: normalizeTaskCenterStatus(query.status),
+    taskType: normalizeTaskCenterTaskType(query.taskType),
+    startedFrom: normalizeLocalDateTimeQueryValue(query.startedFrom),
+    startedTo: normalizeLocalDateTimeQueryValue(query.startedTo),
     page: normalizePositiveInt(query.page, DEFAULT_PAGE),
-    pageSize: normalizePositiveInt(query.pageSize, DEFAULT_PAGE_SIZE),
-    sortBy: normalizeSortBy(query.sortBy),
-    sortOrder: normalizeSortOrder(query.sortOrder)
+    pageSize: normalizePositiveInt(query.pageSize, DEFAULT_PAGE_SIZE)
   };
 }
 
@@ -284,12 +285,10 @@ export function toTaskCenterApiQuery(query: TaskCenterRouteQuery): Api.Task.Task
   return {
     ...(query.keyword ? { keyword: query.keyword } : {}),
     ...(query.status ? { status: query.status } : {}),
-    sourceType: 'DEPLOY',
     ...(query.taskType ? { taskType: query.taskType } : {}),
-    ...(query.priority ? { priority: query.priority } : {}),
+    ...(query.startedFrom ? { startedFrom: query.startedFrom } : {}),
+    ...(query.startedTo ? { startedTo: query.startedTo } : {}),
     page: query.page,
-    pageSize: query.pageSize,
-    sortBy: query.sortBy,
-    sortOrder: query.sortOrder
+    pageSize: query.pageSize
   };
 }
