@@ -1,6 +1,8 @@
 package com.img.envops.modules.traffic.application;
 
 import com.img.envops.common.exception.NotFoundException;
+import com.img.envops.modules.task.application.UnifiedTaskDetailPreviewFactory;
+import com.img.envops.modules.task.application.UnifiedTaskRecorder;
 import com.img.envops.modules.traffic.infrastructure.mapper.TrafficPolicyMapper;
 import com.img.envops.modules.traffic.plugin.TrafficActionRequest;
 import com.img.envops.modules.traffic.plugin.TrafficPlugin;
@@ -18,13 +20,23 @@ public class TrafficApplicationService {
   private static final String MVP_PLUGIN_TYPE = "REST";
   private static final String MVP_STRATEGY = "weighted_routing";
   private static final String READY_STATUS = "READY";
+  private static final String TASK_TYPE = "traffic_action";
+  private static final String MODULE_NAME = "traffic";
+  private static final String SOURCE_ROUTE = "/traffic/controller";
 
   private final TrafficPolicyMapper trafficPolicyMapper;
   private final List<TrafficPlugin> trafficPlugins;
+  private final UnifiedTaskRecorder unifiedTaskRecorder;
+  private final UnifiedTaskDetailPreviewFactory unifiedTaskDetailPreviewFactory;
 
-  public TrafficApplicationService(TrafficPolicyMapper trafficPolicyMapper, List<TrafficPlugin> trafficPlugins) {
+  public TrafficApplicationService(TrafficPolicyMapper trafficPolicyMapper,
+                                   List<TrafficPlugin> trafficPlugins,
+                                   UnifiedTaskRecorder unifiedTaskRecorder,
+                                   UnifiedTaskDetailPreviewFactory unifiedTaskDetailPreviewFactory) {
     this.trafficPolicyMapper = trafficPolicyMapper;
     this.trafficPlugins = trafficPlugins;
+    this.unifiedTaskRecorder = unifiedTaskRecorder;
+    this.unifiedTaskDetailPreviewFactory = unifiedTaskDetailPreviewFactory;
   }
 
   public List<TrafficPolicyRecord> getPolicies() {
@@ -50,8 +62,36 @@ public class TrafficApplicationService {
     TrafficPolicyMapper.TrafficPolicyRow policy = requirePolicy(policyId);
     validateMvpScope(policy);
     TrafficPlugin plugin = requirePluginSupport(policy.getPluginType(), "preview");
-    TrafficPluginResult pluginResult = plugin.preview(buildActionRequest(policy));
-    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "PREVIEW", normalizeOptionalText(pluginResult.rollbackToken()));
+    Long unifiedTaskId = startTrafficTask("preview", policy, false);
+
+    TrafficPluginResult pluginResult;
+    try {
+      pluginResult = plugin.preview(buildActionRequest(policy));
+    } catch (RuntimeException exception) {
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "preview",
+          policy,
+          false,
+          exception.getMessage(),
+          exception);
+    }
+
+    boolean rollbackTokenAvailable = hasRollbackToken(pluginResult.rollbackToken());
+    TrafficPolicyRecord updatedPolicy;
+    try {
+      updatedPolicy = updatePolicyState(policy.getId(), "PREVIEW", normalizeOptionalText(pluginResult.rollbackToken()));
+    } catch (RuntimeException exception) {
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "preview",
+          policy,
+          rollbackTokenAvailable,
+          exception.getMessage(),
+          exception);
+    }
+
+    finishTrafficTask(unifiedTaskId, "preview", policy, rollbackTokenAvailable, "success", null);
     return new TrafficPolicyActionRecord("preview", updatedPolicy, pluginResult);
   }
 
@@ -59,14 +99,48 @@ public class TrafficApplicationService {
     TrafficPolicyMapper.TrafficPolicyRow policy = requirePolicy(policyId);
     validateMvpScope(policy);
     TrafficPlugin plugin = requirePluginSupport(policy.getPluginType(), "apply");
-    TrafficPluginResult pluginResult = plugin.apply(buildActionRequest(policy));
-    String rollbackToken = normalizeOptionalText(pluginResult.rollbackToken());
+    Long unifiedTaskId = startTrafficTask("apply", policy, false);
 
-    if (rollbackToken == null) {
-      throw new IllegalArgumentException("rollbackToken is required from traffic rest service for apply: " + policyId);
+    TrafficPluginResult pluginResult;
+    try {
+      pluginResult = plugin.apply(buildActionRequest(policy));
+    } catch (RuntimeException exception) {
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "apply",
+          policy,
+          false,
+          exception.getMessage(),
+          exception);
     }
 
-    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "ENABLED", rollbackToken);
+    String rollbackToken = normalizeOptionalText(pluginResult.rollbackToken());
+    if (rollbackToken == null) {
+      IllegalArgumentException exception = new IllegalArgumentException(
+          "rollbackToken is required from traffic rest service for apply: " + policyId);
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "apply",
+          policy,
+          false,
+          "rollbackToken is required from traffic rest service",
+          exception);
+    }
+
+    TrafficPolicyRecord updatedPolicy;
+    try {
+      updatedPolicy = updatePolicyState(policy.getId(), "ENABLED", rollbackToken);
+    } catch (RuntimeException exception) {
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "apply",
+          policy,
+          true,
+          exception.getMessage(),
+          exception);
+    }
+
+    finishTrafficTask(unifiedTaskId, "apply", policy, true, "success", null);
     return new TrafficPolicyActionRecord("apply", updatedPolicy, pluginResult);
   }
 
@@ -80,11 +154,38 @@ public class TrafficApplicationService {
     }
 
     TrafficPlugin plugin = requirePluginSupport(policy.getPluginType(), "rollback");
-    TrafficPluginResult pluginResult = plugin.rollback(new TrafficRollbackRequest(
-        policy.getApp(),
-        rollbackToken,
-        "manual rollback"));
-    TrafficPolicyRecord updatedPolicy = updatePolicyState(policy.getId(), "ROLLED_BACK", rollbackToken);
+    Long unifiedTaskId = startTrafficTask("rollback", policy, true);
+
+    TrafficPluginResult pluginResult;
+    try {
+      pluginResult = plugin.rollback(new TrafficRollbackRequest(
+          policy.getApp(),
+          rollbackToken,
+          "manual rollback"));
+    } catch (RuntimeException exception) {
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "rollback",
+          policy,
+          true,
+          exception.getMessage(),
+          exception);
+    }
+
+    TrafficPolicyRecord updatedPolicy;
+    try {
+      updatedPolicy = updatePolicyState(policy.getId(), "ROLLED_BACK", rollbackToken);
+    } catch (RuntimeException exception) {
+      throw finishTrafficTaskOnFailure(
+          unifiedTaskId,
+          "rollback",
+          policy,
+          true,
+          exception.getMessage(),
+          exception);
+    }
+
+    finishTrafficTask(unifiedTaskId, "rollback", policy, true, "success", null);
     return new TrafficPolicyActionRecord("rollback", updatedPolicy, pluginResult);
   }
 
@@ -156,6 +257,86 @@ public class TrafficApplicationService {
         .orElseThrow(() -> new IllegalArgumentException("traffic plugin not found: " + pluginType));
   }
 
+  private Long startTrafficTask(String action,
+                                TrafficPolicyMapper.TrafficPolicyRow policy,
+                                boolean rollbackTokenAvailable) {
+    return unifiedTaskRecorder.start(new UnifiedTaskRecorder.CreateCommand(
+        TASK_TYPE,
+        taskName(action),
+        "running",
+        null,
+        LocalDateTime.now(),
+        actionLabel(action) + " 执行中",
+        unifiedTaskDetailPreviewFactory.toJson(unifiedTaskDetailPreviewFactory.buildTrafficActionPreview(
+            action,
+            policy.getApp(),
+            policy.getStrategy(),
+            policy.getPluginType(),
+            rollbackTokenAvailable,
+            SOURCE_ROUTE,
+            null)),
+        null,
+        SOURCE_ROUTE,
+        MODULE_NAME,
+        null));
+  }
+
+  private void finishTrafficTask(Long unifiedTaskId,
+                                 String action,
+                                 TrafficPolicyMapper.TrafficPolicyRow policy,
+                                 boolean rollbackTokenAvailable,
+                                 String status,
+                                 String errorSummary) {
+    String summary = String.format(
+        "%s %s，策略 %s，插件 %s",
+        actionLabel(action),
+        policy.getApp(),
+        policy.getStrategy(),
+        policy.getPluginType());
+
+    unifiedTaskRecorder.update(new UnifiedTaskRecorder.UpdateCommand(
+        unifiedTaskId,
+        status,
+        LocalDateTime.now(),
+        summary,
+        unifiedTaskDetailPreviewFactory.toJson(unifiedTaskDetailPreviewFactory.buildTrafficActionPreview(
+            action,
+            policy.getApp(),
+            policy.getStrategy(),
+            policy.getPluginType(),
+            rollbackTokenAvailable,
+            SOURCE_ROUTE,
+            errorSummary)),
+        errorSummary));
+  }
+
+  private RuntimeException finishTrafficTaskOnFailure(Long unifiedTaskId,
+                                                      String action,
+                                                      TrafficPolicyMapper.TrafficPolicyRow policy,
+                                                      boolean rollbackTokenAvailable,
+                                                      String errorSummary,
+                                                      RuntimeException exception) {
+    try {
+      finishTrafficTask(unifiedTaskId, action, policy, rollbackTokenAvailable, "failed", errorSummary);
+    } catch (RuntimeException updateException) {
+      exception.addSuppressed(updateException);
+    }
+    return exception;
+  }
+
+  private String taskName(String action) {
+    return "Traffic " + actionLabel(action);
+  }
+
+  private String actionLabel(String action) {
+    return switch (action) {
+      case "preview" -> "Preview";
+      case "apply" -> "Apply";
+      case "rollback" -> "Rollback";
+      default -> throw new IllegalArgumentException("unsupported traffic action: " + action);
+    };
+  }
+
   private TrafficPolicyRecord toTrafficPolicyRecord(TrafficPolicyMapper.TrafficPolicyRow row) {
     return new TrafficPolicyRecord(
         row.getId(),
@@ -175,6 +356,10 @@ public class TrafficApplicationService {
         .toLowerCase(Locale.ROOT)
         .replace('-', '_')
         .replace(' ', '_');
+  }
+
+  private boolean hasRollbackToken(String rollbackToken) {
+    return normalizeOptionalText(rollbackToken) != null;
   }
 
   private String normalizeOptionalText(String value) {

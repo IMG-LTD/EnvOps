@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS deploy_task_log;
 DROP TABLE IF EXISTS deploy_task_param;
 DROP TABLE IF EXISTS deploy_task_host;
+DROP TABLE IF EXISTS unified_task_center;
 DROP TABLE IF EXISTS deploy_task;
 DROP TABLE IF EXISTS app_version;
 DROP TABLE IF EXISTS app_script_template;
@@ -216,6 +217,28 @@ CREATE TABLE deploy_task (
     CONSTRAINT fk_deploy_task_version FOREIGN KEY (version_id) REFERENCES app_version (id),
     CONSTRAINT fk_deploy_task_origin FOREIGN KEY (origin_task_id) REFERENCES deploy_task (id)
 );
+
+CREATE TABLE unified_task_center (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    task_type VARCHAR(64) NOT NULL,
+    task_name VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    triggered_by VARCHAR(128) NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP NULL,
+    summary VARCHAR(500) NOT NULL,
+    detail_preview CLOB NOT NULL,
+    source_id BIGINT NULL,
+    source_route VARCHAR(255) NOT NULL,
+    module_name VARCHAR(64) NOT NULL,
+    error_summary VARCHAR(500) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_unified_task_center_started_at ON unified_task_center (started_at);
+CREATE INDEX idx_unified_task_center_type_status ON unified_task_center (task_type, status);
+CREATE UNIQUE INDEX uk_unified_task_center_source_ref ON unified_task_center (task_type, source_id);
 
 CREATE TABLE deploy_task_host (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,

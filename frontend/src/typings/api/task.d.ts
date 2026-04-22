@@ -43,8 +43,8 @@ declare namespace Api {
       createdTo?: string;
       page: number;
       pageSize: number;
-      sortBy: TaskSortBy;
-      sortOrder: TaskSortOrder;
+      sortBy: Api.Task.TaskSortBy;
+      sortOrder: Api.Task.TaskSortOrder;
     }
 
     interface DeployTaskPage {
@@ -140,16 +140,18 @@ declare namespace Api {
       createdAt?: string | null;
     }
 
+    type TaskCenterTaskType = 'deploy' | 'database_connectivity' | 'traffic_action';
+
+    type UnifiedTaskStatus = 'pending' | 'running' | 'success' | 'failed';
+
     interface TaskCenterListQuery {
       keyword?: string;
-      status?: string;
-      sourceType?: string;
-      taskType?: string;
-      priority?: string;
+      taskType?: TaskCenterTaskType;
+      status?: UnifiedTaskStatus;
+      startedFrom?: string;
+      startedTo?: string;
       page: number;
       pageSize: number;
-      sortBy: TaskSortBy;
-      sortOrder: TaskSortOrder;
     }
 
     interface TaskCenterPage {
@@ -161,25 +163,21 @@ declare namespace Api {
 
     interface TaskCenterRecord {
       id: number;
-      sourceType: string;
-      taskNo: string;
+      taskType: TaskCenterTaskType;
       taskName: string;
-      taskType: string;
-      status: string;
-      appId?: number | null;
-      appName?: string | null;
-      versionId?: number | null;
-      versionNo?: string | null;
-      priority?: string | null;
-      targetCount?: number | null;
-      successCount?: number | null;
-      failCount?: number | null;
-      operatorName?: string | null;
-      approvalOperatorName?: string | null;
-      approvalComment?: string | null;
-      approvalAt?: string | null;
-      createdAt?: string | null;
-      updatedAt?: string | null;
+      status: UnifiedTaskStatus;
+      triggeredBy: string;
+      startedAt: string;
+      finishedAt?: string | null;
+      summary: string;
+      sourceRoute: string;
+      errorSummary?: string | null;
     }
+
+    interface TaskCenterTaskDetail extends TaskCenterRecord {
+      detailPreview: Record<string, unknown>;
+    }
+
+    type TaskCenterDetail = TaskCenterTaskDetail;
   }
 }

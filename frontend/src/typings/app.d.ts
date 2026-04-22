@@ -1331,51 +1331,44 @@ declare namespace App {
               title: string;
               description: string;
             };
-            tags: {
-              queueBalanced: string;
-              jobsNearingSla: string;
-            };
-            summary: {
-              queued: {
-                label: string;
-                desc: string;
-              };
-              running: {
-                label: string;
-                desc: string;
-              };
-              slaBreachRisk: {
-                label: string;
-                desc: string;
-              };
-            };
             filters: {
               keyword: string;
               status: string;
               taskType: string;
-              priority: string;
+              startedFrom: string;
+              startedTo: string;
               search: string;
               reset: string;
             };
-            sorting: {
-              createdAt: string;
-              updatedAt: string;
-              taskNo: string;
-              status: string;
-              asc: string;
-              desc: string;
+            taskTypes: {
+              deploy: string;
+              databaseConnectivity: string;
+              trafficAction: string;
             };
             table: {
               title: string;
-              taskId: string;
-              type: string;
-              source: string;
-              executor: string;
-              priority: string;
+              taskName: string;
+              taskType: string;
+              triggeredBy: string;
+              startedAt: string;
+              finishedAt: string;
+              summary: string;
               status: string;
             };
             actions: {
-              openDeployDetail: string;
+              openTaskDetail: string;
+              openSourceDetail: string;
+            };
+            drawer: {
+              title: string;
+              taskType: string;
+              taskName: string;
+              triggeredBy: string;
+              startedAt: string;
+              finishedAt: string;
+              summary: string;
+              errorSummary: string;
+              detailPreview: string;
             };
           };
           trafficController: {

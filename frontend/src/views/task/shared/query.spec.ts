@@ -184,90 +184,95 @@ describe('task route query helpers', () => {
     });
   });
 
-  it('normalizes task center route query and maps it to api params', () => {
+  it('normalizes task center route query and maps it to unified api params', () => {
     const normalized = normalizeTaskCenterRouteQuery({
-      keyword: ['deploy'],
-      status: undefined,
-      taskType: 'INSTALL',
-      priority: 'P1',
-      page: '-2',
-      pageSize: '0',
-      sortBy: 'taskNo',
-      sortOrder: 'bad-order'
+      keyword: 'deploy',
+      status: ' FAILED ',
+      taskType: ' database_connectivity ',
+      startedFrom: '2026-04-01T00:00:00',
+      startedTo: '2026-04-17T23:59:59',
+      page: '2',
+      pageSize: '20'
     });
+    const expectedNormalized: ReturnType<typeof normalizeTaskCenterRouteQuery> = {
+      keyword: 'deploy',
+      status: 'failed',
+      taskType: 'database_connectivity',
+      startedFrom: '2026-04-01T00:00:00',
+      startedTo: '2026-04-17T23:59:59',
+      page: 2,
+      pageSize: 20
+    };
+    const expectedApiQuery: ReturnType<typeof toTaskCenterApiQuery> = {
+      keyword: 'deploy',
+      status: 'failed',
+      taskType: 'database_connectivity',
+      startedFrom: '2026-04-01T00:00:00',
+      startedTo: '2026-04-17T23:59:59',
+      page: 2,
+      pageSize: 20
+    };
 
-    expect(normalized).toEqual({
-      keyword: '',
-      status: '',
-      sourceType: '',
-      taskType: 'INSTALL',
-      priority: 'P1',
-      page: 1,
-      pageSize: 10,
-      sortBy: 'taskNo',
-      sortOrder: 'desc'
-    });
-
-    expect(toTaskCenterApiQuery(normalized)).toEqual({
-      sourceType: 'DEPLOY',
-      taskType: 'INSTALL',
-      priority: 'P1',
-      page: 1,
-      pageSize: 10,
-      sortBy: 'taskNo',
-      sortOrder: 'desc'
-    });
+    expect(normalized).toEqual(expectedNormalized);
+    expect(toTaskCenterApiQuery(normalized)).toEqual(expectedApiQuery);
   });
 
-  it('forces task-center api queries to DEPLOY so the page cannot pretend to be cross-domain', () => {
+  it('omits unset task-center filters from api params', () => {
     const query = toTaskCenterApiQuery(normalizeTaskCenterRouteQuery({ keyword: 'order-service' }));
+    const expectedQuery: ReturnType<typeof toTaskCenterApiQuery> = {
+      keyword: 'order-service',
+      page: 1,
+      pageSize: 10
+    };
 
-    expect(query.sourceType).toBe('DEPLOY');
+    expect(query).toEqual(expectedQuery);
   });
 
-  it('canonicalizes task center sourceType and priority and clears invalid whitelist values', () => {
+  it('canonicalizes task center taskType and status and clears invalid whitelist values', () => {
+    const expectedNormalized: ReturnType<typeof normalizeTaskCenterRouteQuery> = {
+      keyword: '',
+      taskType: 'deploy',
+      status: 'success',
+      startedFrom: '2026-04-01T00:00:00',
+      startedTo: '2026-04-17T23:59:59',
+      page: 2,
+      pageSize: 20
+    };
+
     expect(
       normalizeTaskCenterRouteQuery({
-        sourceType: ' deploy ',
-        priority: ' p1 ',
+        taskType: ' deploy ',
+        status: ' success ',
+        startedFrom: '2026-04-01T00:00:00',
+        startedTo: '2026-04-17T23:59:59',
         page: '2',
-        pageSize: '20',
-        sortBy: 'status',
-        sortOrder: 'asc'
+        pageSize: '20'
       })
-    ).toMatchObject({
-      sourceType: 'DEPLOY',
-      priority: 'P1',
-      page: 2,
-      pageSize: 20,
-      sortBy: 'status',
-      sortOrder: 'asc'
-    });
+    ).toEqual(expectedNormalized);
 
     const invalidNormalized = normalizeTaskCenterRouteQuery({
-      sourceType: 'manual',
-      priority: 'p0',
+      taskType: 'manual',
+      status: 'done',
+      startedFrom: 'not-a-date',
+      startedTo: '2026-13-99T99:99:99',
       page: '2',
-      pageSize: '20',
-      sortBy: 'status',
-      sortOrder: 'asc'
+      pageSize: '20'
     });
-
-    expect(invalidNormalized).toMatchObject({
-      sourceType: '',
-      priority: '',
+    const expectedInvalidNormalized: ReturnType<typeof normalizeTaskCenterRouteQuery> = {
+      keyword: '',
+      taskType: '',
+      status: '',
+      startedFrom: '',
+      startedTo: '',
       page: 2,
-      pageSize: 20,
-      sortBy: 'status',
-      sortOrder: 'asc'
-    });
-
-    expect(toTaskCenterApiQuery(invalidNormalized)).toEqual({
-      sourceType: 'DEPLOY',
+      pageSize: 20
+    };
+    const expectedInvalidApiQuery: ReturnType<typeof toTaskCenterApiQuery> = {
       page: 2,
-      pageSize: 20,
-      sortBy: 'status',
-      sortOrder: 'asc'
-    });
+      pageSize: 20
+    };
+
+    expect(invalidNormalized).toEqual(expectedInvalidNormalized);
+    expect(toTaskCenterApiQuery(invalidNormalized)).toEqual(expectedInvalidApiQuery);
   });
 });

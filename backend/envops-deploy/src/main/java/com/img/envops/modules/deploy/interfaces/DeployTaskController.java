@@ -119,29 +119,6 @@ public class DeployTaskController {
     return R.ok(deployTaskExecutionApplicationService.rollbackDeployTask(id, operatorName));
   }
 
-  @GetMapping("/api/task-center/tasks")
-  public R<DeployTaskApplicationService.TaskCenterPage> getTaskCenterTasks(
-      @RequestParam(required = false) String keyword,
-      @RequestParam(required = false) String status,
-      @RequestParam(required = false) String sourceType,
-      @RequestParam(required = false) String taskType,
-      @RequestParam(required = false) String priority,
-      @RequestParam(defaultValue = "1") Integer page,
-      @RequestParam(defaultValue = "10") Integer pageSize,
-      @RequestParam(defaultValue = "createdAt") String sortBy,
-      @RequestParam(defaultValue = "desc") String sortOrder) {
-    return R.ok(deployTaskApplicationService.getTaskCenterTasks(new DeployTaskApplicationService.TaskCenterQuery(
-        keyword,
-        status,
-        sourceType,
-        taskType,
-        priority,
-        page,
-        pageSize,
-        sortBy,
-        sortOrder)));
-  }
-
   @GetMapping("/api/deploy/tasks/{id}/hosts")
   public R<DeployTaskApplicationService.DeployTaskHostPage> getDeployTaskHosts(@PathVariable Long id,
                                                                                 @RequestParam(required = false) String status,

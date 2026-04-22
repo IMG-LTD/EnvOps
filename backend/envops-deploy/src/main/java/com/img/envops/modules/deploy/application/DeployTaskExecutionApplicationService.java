@@ -14,6 +14,9 @@ import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskHostMapper;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskLogMapper;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskMapper;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskParamMapper;
+import com.img.envops.modules.task.application.UnifiedTaskCenterApplicationService;
+import com.img.envops.modules.task.application.UnifiedTaskDetailPreviewFactory;
+import com.img.envops.modules.task.application.UnifiedTaskRecorder;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
@@ -55,6 +58,8 @@ public class DeployTaskExecutionApplicationService {
   private final RemoteExecutor remoteExecutor;
   private final TaskExecutor deployTaskExecutor;
   private final TransactionTemplate transactionTemplate;
+  private final UnifiedTaskRecorder unifiedTaskRecorder;
+  private final UnifiedTaskDetailPreviewFactory unifiedTaskDetailPreviewFactory;
 
   public DeployTaskExecutionApplicationService(DeployTaskApplicationService deployTaskApplicationService,
                                                DeployTaskMapper deployTaskMapper,
@@ -68,7 +73,9 @@ public class DeployTaskExecutionApplicationService {
                                                LocalPackageStorage localPackageStorage,
                                                RemoteExecutor remoteExecutor,
                                                @Qualifier("deployTaskExecutor") TaskExecutor deployTaskExecutor,
-                                               PlatformTransactionManager transactionManager) {
+                                               PlatformTransactionManager transactionManager,
+                                               UnifiedTaskRecorder unifiedTaskRecorder,
+                                               UnifiedTaskDetailPreviewFactory unifiedTaskDetailPreviewFactory) {
     this.deployTaskApplicationService = deployTaskApplicationService;
     this.deployTaskMapper = deployTaskMapper;
     this.deployTaskHostMapper = deployTaskHostMapper;
@@ -82,11 +89,16 @@ public class DeployTaskExecutionApplicationService {
     this.remoteExecutor = remoteExecutor;
     this.deployTaskExecutor = deployTaskExecutor;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
+    this.unifiedTaskRecorder = unifiedTaskRecorder;
+    this.unifiedTaskDetailPreviewFactory = unifiedTaskDetailPreviewFactory;
   }
 
   public DeployTaskApplicationService.DeployTaskRecord executeDeployTask(Long taskId, String operatorName) {
     String resolvedOperatorName = requireOperatorName(operatorName);
-    runInTransaction(() -> markTaskRunning(taskId, resolvedOperatorName));
+    runInTransaction(() -> {
+      markTaskRunning(taskId, resolvedOperatorName);
+      syncUnifiedProjection(taskId, null, null, null, null);
+    });
     deployTaskExecutor.execute(() -> runTask(taskId, resolvedOperatorName));
     return deployTaskApplicationService.getDeployTaskRecord(taskId);
   }
@@ -321,6 +333,7 @@ public class DeployTaskExecutionApplicationService {
       throw new ConflictException("deploy task cannot be cancelled: " + taskId);
     }
     deployTaskLogMapper.insertLog(log(taskId, null, "WARN", "Task cancel requested", now));
+    syncUnifiedProjection(taskId, "running", null, "发布任务等待取消", null);
   }
 
   @Transactional
@@ -340,6 +353,7 @@ public class DeployTaskExecutionApplicationService {
     }
     markQueuedHostsCancelled(taskId, "Task cancelled before execution started");
     deployTaskLogMapper.insertLog(log(taskId, null, "WARN", "Task cancelled", now));
+    syncUnifiedProjection(taskId, "failed", now, "发布任务已取消", "Task cancelled");
     return true;
   }
 
@@ -429,16 +443,17 @@ public class DeployTaskExecutionApplicationService {
     }
 
     deployTaskLogMapper.insertLog(log(entity.getId(), null, "INFO", "Rollback task created from " + original.getId(), now));
+    syncRollbackUnifiedProjection(entity, original, now, operatorName);
     return entity.getId();
   }
 
   @Transactional
-  protected boolean finishTask(Long taskId,
-                               String status,
-                               int successCount,
-                               int failCount,
-                               String operatorName,
-                               String logMessage) {
+  protected LocalDateTime finishTask(Long taskId,
+                                     String status,
+                                     int successCount,
+                                     int failCount,
+                                     String operatorName,
+                                     String logMessage) {
     LocalDateTime now = LocalDateTime.now();
     DeployTaskMapper.DeployTaskEntity entity = new DeployTaskMapper.DeployTaskEntity();
     entity.setId(taskId);
@@ -457,15 +472,15 @@ public class DeployTaskExecutionApplicationService {
       updated = deployTaskMapper.markCancelledFromCancelRequested(entity);
       if (updated > 0) {
         deployTaskLogMapper.insertLog(log(taskId, null, "WARN", "Task cancelled", now));
-        return true;
+        return now;
       }
     }
 
     if (updated > 0) {
       deployTaskLogMapper.insertLog(log(taskId, null, STATUS_CANCELLED.equals(status) ? "WARN" : "INFO", logMessage, now));
-      return true;
+      return now;
     }
-    return false;
+    return now;
   }
 
   private void updateHostState(Long hostRowId,
@@ -508,7 +523,80 @@ public class DeployTaskExecutionApplicationService {
                             int failCount,
                             String operatorName,
                             String logMessage) {
-    runInTransaction(() -> finishTask(taskId, status, successCount, failCount, operatorName, logMessage));
+    runInTransaction(() -> {
+      LocalDateTime finishedAt = finishTask(taskId, status, successCount, failCount, operatorName, logMessage);
+      String finalStatus = requireTask(taskId).getStatus();
+      syncUnifiedProjection(
+          taskId,
+          null,
+          finishedAt,
+          null,
+          STATUS_FAILED.equals(finalStatus) ? "Deploy host execution failed" : null);
+    });
+  }
+
+  private void syncUnifiedProjection(Long taskId,
+                                     String unifiedStatus,
+                                     LocalDateTime finishedAt,
+                                     String summaryOverride,
+                                     String errorSummary) {
+    DeployTaskApplicationService.DeployTaskRecord record = deployTaskApplicationService.getDeployTaskRecord(taskId);
+    String environment = deployTaskApplicationService.resolveEnvironment(record.getParams());
+    String sourceRoute = deployTaskApplicationService.buildSourceRoute(taskId);
+    String resolvedUnifiedStatus = unifiedStatus != null
+        ? unifiedStatus
+        : UnifiedTaskCenterApplicationService.normalizeStatus(record.getStatus());
+    String summary = summaryOverride != null
+        ? summaryOverride
+        : deployTaskApplicationService.buildDeploySummary(
+            record.getAppName(),
+            environment,
+            record.getTargetCount(),
+            record.getSuccessCount(),
+            record.getFailCount());
+    unifiedTaskRecorder.updateBySource(new UnifiedTaskRecorder.UpdateBySourceCommand(
+        "deploy",
+        taskId,
+        resolvedUnifiedStatus,
+        finishedAt,
+        summary,
+        unifiedTaskDetailPreviewFactory.toJson(unifiedTaskDetailPreviewFactory.buildDeployPreview(
+            record.getAppName(),
+            environment,
+            record.getTargetCount(),
+            record.getSuccessCount(),
+            record.getFailCount(),
+            record.getStatus(),
+            sourceRoute)),
+        errorSummary));
+  }
+
+  private void syncRollbackUnifiedProjection(DeployTaskMapper.DeployTaskEntity rollbackTask,
+                                             DeployTaskMapper.DeployTaskRow originalTask,
+                                             LocalDateTime now,
+                                             String operatorName) {
+    String environment = deployTaskApplicationService.resolveEnvironment(loadParams(originalTask.getId()));
+    String sourceRoute = deployTaskApplicationService.buildSourceRoute(rollbackTask.getId());
+    unifiedTaskRecorder.upsertBySource(new UnifiedTaskRecorder.UpsertBySourceCommand(
+        "deploy",
+        rollbackTask.getId(),
+        rollbackTask.getTaskName(),
+        "pending",
+        operatorName,
+        now,
+        null,
+        "回滚任务已创建，等待执行",
+        unifiedTaskDetailPreviewFactory.toJson(unifiedTaskDetailPreviewFactory.buildDeployPreview(
+            originalTask.getAppName(),
+            environment,
+            rollbackTask.getTargetCount(),
+            rollbackTask.getSuccessCount(),
+            rollbackTask.getFailCount(),
+            rollbackTask.getStatus(),
+            sourceRoute)),
+        sourceRoute,
+        "deploy",
+        null));
   }
 
   private DeployTaskHostMapper.DeployTaskHostRow requireHost(Long hostRowId) {

@@ -111,3 +111,10 @@ export function fetchGetTaskCenterTasks(params: Api.Task.TaskCenterListQuery) {
     params
   });
 }
+
+/** get task center task detail */
+export function fetchGetTaskCenterTaskDetail(id: number) {
+  return request<Api.Task.TaskCenterDetail>({
+    url: `/api/task-center/tasks/${id}`
+  });
+}

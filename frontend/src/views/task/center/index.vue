@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useRouterPush } from '@/hooks/common/router';
-import { fetchGetTaskCenterTasks } from '@/service/api';
-import { normalizeTaskCenterRouteQuery, toTaskCenterApiQuery } from '@/views/task/shared/query';
+import { fetchGetTaskCenterTaskDetail, fetchGetTaskCenterTasks } from '@/service/api';
+import {
+  formatLocalDateTimeRange,
+  normalizeTaskCenterRouteQuery,
+  toTaskCenterApiQuery
+} from '@/views/task/shared/query';
 
 defineOptions({
   name: 'TaskCenterPage'
 });
 
 type TaskCenterRouteQuery = ReturnType<typeof normalizeTaskCenterRouteQuery>;
-type TaskCenterStatusKey = 'success' | 'failed' | 'running' | 'queued' | 'pendingApproval' | 'cancelled' | 'rejected';
-type TaskCenterTagType = 'success' | 'error' | 'info' | 'default' | 'warning';
+type TaskCenterStatusKey = Api.Task.UnifiedTaskStatus;
+type TaskCenterTagType = 'success' | 'error' | 'info' | 'default';
 
 const DEFAULT_TASK_CENTER_ROUTE_QUERY = normalizeTaskCenterRouteQuery({});
 
 const route = useRoute();
+const router = useRouter();
 const { routerPushByKey } = useRouterPush();
 const { t } = useI18n();
 
@@ -24,13 +29,18 @@ const loading = ref(false);
 const total = ref(0);
 const listRequestToken = ref(0);
 const listLoadingToken = ref(0);
+const detailRequestToken = ref(0);
+const detailLoadingToken = ref(0);
 const taskList = ref<Api.Task.TaskCenterRecord[]>([]);
+const showTaskDetailDrawer = ref(false);
+const taskDetailLoading = ref(false);
+const activeTaskDetail = ref<Api.Task.TaskCenterDetail | null>(null);
 
 const filterForm = reactive({
   keyword: '',
-  status: null as string | null,
-  taskType: null as string | null,
-  priority: null as string | null
+  status: null as Api.Task.UnifiedTaskStatus | null,
+  taskType: null as Api.Task.TaskCenterTaskType | null,
+  startedRange: null as [number, number] | null
 });
 
 const normalizedRouteQuery = computed(() => normalizeTaskCenterRouteQuery(route.query as Record<string, unknown>));
@@ -38,37 +48,16 @@ const pendingTaskCenterRouteQuery = ref<TaskCenterRouteQuery>(normalizedRouteQue
 const taskCenterListQueryKey = computed(() => JSON.stringify(toTaskCenterApiQuery(normalizedRouteQuery.value)));
 
 const statusOptions = computed(() => [
-  { label: t('page.envops.common.status.queued'), value: 'PENDING' },
-  { label: t('page.envops.common.status.pendingApproval'), value: 'PENDING_APPROVAL' },
-  { label: t('page.envops.common.status.running'), value: 'RUNNING' },
-  { label: t('page.envops.common.status.success'), value: 'SUCCESS' },
-  { label: t('page.envops.common.status.failed'), value: 'FAILED' },
-  { label: t('page.envops.common.status.cancelled'), value: 'CANCELLED' },
-  { label: t('page.envops.common.status.rejected'), value: 'REJECTED' }
+  { label: t('page.envops.common.status.pending'), value: 'pending' },
+  { label: t('page.envops.common.status.running'), value: 'running' },
+  { label: t('page.envops.common.status.success'), value: 'success' },
+  { label: t('page.envops.common.status.failed'), value: 'failed' }
 ]);
 
 const taskTypeOptions = computed(() => [
-  { label: t('page.envops.deployTask.filters.taskTypeInstall'), value: 'INSTALL' },
-  { label: t('page.envops.deployTask.filters.taskTypeUpgrade'), value: 'UPGRADE' },
-  { label: t('page.envops.deployTask.filters.taskTypeRollback'), value: 'ROLLBACK' }
-]);
-
-const priorityOptions = computed(() => [
-  { label: 'P1', value: 'P1' },
-  { label: 'P2', value: 'P2' },
-  { label: 'P3', value: 'P3' }
-]);
-
-const sortByOptions = computed(() => [
-  { label: t('page.envops.taskCenter.sorting.createdAt'), value: 'createdAt' },
-  { label: t('page.envops.taskCenter.sorting.updatedAt'), value: 'updatedAt' },
-  { label: t('page.envops.taskCenter.sorting.taskNo'), value: 'taskNo' },
-  { label: t('page.envops.taskCenter.sorting.status'), value: 'status' }
-]);
-
-const sortOrderOptions = computed(() => [
-  { label: t('page.envops.taskCenter.sorting.desc'), value: 'desc' },
-  { label: t('page.envops.taskCenter.sorting.asc'), value: 'asc' }
+  { label: t('page.envops.taskCenter.taskTypes.deploy'), value: 'deploy' },
+  { label: t('page.envops.taskCenter.taskTypes.databaseConnectivity'), value: 'database_connectivity' },
+  { label: t('page.envops.taskCenter.taskTypes.trafficAction'), value: 'traffic_action' }
 ]);
 
 watch(
@@ -78,7 +67,7 @@ watch(
     filterForm.keyword = query.keyword;
     filterForm.status = query.status || null;
     filterForm.taskType = query.taskType || null;
-    filterForm.priority = query.priority || null;
+    filterForm.startedRange = getStartedRangeValue(query.startedFrom, query.startedTo);
   },
   { immediate: true }
 );
@@ -92,52 +81,18 @@ watch(
 );
 
 const tasks = computed(() =>
-  taskList.value.map(item => {
-    const statusKey = getTaskCenterStatusKey(item.status);
-
-    return {
-      key: item.id,
-      id: item.taskNo || String(item.id),
-      type: getTaskTypeLabel(item.taskType),
-      source: getTaskSourceLabel(item.sourceType),
-      executor: item.operatorName || '-',
-      priority: getTaskPriority(item, statusKey),
-      status: getTaskCenterStatusLabel(statusKey),
-      statusType: getTaskCenterTagType(statusKey),
-      statusKey,
-      canOpenDeployDetail: isDeploySourceType(item.sourceType)
-    };
-  })
+  taskList.value.map(item => ({
+    key: item.id,
+    taskName: item.taskName,
+    taskType: getTaskTypeLabel(item.taskType),
+    triggeredBy: item.triggeredBy || '-',
+    startedAt: item.startedAt || '-',
+    finishedAt: item.finishedAt || '-',
+    summary: item.summary || '-',
+    status: getTaskCenterStatusLabel(item.status),
+    statusType: getTaskCenterTagType(item.status)
+  }))
 );
-
-const metrics = computed(() => {
-  const queuedCount = tasks.value.filter(
-    item => item.statusKey === 'queued' || item.statusKey === 'pendingApproval'
-  ).length;
-  const runningCount = tasks.value.filter(item => item.statusKey === 'running').length;
-  const slaBreachRiskCount = taskList.value.filter(item => hasSlaBreachRisk(item)).length;
-
-  return [
-    {
-      key: 'queued',
-      label: t('page.envops.taskCenter.summary.queued.label'),
-      value: String(queuedCount),
-      desc: t('page.envops.taskCenter.summary.queued.desc')
-    },
-    {
-      key: 'running',
-      label: t('page.envops.taskCenter.summary.running.label'),
-      value: String(runningCount),
-      desc: t('page.envops.taskCenter.summary.running.desc')
-    },
-    {
-      key: 'slaBreachRisk',
-      label: t('page.envops.taskCenter.summary.slaBreachRisk.label'),
-      value: String(slaBreachRiskCount),
-      desc: t('page.envops.taskCenter.summary.slaBreachRisk.desc')
-    }
-  ];
-});
 
 async function loadTaskCenterTasks(query: TaskCenterRouteQuery) {
   const requestToken = ++listRequestToken.value;
@@ -179,11 +134,14 @@ async function pushTaskCenterRouteQuery(partialQuery: Partial<TaskCenterRouteQue
 }
 
 async function handleSearch() {
+  const startedRange = getStartedRangeQueryValue(filterForm.startedRange);
+
   await pushTaskCenterRouteQuery({
     keyword: filterForm.keyword.trim(),
     status: filterForm.status ?? '',
     taskType: filterForm.taskType ?? '',
-    priority: filterForm.priority ?? '',
+    startedFrom: startedRange[0],
+    startedTo: startedRange[1],
     page: DEFAULT_TASK_CENTER_ROUTE_QUERY.page
   });
 }
@@ -192,23 +150,16 @@ async function handleResetFilters() {
   filterForm.keyword = '';
   filterForm.status = null;
   filterForm.taskType = null;
-  filterForm.priority = null;
+  filterForm.startedRange = null;
 
   await pushTaskCenterRouteQuery({
     keyword: '',
     status: '',
     taskType: '',
-    priority: '',
+    startedFrom: '',
+    startedTo: '',
     page: DEFAULT_TASK_CENTER_ROUTE_QUERY.page
   });
-}
-
-async function handleSortByChange(sortBy: Api.Task.TaskSortBy) {
-  await pushTaskCenterRouteQuery({ sortBy, page: DEFAULT_TASK_CENTER_ROUTE_QUERY.page });
-}
-
-async function handleSortOrderChange(sortOrder: Api.Task.TaskSortOrder) {
-  await pushTaskCenterRouteQuery({ sortOrder, page: DEFAULT_TASK_CENTER_ROUTE_QUERY.page });
 }
 
 async function handlePageChange(page: number) {
@@ -223,8 +174,54 @@ async function handleRefreshList() {
   await loadTaskCenterTasks(normalizedRouteQuery.value);
 }
 
-async function handleOpenDeployDetail(taskId: number) {
-  await routerPushByKey('deploy_task', { query: { taskId: String(taskId) } });
+function closeTaskDetailDrawer() {
+  detailRequestToken.value += 1;
+  detailLoadingToken.value += 1;
+  showTaskDetailDrawer.value = false;
+  activeTaskDetail.value = null;
+  taskDetailLoading.value = false;
+}
+
+function handleTaskDetailDrawerShowChange(show: boolean) {
+  if (show) {
+    showTaskDetailDrawer.value = true;
+    return;
+  }
+
+  closeTaskDetailDrawer();
+}
+
+async function handleOpenTaskDetail(taskId: number) {
+  const requestToken = ++detailRequestToken.value;
+  const loadingToken = ++detailLoadingToken.value;
+
+  showTaskDetailDrawer.value = true;
+  activeTaskDetail.value = null;
+  taskDetailLoading.value = true;
+
+  try {
+    const { data, error } = await fetchGetTaskCenterTaskDetail(taskId);
+
+    if (requestToken !== detailRequestToken.value) {
+      return;
+    }
+
+    if (!error) {
+      activeTaskDetail.value = data ?? null;
+    }
+  } finally {
+    if (loadingToken === detailLoadingToken.value) {
+      taskDetailLoading.value = false;
+    }
+  }
+}
+
+async function openSourceDetail() {
+  if (!activeTaskDetail.value?.sourceRoute) {
+    return;
+  }
+
+  await router.push(activeTaskDetail.value.sourceRoute);
 }
 
 function stringifyTaskCenterRouteQuery(query: TaskCenterRouteQuery) {
@@ -232,12 +229,30 @@ function stringifyTaskCenterRouteQuery(query: TaskCenterRouteQuery) {
     ...(query.keyword ? { keyword: query.keyword } : {}),
     ...(query.status ? { status: query.status } : {}),
     ...(query.taskType ? { taskType: query.taskType } : {}),
-    ...(query.priority ? { priority: query.priority } : {}),
+    ...(query.startedFrom ? { startedFrom: query.startedFrom } : {}),
+    ...(query.startedTo ? { startedTo: query.startedTo } : {}),
     page: String(query.page),
-    pageSize: String(query.pageSize),
-    sortBy: query.sortBy,
-    sortOrder: query.sortOrder
+    pageSize: String(query.pageSize)
   };
+}
+
+function getStartedRangeValue(startedFrom: string, startedTo: string): [number, number] | null {
+  if (!startedFrom || !startedTo) {
+    return null;
+  }
+
+  const start = new Date(startedFrom).getTime();
+  const end = new Date(startedTo).getTime();
+
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    return null;
+  }
+
+  return [start, end];
+}
+
+function getStartedRangeQueryValue(startedRange: [number, number] | null): [string, string] {
+  return formatLocalDateTimeRange(startedRange);
 }
 
 function isSameRouteQuery(left: Record<string, string>, right: Record<string, string>) {
@@ -265,174 +280,36 @@ function getTaskCenterPage(
   );
 }
 
-function getTaskCenterStatusKey(status: string | null | undefined): TaskCenterStatusKey {
-  const normalizedStatus = String(status || '').toLowerCase();
-
-  if (normalizedStatus.includes('approval')) {
-    return 'pendingApproval';
-  }
-
-  if (normalizedStatus.includes('reject')) {
-    return 'rejected';
-  }
-
-  if (normalizedStatus.includes('fail') || normalizedStatus.includes('error') || normalizedStatus.includes('timeout')) {
-    return 'failed';
-  }
-
-  if (normalizedStatus.includes('cancel_requested')) {
-    return 'running';
-  }
-
-  if (normalizedStatus.includes('cancel')) {
-    return 'cancelled';
-  }
-
-  if (
-    normalizedStatus.includes('run') ||
-    normalizedStatus.includes('progress') ||
-    normalizedStatus.includes('execut')
-  ) {
-    return 'running';
-  }
-
-  if (
-    normalizedStatus.includes('success') ||
-    normalizedStatus.includes('finish') ||
-    normalizedStatus.includes('done')
-  ) {
-    return 'success';
-  }
-
-  return 'queued';
-}
-
-function getTaskCenterStatusLabel(statusKey: TaskCenterStatusKey) {
+function getTaskCenterStatusLabel(status: string | null | undefined) {
   const labelMap: Record<TaskCenterStatusKey, string> = {
-    success: t('page.envops.common.status.success'),
-    failed: t('page.envops.common.status.failed'),
+    pending: t('page.envops.common.status.pending'),
     running: t('page.envops.common.status.running'),
-    queued: t('page.envops.common.status.queued'),
-    pendingApproval: t('page.envops.common.status.pendingApproval'),
-    cancelled: t('page.envops.common.status.cancelled'),
-    rejected: t('page.envops.common.status.rejected')
+    success: t('page.envops.common.status.success'),
+    failed: t('page.envops.common.status.failed')
   };
 
-  return labelMap[statusKey];
+  return labelMap[(status as TaskCenterStatusKey) || 'pending'] ?? String(status || '-');
 }
 
-function getTaskCenterTagType(statusKey: TaskCenterStatusKey): TaskCenterTagType {
+function getTaskCenterTagType(status: string | null | undefined): TaskCenterTagType {
   const typeMap: Record<TaskCenterStatusKey, TaskCenterTagType> = {
-    success: 'success',
-    failed: 'error',
+    pending: 'default',
     running: 'info',
-    queued: 'default',
-    pendingApproval: 'warning',
-    cancelled: 'warning',
-    rejected: 'error'
+    success: 'success',
+    failed: 'error'
   };
 
-  return typeMap[statusKey];
+  return typeMap[(status as TaskCenterStatusKey) || 'pending'] ?? 'default';
 }
 
-function getTaskTypeLabel(value: string | null | undefined) {
-  const normalizedValue = String(value || '').toLowerCase();
+function getTaskTypeLabel(taskType: string | null | undefined) {
+  const labelMap: Record<Api.Task.TaskCenterTaskType, string> = {
+    deploy: t('page.envops.taskCenter.taskTypes.deploy'),
+    database_connectivity: t('page.envops.taskCenter.taskTypes.databaseConnectivity'),
+    traffic_action: t('page.envops.taskCenter.taskTypes.trafficAction')
+  };
 
-  if (
-    normalizedValue.includes('deploy') ||
-    normalizedValue.includes('install') ||
-    normalizedValue.includes('upgrade') ||
-    normalizedValue.includes('rollback') ||
-    normalizedValue.includes('release')
-  ) {
-    return t('page.envops.common.taskType.deploy');
-  }
-
-  if (
-    normalizedValue.includes('inspect') ||
-    normalizedValue.includes('detect') ||
-    normalizedValue.includes('monitor')
-  ) {
-    return t('page.envops.common.taskType.inspection');
-  }
-
-  if (normalizedValue.includes('traffic') || normalizedValue.includes('route') || normalizedValue.includes('gateway')) {
-    return t('page.envops.common.taskType.traffic');
-  }
-
-  if (normalizedValue.includes('asset') || normalizedValue.includes('sync')) {
-    return t('page.envops.common.taskType.assetSync');
-  }
-
-  return String(value || '-');
-}
-
-function getTaskSourceLabel(value: string | null | undefined) {
-  const normalizedValue = String(value || '').toLowerCase();
-
-  if (normalizedValue.includes('deploy')) {
-    return t('page.envops.common.taskType.deploy');
-  }
-
-  if (
-    normalizedValue.includes('inspect') ||
-    normalizedValue.includes('detect') ||
-    normalizedValue.includes('monitor')
-  ) {
-    return t('page.envops.common.taskType.inspection');
-  }
-
-  if (normalizedValue.includes('traffic')) {
-    return t('page.envops.common.taskType.traffic');
-  }
-
-  if (normalizedValue.includes('asset')) {
-    return t('page.envops.common.taskType.assetSync');
-  }
-
-  return String(value || '-');
-}
-
-function getTaskPriority(item: Api.Task.TaskCenterRecord, statusKey: TaskCenterStatusKey) {
-  const priority = String(item.priority || '').trim();
-
-  if (priority) {
-    return priority;
-  }
-
-  if (statusKey === 'failed' || (item.failCount || 0) > 0) {
-    return 'P1';
-  }
-
-  if (statusKey === 'running' || (item.targetCount || 0) >= 10) {
-    return 'P2';
-  }
-
-  return 'P3';
-}
-
-function hasSlaBreachRisk(item: Api.Task.TaskCenterRecord) {
-  const statusKey = getTaskCenterStatusKey(item.status);
-
-  if (!['queued', 'running'].includes(statusKey)) {
-    return false;
-  }
-
-  const time = new Date(item.createdAt || item.updatedAt || '').getTime();
-
-  if (Number.isNaN(time)) {
-    return false;
-  }
-
-  return Date.now() - time >= 2 * 60 * 60 * 1000;
-}
-
-function isDeploySourceType(value: string | null | undefined) {
-  const normalizedValue = String(value || '')
-    .trim()
-    .toLowerCase();
-
-  return normalizedValue === 'deploy';
+  return labelMap[(taskType as Api.Task.TaskCenterTaskType) || 'deploy'] ?? String(taskType || '-');
 }
 </script>
 
@@ -450,15 +327,6 @@ function isDeploySourceType(value: string | null | undefined) {
       </div>
     </NCard>
 
-    <NGrid cols="1 s:3" responsive="screen" :x-gap="16" :y-gap="16">
-      <NGi v-for="item in metrics" :key="item.key">
-        <NCard :bordered="false" class="card-wrapper">
-          <NStatistic :label="item.label" :value="item.value" />
-          <div class="mt-12px text-12px text-#999">{{ item.desc }}</div>
-        </NCard>
-      </NGi>
-    </NGrid>
-
     <NCard :title="t('page.envops.taskCenter.table.title')" :bordered="false" class="card-wrapper">
       <NSpace vertical :size="12" class="mb-16px">
         <NSpace wrap>
@@ -470,25 +338,26 @@ function isDeploySourceType(value: string | null | undefined) {
             @keyup.enter="handleSearch"
           />
           <NSelect
+            v-model:value="filterForm.taskType"
+            clearable
+            class="w-220px"
+            :options="taskTypeOptions"
+            :placeholder="t('page.envops.taskCenter.filters.taskType')"
+          />
+          <NSelect
             v-model:value="filterForm.status"
             clearable
             class="w-180px"
             :options="statusOptions"
             :placeholder="t('page.envops.taskCenter.filters.status')"
           />
-          <NSelect
-            v-model:value="filterForm.taskType"
+          <NDatePicker
+            v-model:value="filterForm.startedRange"
             clearable
-            class="w-180px"
-            :options="taskTypeOptions"
-            :placeholder="t('page.envops.taskCenter.filters.taskType')"
-          />
-          <NSelect
-            v-model:value="filterForm.priority"
-            clearable
-            class="w-160px"
-            :options="priorityOptions"
-            :placeholder="t('page.envops.taskCenter.filters.priority')"
+            type="datetimerange"
+            class="w-320px"
+            :start-placeholder="t('page.envops.taskCenter.filters.startedFrom')"
+            :end-placeholder="t('page.envops.taskCenter.filters.startedTo')"
           />
           <NButton type="primary" @click="handleSearch">
             {{ t('page.envops.taskCenter.filters.search') }}
@@ -497,59 +366,37 @@ function isDeploySourceType(value: string | null | undefined) {
             {{ t('page.envops.taskCenter.filters.reset') }}
           </NButton>
         </NSpace>
-
-        <NSpace wrap>
-          <NSelect
-            :value="normalizedRouteQuery.sortBy"
-            class="w-180px"
-            :options="sortByOptions"
-            :placeholder="t('page.envops.taskCenter.sorting.status')"
-            @update:value="handleSortByChange"
-          />
-          <NSelect
-            :value="normalizedRouteQuery.sortOrder"
-            class="w-180px"
-            :options="sortOrderOptions"
-            :placeholder="`${t('page.envops.taskCenter.sorting.desc')} / ${t('page.envops.taskCenter.sorting.asc')}`"
-            @update:value="handleSortOrderChange"
-          />
-        </NSpace>
       </NSpace>
 
       <NSpin :show="loading">
         <NTable v-if="tasks.length" :bordered="false" :single-line="false">
           <thead>
             <tr>
-              <th>{{ t('page.envops.taskCenter.table.taskId') }}</th>
-              <th>{{ t('page.envops.taskCenter.table.type') }}</th>
-              <th>{{ t('page.envops.taskCenter.table.source') }}</th>
-              <th>{{ t('page.envops.taskCenter.table.executor') }}</th>
-              <th>{{ t('page.envops.taskCenter.table.priority') }}</th>
+              <th>{{ t('page.envops.taskCenter.table.taskName') }}</th>
+              <th>{{ t('page.envops.taskCenter.table.taskType') }}</th>
+              <th>{{ t('page.envops.taskCenter.table.triggeredBy') }}</th>
+              <th>{{ t('page.envops.taskCenter.table.startedAt') }}</th>
+              <th>{{ t('page.envops.taskCenter.table.finishedAt') }}</th>
+              <th>{{ t('page.envops.taskCenter.table.summary') }}</th>
               <th>{{ t('page.envops.taskCenter.table.status') }}</th>
               <th>{{ t('common.action') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in tasks" :key="item.key">
-              <td>{{ item.id }}</td>
-              <td>{{ item.type }}</td>
-              <td>{{ item.source }}</td>
-              <td>{{ item.executor }}</td>
-              <td>{{ item.priority }}</td>
+              <td>{{ item.taskName }}</td>
+              <td>{{ item.taskType }}</td>
+              <td>{{ item.triggeredBy }}</td>
+              <td>{{ item.startedAt }}</td>
+              <td>{{ item.finishedAt }}</td>
+              <td>{{ item.summary }}</td>
               <td>
                 <NTag :type="item.statusType" size="small">{{ item.status }}</NTag>
               </td>
               <td>
-                <NButton
-                  v-if="item.canOpenDeployDetail"
-                  text
-                  type="primary"
-                  size="small"
-                  @click="handleOpenDeployDetail(item.key)"
-                >
-                  {{ t('page.envops.taskCenter.actions.openDeployDetail') }}
+                <NButton text type="primary" size="small" @click="handleOpenTaskDetail(item.key)">
+                  {{ t('page.envops.taskCenter.actions.openTaskDetail') }}
                 </NButton>
-                <span v-else>-</span>
               </td>
             </tr>
           </tbody>
@@ -569,6 +416,55 @@ function isDeploySourceType(value: string | null | undefined) {
         </div>
       </NSpin>
     </NCard>
+
+    <NDrawer
+      :show="showTaskDetailDrawer"
+      :width="520"
+      placement="right"
+      @update:show="handleTaskDetailDrawerShowChange"
+    >
+      <NDrawerContent :title="t('page.envops.taskCenter.drawer.title')">
+        <NSpin :show="taskDetailLoading">
+          <NDescriptions bordered :column="1">
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.taskName')">
+              {{ activeTaskDetail?.taskName || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.taskType')">
+              {{ activeTaskDetail ? getTaskTypeLabel(activeTaskDetail.taskType) : '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.triggeredBy')">
+              {{ activeTaskDetail?.triggeredBy || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.startedAt')">
+              {{ activeTaskDetail?.startedAt || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.finishedAt')">
+              {{ activeTaskDetail?.finishedAt || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.summary')">
+              {{ activeTaskDetail?.summary || '-' }}
+            </NDescriptionsItem>
+            <NDescriptionsItem :label="t('page.envops.taskCenter.drawer.detailPreview')">
+              <pre class="mb-0 whitespace-pre-wrap break-all">{{
+                JSON.stringify(activeTaskDetail?.detailPreview ?? {}, null, 2)
+              }}</pre>
+            </NDescriptionsItem>
+            <NDescriptionsItem
+              v-if="activeTaskDetail?.errorSummary"
+              :label="t('page.envops.taskCenter.drawer.errorSummary')"
+            >
+              {{ activeTaskDetail.errorSummary }}
+            </NDescriptionsItem>
+          </NDescriptions>
+
+          <div class="mt-16px flex justify-end">
+            <NButton type="primary" :disabled="!activeTaskDetail?.sourceRoute" @click="openSourceDetail">
+              {{ t('page.envops.taskCenter.actions.openSourceDetail') }}
+            </NButton>
+          </div>
+        </NSpin>
+      </NDrawerContent>
+    </NDrawer>
   </NSpace>
 </template>
 

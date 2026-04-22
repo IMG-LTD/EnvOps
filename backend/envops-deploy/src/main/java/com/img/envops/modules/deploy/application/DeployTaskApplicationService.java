@@ -1,5 +1,7 @@
 package com.img.envops.modules.deploy.application;
 
+import com.img.envops.common.exception.ConflictException;
+import com.img.envops.common.exception.NotFoundException;
 import com.img.envops.modules.app.infrastructure.mapper.AppDefinitionMapper;
 import com.img.envops.modules.app.infrastructure.mapper.AppVersionMapper;
 import com.img.envops.modules.asset.infrastructure.mapper.AssetHostMapper;
@@ -7,8 +9,9 @@ import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskHostMapper;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskLogMapper;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskMapper;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskParamMapper;
-import com.img.envops.common.exception.ConflictException;
-import com.img.envops.common.exception.NotFoundException;
+import com.img.envops.modules.task.application.UnifiedTaskCenterApplicationService;
+import com.img.envops.modules.task.application.UnifiedTaskDetailPreviewFactory;
+import com.img.envops.modules.task.application.UnifiedTaskRecorder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -54,6 +57,8 @@ public class DeployTaskApplicationService {
   private final AppDefinitionMapper appDefinitionMapper;
   private final AppVersionMapper appVersionMapper;
   private final AssetHostMapper assetHostMapper;
+  private final UnifiedTaskRecorder unifiedTaskRecorder;
+  private final UnifiedTaskDetailPreviewFactory unifiedTaskDetailPreviewFactory;
 
   public DeployTaskApplicationService(DeployTaskMapper deployTaskMapper,
                                       DeployTaskHostMapper deployTaskHostMapper,
@@ -61,7 +66,9 @@ public class DeployTaskApplicationService {
                                       DeployTaskParamMapper deployTaskParamMapper,
                                       AppDefinitionMapper appDefinitionMapper,
                                       AppVersionMapper appVersionMapper,
-                                      AssetHostMapper assetHostMapper) {
+                                      AssetHostMapper assetHostMapper,
+                                      UnifiedTaskRecorder unifiedTaskRecorder,
+                                      UnifiedTaskDetailPreviewFactory unifiedTaskDetailPreviewFactory) {
     this.deployTaskMapper = deployTaskMapper;
     this.deployTaskHostMapper = deployTaskHostMapper;
     this.deployTaskLogMapper = deployTaskLogMapper;
@@ -69,6 +76,8 @@ public class DeployTaskApplicationService {
     this.appDefinitionMapper = appDefinitionMapper;
     this.appVersionMapper = appVersionMapper;
     this.assetHostMapper = assetHostMapper;
+    this.unifiedTaskRecorder = unifiedTaskRecorder;
+    this.unifiedTaskDetailPreviewFactory = unifiedTaskDetailPreviewFactory;
   }
 
   public DeployTaskPage getDeployTasks(DeployTaskQuery query) {
@@ -160,6 +169,7 @@ public class DeployTaskApplicationService {
     logEntity.setCreatedAt(now);
     deployTaskLogMapper.insertLog(logEntity);
 
+    syncUnifiedProjectionOnCreate(entity, validated, resolvedOperatorName, now);
     return toDeployTaskRecord(requireTask(entity.getId()), loadParams(entity.getId()));
   }
 
@@ -498,6 +508,91 @@ public class DeployTaskApplicationService {
     return value.trim();
   }
 
+  private void syncUnifiedProjectionOnCreate(
+      DeployTaskMapper.DeployTaskEntity entity,
+      ValidatedCreateCommand validated,
+      String operatorName,
+      LocalDateTime now) {
+    String environment = resolveEnvironment(validated.params());
+    String sourceRoute = buildSourceRoute(entity.getId());
+    unifiedTaskRecorder.upsertBySource(new UnifiedTaskRecorder.UpsertBySourceCommand(
+        "deploy",
+        entity.getId(),
+        entity.getTaskName(),
+        "pending",
+        operatorName,
+        now,
+        null,
+        buildDeploySummary(validated.app().getAppName(), environment, entity.getTargetCount(), entity.getSuccessCount(), entity.getFailCount()),
+        unifiedTaskDetailPreviewFactory.toJson(unifiedTaskDetailPreviewFactory.buildDeployPreview(
+            validated.app().getAppName(),
+            environment,
+            defaultZero(entity.getTargetCount()),
+            defaultZero(entity.getSuccessCount()),
+            defaultZero(entity.getFailCount()),
+            entity.getStatus(),
+            sourceRoute)),
+        sourceRoute,
+        "deploy",
+        null));
+  }
+
+  private void syncUnifiedProjectionOnApproval(
+      DeployTaskMapper.DeployTaskRow task,
+      String targetStatus,
+      String comment,
+      LocalDateTime now) {
+    String environment = resolveEnvironment(loadParams(task.getId()));
+    String sourceRoute = buildSourceRoute(task.getId());
+    boolean rejected = STATUS_REJECTED.equals(targetStatus);
+    unifiedTaskRecorder.updateBySource(new UnifiedTaskRecorder.UpdateBySourceCommand(
+        "deploy",
+        task.getId(),
+        rejected ? "failed" : "pending",
+        rejected ? now : null,
+        rejected ? "发布任务已拒绝" : "发布任务已审批，等待执行",
+        unifiedTaskDetailPreviewFactory.toJson(unifiedTaskDetailPreviewFactory.buildDeployPreview(
+            task.getAppName(),
+            environment,
+            defaultZero(task.getTargetCount()),
+            defaultZero(task.getSuccessCount()),
+            defaultZero(task.getFailCount()),
+            targetStatus,
+            sourceRoute)),
+        rejected ? comment : null));
+  }
+
+  String resolveEnvironment(Map<String, String> params) {
+    return firstNonBlank(
+        params.get("environment"),
+        params.get("env"),
+        params.get("profile"),
+        params.get("namespace"));
+  }
+
+  private String firstNonBlank(String... values) {
+    for (String value : values) {
+      if (StringUtils.hasText(value)) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  String buildDeploySummary(String appName, String environment, Integer targetCount, Integer successCount, Integer failCount) {
+    return String.format(
+        "发布 %s 到 %s，目标 %d，成功 %d，失败 %d",
+        appName,
+        environment == null ? "default" : environment,
+        defaultZero(targetCount),
+        defaultZero(successCount),
+        defaultZero(failCount));
+  }
+
+  String buildSourceRoute(Long taskId) {
+    return "/deploy/task?taskId=" + taskId;
+  }
+
   private DeployTaskMapper.DeployTaskRow requireTask(Long id) {
     if (id == null) {
       throw new IllegalArgumentException("taskId is required");
@@ -573,6 +668,7 @@ public class DeployTaskApplicationService {
     logEntity.setCreatedAt(now);
     deployTaskLogMapper.insertLog(logEntity);
 
+    syncUnifiedProjectionOnApproval(task, targetStatus, entity.getApprovalComment(), now);
     return toDeployTaskRecord(requireTask(taskId), loadParams(taskId));
   }
 

@@ -1099,54 +1099,47 @@ const local: App.I18n.Schema = {
       },
       taskCenter: {
         hero: {
-          title: '任务中心',
-          description: '提供 Deploy 任务的审批、执行可视化与状态追踪视图。'
-        },
-        tags: {
-          queueBalanced: '队列均衡',
-          jobsNearingSla: '2 个任务临近 SLA'
-        },
-        summary: {
-          queued: {
-            label: '排队中',
-            desc: '等待审批或等待执行器启动的 Deploy 任务'
-          },
-          running: {
-            label: '运行中',
-            desc: '当前仍在执行中的 Deploy 任务'
-          },
-          slaBreachRisk: {
-            label: 'SLA 风险',
-            desc: '接近超时阈值的长耗时 Deploy 任务'
-          }
+          title: '统一任务中心',
+          description: '统一查看 Deploy、数据库连通性检测和 Traffic 动作任务。'
         },
         filters: {
           keyword: '关键词',
           status: '状态',
           taskType: '任务类型',
-          priority: '优先级',
+          startedFrom: '开始时间起',
+          startedTo: '开始时间止',
           search: '搜索',
           reset: '重置'
         },
-        sorting: {
-          createdAt: '创建时间',
-          updatedAt: '更新时间',
-          taskNo: '任务 ID',
-          status: '状态',
-          asc: '升序',
-          desc: '降序'
+        taskTypes: {
+          deploy: 'Deploy',
+          databaseConnectivity: '数据库连通性检测',
+          trafficAction: 'Traffic 动作'
         },
         table: {
-          title: 'Deploy 队列',
-          taskId: '任务 ID',
-          type: '类型',
-          source: '来源',
-          executor: '执行器',
-          priority: '优先级',
+          title: '统一任务列表',
+          taskName: '任务名称',
+          taskType: '任务类型',
+          triggeredBy: '发起人',
+          startedAt: '开始时间',
+          finishedAt: '结束时间',
+          summary: '摘要',
           status: '状态'
         },
         actions: {
-          openDeployDetail: '打开发布详情'
+          openTaskDetail: '查看任务详情',
+          openSourceDetail: '查看原始详情'
+        },
+        drawer: {
+          title: '任务详情',
+          taskType: '任务类型',
+          taskName: '任务名称',
+          triggeredBy: '发起人',
+          startedAt: '开始时间',
+          finishedAt: '结束时间',
+          summary: '摘要',
+          errorSummary: '失败原因',
+          detailPreview: '详情预览'
         }
       },
       trafficController: {

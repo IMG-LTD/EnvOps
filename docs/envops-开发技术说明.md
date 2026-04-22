@@ -2,14 +2,15 @@
 
 ## 1. 文档定位
 
-本文档面向开发、联调、测试与维护人员，说明当前基线的工程版本字段、本地联调方式、验证命令，以及 Deploy / Task / Traffic 的技术边界，其中 Traffic 已收敛到最小真实能力口径。
+本文档面向开发、联调、测试与维护人员，说明当前基线的工程版本字段、本地联调方式、验证命令，以及 Deploy / Task / Traffic 的技术边界，其中 Task Center 已收敛到最小真实统一任务中心，Traffic 已收敛到最小真实能力口径。
 
 ## 2. 版本字段
 
-当前基线要求：
+当前基线的工程版本字段与发布材料口径如下：
 
-- `backend/pom.xml` 包含 `<version>0.0.4-SNAPSHOT</version>`
-- `frontend/package.json` 包含 `"version": "0.0.4"`
+- `backend/pom.xml` 当前包含 `<version>0.0.4-SNAPSHOT</version>`
+- `frontend/package.json` 当前包含 `"version": "0.0.4"`
+- 当前功能说明与发布材料按 `release/0.0.6-release-notes.md` 的统一任务中心口径同步
 
 ## 3. 本地联调方式
 
@@ -40,11 +41,11 @@ pnpm --dir frontend dev
 
 当前基线统一使用以下命令作为工程闸口与本地验证入口：
 
+- `mvn -f backend/pom.xml -pl envops-task -am -Dtest=UnifiedTaskCenterApplicationServiceTest test`
 - `mvn -f backend/pom.xml -pl envops-asset -am -Dtest=DatabaseConnectionSecretProtectorTest,DatabaseConnectivityServiceTest test`
-- `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=AssetControllerTest test`
+- `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=DeployTaskControllerTest,AssetControllerTest,TrafficControllerTest test`
 - `mvn -f backend/pom.xml -pl envops-traffic -am -Dtest=RestTrafficPluginTest test`
-- `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=TrafficControllerTest test`
-- `pnpm --dir frontend exec vitest run src/views/asset/database-contract.spec.ts src/views/asset/database-connectivity.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
+- `pnpm --dir frontend exec vitest run src/views/task/task-contract.spec.ts src/views/task/shared/query.spec.ts src/views/asset/database-contract.spec.ts src/views/asset/database-connectivity.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
 - `pnpm --dir frontend exec vitest run src/views/traffic/traffic-contract.spec.ts`
 - `pnpm --dir frontend typecheck`
 - `pnpm --dir frontend build`
@@ -86,11 +87,16 @@ Deploy 创建契约当前只承诺真实执行参数，不再对外承诺 `deplo
 
 ### 5.3 Task Center
 
-Task Center 当前明确是 deploy-only 队列视图：
+Task Center 当前已收敛为最小真实统一任务中心：
 
-- 只服务于 Deploy 任务队列的查询、状态查看与详情跳转
-- 当前不是跨域统一队列
-- 相关文案应明确写成 deploy-only
+- 统一纳入 `deploy`、`database_connectivity`、`traffic_action` 三类任务
+- 统一状态口径：`pending`、`running`、`success`、`failed`
+- Deploy 历史任务通过统一投影补录，数据库检测与 Traffic 动作从当前版本起记录新增任务
+- 数据库批量检测按一批一条记录，不拆成多条子任务投影
+- 统一列表字段以任务类型、任务名、状态、发起人、开始时间、结束时间、摘要、源路由为主
+- 前端交互采用“统一列表 + 轻量详情抽屉 + 查看原始详情深链”，详情抽屉加载统一 detailPreview，原始深入信息仍回到原模块处理
+- 数据库与 Traffic 深链当前分别回到 `/asset/database`、`/traffic/controller` 页面级入口；Deploy 深链回到 `/deploy/task?taskId=...`
+- 当前范围仅覆盖统一列表、轻量详情抽屉与原模块深链，不新增任务内重试/取消、多任务编排、数据库与 Traffic 既有历史补录或新的执行器抽象层
 
 ### 5.4 Traffic
 
@@ -116,5 +122,5 @@ Traffic 当前技术边界已收敛为最小真实能力：
 以下内容继续明确排除在当前基线之外：
 
 - Traffic 的多插件适配、多策略矩阵、审批重构、批量切流、高级编排与灰度报表
-- Task Center 跨域统一队列
+- 任务中心内直接重试/取消、多任务编排、数据库与 Traffic 既有历史补录，以及新的执行器抽象层
 - Deploy 大规模主机检索与更深执行器增强

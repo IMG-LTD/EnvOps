@@ -27,6 +27,7 @@
         <module>envops-deploy</module>
         <module>envops-exec</module>
         <module>envops-traffic</module>
+        <module>envops-task</module>
     </modules>
 
     <properties>

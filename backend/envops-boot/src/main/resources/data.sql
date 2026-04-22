@@ -116,6 +116,36 @@ VALUES
     (3002, 'billing-admin', 'weighted_routing', 'staging / all', '20%', 'release-team', 'PREVIEW', 'REST', 'rb-apply-3002', TIMESTAMP '2026-04-22 10:05:00', TIMESTAMP '2026-04-22 10:05:00'),
     (3003, 'ops-worker', 'header_canary', 'prod / cn-shanghai-a', '5%', 'traffic-team', 'REVIEW', 'NGINX', NULL, TIMESTAMP '2026-04-22 10:10:00', TIMESTAMP '2026-04-22 10:10:00');
 
+INSERT INTO unified_task_center (
+    id, task_type, task_name, status, triggered_by, started_at, finished_at,
+    summary, detail_preview, source_id, source_route, module_name, error_summary,
+    created_at, updated_at
+) VALUES
+    (
+        9001, 'deploy', 'Deploy order-service to production', 'success', 'envops-admin',
+        TIMESTAMP '2026-04-15 16:00:00', TIMESTAMP '2026-04-15 16:05:00',
+        '发布 order-service 到 production，1 台主机，已完成',
+        '{"app":"order-service","environment":"production","targetCount":1,"successCount":1,"failCount":0,"rawStatus":"SUCCESS","sourceRoute":"/deploy/task?taskId=2001"}',
+        2001, '/deploy/task?taskId=2001', 'deploy', NULL,
+        TIMESTAMP '2026-04-15 16:00:00', TIMESTAMP '2026-04-15 16:05:00'
+    ),
+    (
+        9002, 'database_connectivity', '批量数据库连通性检测', 'failed', 'envops-admin',
+        TIMESTAMP '2026-04-21 09:00:00', TIMESTAMP '2026-04-21 09:02:00',
+        '批量检测 20 条，成功 16，失败 3，跳过 1',
+        '{"mode":"batch","summary":"批量检测 20 条，成功 16，失败 3，跳过 1","total":20,"success":16,"failed":3,"skipped":1,"sourceRoute":"/asset/database","errorSummary":"3 databases failed authentication"}',
+        NULL, '/asset/database', 'asset', '3 databases failed authentication',
+        TIMESTAMP '2026-04-21 09:00:00', TIMESTAMP '2026-04-21 09:02:00'
+    ),
+    (
+        9003, 'traffic_action', 'Traffic Apply', 'failed', 'envops-admin',
+        TIMESTAMP '2026-04-22 08:30:00', TIMESTAMP '2026-04-22 08:31:00',
+        'Apply checkout-gateway，策略 weighted_routing，插件 REST',
+        '{"action":"apply","app":"checkout-gateway","strategy":"weighted_routing","plugin":"REST","rollbackTokenAvailable":false,"sourceRoute":"/traffic/controller","errorSummary":"rollbackToken is required from traffic rest service"}',
+        3001, '/traffic/controller', 'traffic', 'rollbackToken is required from traffic rest service',
+        TIMESTAMP '2026-04-22 08:30:00', TIMESTAMP '2026-04-22 08:31:00'
+    );
+
 INSERT INTO sys_menu_route (id, parent_id, route_name, route_path, component, title, icon, route_order, route_type, required_role, home_flag)
 VALUES
     (100, NULL, 'login', '/login', 'layout.blank$view.login', '登录', 'mdi:login', 1, 'CONSTANT', NULL, FALSE),
