@@ -6,10 +6,12 @@ import com.img.envops.modules.deploy.application.DeployTaskApplicationService;
 import com.img.envops.modules.deploy.infrastructure.mapper.DeployTaskMapper;
 import com.img.envops.modules.deploy.executor.SshConnectionOptions;
 import com.img.envops.modules.deploy.executor.SshProcessRunner;
+import com.img.envops.modules.task.infrastructure.bootstrap.UnifiedTaskCenterBackfillRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -78,6 +80,9 @@ class DeployTaskControllerTest {
 
   @Autowired
   private FakeSshProcessRunner fakeSshProcessRunner;
+
+  @Autowired
+  private UnifiedTaskCenterBackfillRunner unifiedTaskCenterBackfillRunner;
 
   @Value("${envops.storage.local-base-dir}")
   private String storageBaseDir;
@@ -970,6 +975,152 @@ class DeployTaskControllerTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("404"))
         .andExpect(jsonPath("$.msg").value("unified task not found: 999999"));
+  }
+
+  @Test
+  void createDeployTaskCreatesPendingUnifiedProjection() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+
+    long taskId = createDeployTask(
+        accessToken,
+        "deploy-task-center-create",
+        "INSTALL",
+        1001L,
+        1401L,
+        List.of(1L),
+        "ALL",
+        0,
+        createRequiredParams("production"));
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("taskType", "deploy")
+            .param("keyword", "deploy-task-center-create")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("deploy"))
+        .andExpect(jsonPath("$.data.records[0].status").value("pending"))
+        .andExpect(jsonPath("$.data.records[0].sourceRoute").value("/deploy/task?taskId=" + taskId));
+
+    Long unifiedTaskId = jdbcTemplate.queryForObject(
+        "SELECT id FROM unified_task_center WHERE task_type = ? AND source_id = ?",
+        Long.class,
+        "deploy",
+        taskId);
+    org.assertj.core.api.Assertions.assertThat(unifiedTaskId).isNotNull();
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}", unifiedTaskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.taskType").value("deploy"))
+        .andExpect(jsonPath("$.data.taskName").value("deploy-task-center-create"))
+        .andExpect(jsonPath("$.data.status").value("pending"))
+        .andExpect(jsonPath("$.data.sourceRoute").value("/deploy/task?taskId=" + taskId))
+        .andExpect(jsonPath("$.data.detailPreview.app").value("订单服务"))
+        .andExpect(jsonPath("$.data.detailPreview.environment").value("production"))
+        .andExpect(jsonPath("$.data.detailPreview.rawStatus").value("PENDING_APPROVAL"));
+  }
+
+  @Test
+  void backfillsDeployRowsMissingUnifiedProjection() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+
+    jdbcTemplate.update("DELETE FROM unified_task_center WHERE task_type = ? AND source_id = ?", "deploy", 2001L);
+    unifiedTaskCenterBackfillRunner.run(new DefaultApplicationArguments(new String[0]));
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("taskType", "deploy")
+            .param("keyword", "seed-order-service-install")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records[0].taskType").value("deploy"))
+        .andExpect(jsonPath("$.data.records[0].status").value("success"))
+        .andExpect(jsonPath("$.data.records[0].sourceRoute").value("/deploy/task?taskId=2001"));
+  }
+
+  @Test
+  void executeDeployTaskUpdatesUnifiedProjectionToRunningThenFinished() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long versionId = createExecutableVersion();
+
+    fakeSshProcessRunner.queueExecSuccess("prepared remote release directory host-prd-01");
+    fakeSshProcessRunner.queueUploadSuccess("uploaded package host-prd-01");
+    fakeSshProcessRunner.queueUploadSuccess("uploaded script host-prd-01");
+    fakeSshProcessRunner.queueBlockingExecSuccess("exec script host-prd-01");
+    fakeSshProcessRunner.queueExecSuccess("prepared remote release directory host-prd-02");
+    fakeSshProcessRunner.queueUploadSuccess("uploaded package host-prd-02");
+    fakeSshProcessRunner.queueUploadSuccess("uploaded script host-prd-02");
+    fakeSshProcessRunner.queueExecSuccess("exec script host-prd-02");
+
+    long taskId = createDeployTask(
+        accessToken,
+        "execute-unified-projection-order-service-prod",
+        versionId,
+        List.of(1L, 2L),
+        Map.of(
+            "environment", "production",
+            "sshUser", "deploy",
+            "sshPort", 22,
+            "privateKeyPath", TEST_PRIVATE_KEY_PATH,
+            "remoteBaseDir", "/opt/envops/releases"));
+    approveDeployTask(accessToken, taskId, "approved for unified projection execution test");
+
+    CompletableFuture<Void> executeFuture = CompletableFuture.runAsync(() -> {
+      try {
+        mockMvc.perform(post("/api/deploy/tasks/{id}/execute", taskId)
+                .header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code").value("0000"))
+            .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+      } catch (Exception exception) {
+        throw new CompletionException(exception);
+      }
+    });
+
+    fakeSshProcessRunner.awaitBlockingExecStarted();
+
+    Long unifiedTaskId = jdbcTemplate.queryForObject(
+        "SELECT id FROM unified_task_center WHERE task_type = ? AND source_id = ?",
+        Long.class,
+        "deploy",
+        taskId);
+    org.assertj.core.api.Assertions.assertThat(unifiedTaskId).isNotNull();
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}", unifiedTaskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.status").value("running"))
+        .andExpect(jsonPath("$.data.detailPreview.rawStatus").value("RUNNING"));
+
+    fakeSshProcessRunner.releaseBlockingExec();
+    executeFuture.get(10, TimeUnit.SECONDS);
+
+    mockMvc.perform(get("/api/task-center/tasks")
+            .param("taskType", "deploy")
+            .param("keyword", "execute-unified-projection-order-service-prod")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.records[0].status").value("success"))
+        .andExpect(jsonPath("$.data.records[0].sourceRoute").value("/deploy/task?taskId=" + taskId));
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}", unifiedTaskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.status").value("success"))
+        .andExpect(jsonPath("$.data.detailPreview.app").value("订单服务"))
+        .andExpect(jsonPath("$.data.detailPreview.environment").value("production"))
+        .andExpect(jsonPath("$.data.detailPreview.targetCount").value(2))
+        .andExpect(jsonPath("$.data.detailPreview.successCount").value(2))
+        .andExpect(jsonPath("$.data.detailPreview.failCount").value(0))
+        .andExpect(jsonPath("$.data.detailPreview.rawStatus").value("SUCCESS"));
   }
 
   @Test
