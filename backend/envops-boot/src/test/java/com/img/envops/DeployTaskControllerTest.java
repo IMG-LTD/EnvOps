@@ -43,8 +43,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -975,6 +978,61 @@ class DeployTaskControllerTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("404"))
         .andExpect(jsonPath("$.msg").value("unified task not found: 999999"));
+  }
+
+  @Test
+  void getDeployTrackingFallsBackForHistoricalUnifiedRowWithoutTimeline() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    restoreHistoricalDeployUnifiedRowWithoutTimeline();
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}/tracking", 9001L)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.basicInfo.taskType").value("deploy"))
+        .andExpect(jsonPath("$.data.timeline.length()").value(greaterThanOrEqualTo(1)))
+        .andExpect(jsonPath("$.data.logSummary").value(containsString("Deploy")))
+        .andExpect(jsonPath("$.data.sourceLinks[0].route").value(startsWith("/deploy/task")))
+        .andExpect(jsonPath("$.data.degraded").value(true));
+  }
+
+  @Test
+  void getDeployTrackingDerivesLogRouteForNewExecutedDeployTask() throws Exception {
+    String accessToken = login("release-admin", "Release@123");
+    long versionId = createExecutableVersion();
+    fakeSshProcessRunner.queueExecSuccess("prepared remote release directory");
+    fakeSshProcessRunner.queueUploadSuccess("uploaded package");
+    fakeSshProcessRunner.queueUploadSuccess("uploaded script");
+    fakeSshProcessRunner.queueExecSuccess("executed deploy script");
+
+    long taskId = createDeployTask(
+        accessToken,
+        "tracking-log-route-order-service-prod",
+        versionId,
+        List.of(1L),
+        createRequiredParams("production"));
+    approveDeployTask(accessToken, taskId, "approved for tracking log route test");
+
+    mockMvc.perform(post("/api/deploy/tasks/{id}/execute", taskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+
+    Long unifiedTaskId = jdbcTemplate.queryForObject(
+        "SELECT id FROM unified_task_center WHERE task_type = ? AND source_id = ?",
+        Long.class,
+        "deploy",
+        taskId);
+    org.assertj.core.api.Assertions.assertThat(unifiedTaskId).isNotNull();
+    String logRoute = buildDeployLogRoute(taskId);
+
+    mockMvc.perform(get("/api/task-center/tasks/{id}/tracking", unifiedTaskId)
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.logRoute").value(logRoute))
+        .andExpect(jsonPath("$.data.sourceLinks[?(@.type == 'log')].route").value(hasItem(logRoute)));
   }
 
   @Test
@@ -2385,6 +2443,42 @@ class DeployTaskControllerTest {
         key,
         value,
         0);
+  }
+
+  private void restoreHistoricalDeployUnifiedRowWithoutTimeline() {
+    jdbcTemplate.update("DELETE FROM unified_task_center WHERE task_type = ? AND source_id = ?", "deploy", 2001L);
+    jdbcTemplate.update("DELETE FROM unified_task_center WHERE id = ?", 9001L);
+    jdbcTemplate.update(
+        """
+        INSERT INTO unified_task_center (
+            id, task_type, task_name, status, triggered_by, started_at, finished_at,
+            summary, detail_preview, tracking_timeline, tracking_log_summary,
+            source_id, source_route, log_route, module_name, error_summary,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        9001L,
+        "deploy",
+        "Deploy order-service to production",
+        "success",
+        "envops-admin",
+        java.sql.Timestamp.valueOf("2026-04-15 16:00:00"),
+        java.sql.Timestamp.valueOf("2026-04-15 16:05:00"),
+        "发布 order-service 到 production，1 台主机，已完成",
+        "{\"app\":\"order-service\",\"environment\":\"production\",\"targetCount\":1,\"successCount\":1,\"failCount\":0,\"rawStatus\":\"SUCCESS\",\"sourceRoute\":\"/deploy/task?taskId=2001\"}",
+        null,
+        "Deploy historical log summary",
+        2001L,
+        "/deploy/task?taskId=2001",
+        null,
+        "deploy",
+        null,
+        java.sql.Timestamp.valueOf("2026-04-15 16:00:00"),
+        java.sql.Timestamp.valueOf("2026-04-15 16:05:00"));
+  }
+
+  private String buildDeployLogRoute(Long taskId) {
+    return "/deploy/task?taskId=" + taskId + "&detailTab=logs";
   }
 
   private long createDeployTask(String accessToken, String taskName) throws Exception {
