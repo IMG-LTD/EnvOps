@@ -539,9 +539,10 @@ class AssetControllerTest {
           .andExpect(jsonPath("$.data.summary.success").value(1));
 
       Long unifiedTaskId = jdbcTemplate.queryForObject(
-          "SELECT id FROM unified_task_center WHERE task_type = ? ORDER BY id DESC LIMIT 1",
+          "SELECT id FROM unified_task_center WHERE task_type = ? AND source_id = ?",
           Long.class,
-          "database_connectivity");
+          "database_connectivity",
+          databaseId);
 
       mockMvc.perform(get("/api/task-center/tasks/{id}/tracking", unifiedTaskId)
               .header("Authorization", "Bearer " + accessToken))
@@ -553,6 +554,10 @@ class AssetControllerTest {
           .andExpect(jsonPath("$.data.sourceLinks[0].route").value("/asset/database"))
           .andExpect(jsonPath("$.data.degraded").value(false));
     } finally {
+      jdbcTemplate.update(
+          "DELETE FROM unified_task_center WHERE task_type = ? AND source_id = ?",
+          "database_connectivity",
+          databaseId);
       jdbcTemplate.update("DELETE FROM asset_database WHERE id = ?", databaseId);
     }
   }

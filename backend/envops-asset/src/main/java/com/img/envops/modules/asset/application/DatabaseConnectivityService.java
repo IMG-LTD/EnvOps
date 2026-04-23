@@ -257,11 +257,22 @@ public class DatabaseConnectivityService {
             SOURCE_ROUTE,
             errorSummary)),
         errorSummary));
-    unifiedTaskRecorder.updateTrackingSnapshot(new UnifiedTaskRecorder.TrackingSnapshotCommand(
+    updateConnectivityTrackingSnapshot(unifiedTaskId, status, report, errorSummary);
+  }
+
+  private void updateConnectivityTrackingSnapshot(Long unifiedTaskId,
+                                                  String status,
+                                                  DatabaseConnectivityReport report,
+                                                  String errorSummary) {
+    UnifiedTaskRecorder.TrackingSnapshotCommand command = new UnifiedTaskRecorder.TrackingSnapshotCommand(
         unifiedTaskId,
         buildConnectivityTimeline(status, report),
         buildConnectivityLogSummary(report, errorSummary),
-        SOURCE_ROUTE));
+        SOURCE_ROUTE);
+    try {
+      unifiedTaskRecorder.updateTrackingSnapshot(command);
+    } catch (RuntimeException ignored) {
+    }
   }
 
   private String buildConnectivityTimeline(String status, DatabaseConnectivityReport report) {
