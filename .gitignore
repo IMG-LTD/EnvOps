@@ -1,5 +1,6 @@
 .claude/
 .superpowers/
+.worktrees/
 node_modules/
 dist/
 backend/**/target/
