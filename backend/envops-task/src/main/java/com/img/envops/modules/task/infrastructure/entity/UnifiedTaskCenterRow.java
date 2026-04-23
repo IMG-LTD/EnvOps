@@ -16,6 +16,9 @@ public class UnifiedTaskCenterRow {
   private String sourceRoute;
   private String moduleName;
   private String errorSummary;
+  private String trackingTimeline;
+  private String trackingLogSummary;
+  private String logRoute;
   private LocalDateTime createdAt;
   private LocalDateTime updatedAt;
 
@@ -121,6 +124,30 @@ public class UnifiedTaskCenterRow {
 
   public void setErrorSummary(String errorSummary) {
     this.errorSummary = errorSummary;
+  }
+
+  public String getTrackingTimeline() {
+    return trackingTimeline;
+  }
+
+  public void setTrackingTimeline(String trackingTimeline) {
+    this.trackingTimeline = trackingTimeline;
+  }
+
+  public String getTrackingLogSummary() {
+    return trackingLogSummary;
+  }
+
+  public void setTrackingLogSummary(String trackingLogSummary) {
+    this.trackingLogSummary = trackingLogSummary;
+  }
+
+  public String getLogRoute() {
+    return logRoute;
+  }
+
+  public void setLogRoute(String logRoute) {
+    this.logRoute = logRoute;
   }
 
   public LocalDateTime getCreatedAt() {

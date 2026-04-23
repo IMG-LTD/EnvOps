@@ -154,6 +154,24 @@ class UnifiedTaskCenterApplicationServiceTest {
   }
 
   @Test
+  void recorderUpdatesTrackingSnapshotWithoutChangingTaskStatus() {
+    UnifiedTaskCenterMapper mapper = mock(UnifiedTaskCenterMapper.class);
+    UnifiedTaskRecorder recorder = new UnifiedTaskRecorder(mapper);
+
+    recorder.updateTrackingSnapshot(new UnifiedTaskRecorder.TrackingSnapshotCommand(
+        9001L,
+        "[{\"label\":\"任务开始\",\"status\":\"success\"}]",
+        "Deploy 日志摘要",
+        "/deploy/task?taskId=2001&detailTab=logs"));
+
+    verify(mapper).updateTrackingSnapshot(
+        eq(9001L),
+        eq("[{\"label\":\"任务开始\",\"status\":\"success\"}]"),
+        eq("Deploy 日志摘要"),
+        eq("/deploy/task?taskId=2001&detailTab=logs"));
+  }
+
+  @Test
   void upsertBySourceRetriesOnDuplicateKeyAndUpdatesExistingRow() {
     UnifiedTaskCenterMapper mapper = mock(UnifiedTaskCenterMapper.class);
     UnifiedTaskRecorder recorder = new UnifiedTaskRecorder(mapper);

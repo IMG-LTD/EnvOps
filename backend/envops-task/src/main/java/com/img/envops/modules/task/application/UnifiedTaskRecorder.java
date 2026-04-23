@@ -33,6 +33,12 @@ public class UnifiedTaskRecorder {
       String detailPreview,
       String errorSummary) {}
 
+  public record TrackingSnapshotCommand(
+      Long id,
+      String trackingTimeline,
+      String trackingLogSummary,
+      String logRoute) {}
+
   public record UpsertBySourceCommand(
       String taskType,
       Long sourceId,
@@ -76,6 +82,14 @@ public class UnifiedTaskRecorder {
         command.summary(),
         command.detailPreview(),
         command.errorSummary());
+  }
+
+  public void updateTrackingSnapshot(TrackingSnapshotCommand command) {
+    unifiedTaskCenterMapper.updateTrackingSnapshot(
+        command.id(),
+        command.trackingTimeline(),
+        command.trackingLogSummary(),
+        command.logRoute());
   }
 
   public void upsertBySource(UpsertBySourceCommand command) {

@@ -18,11 +18,11 @@ public interface UnifiedTaskCenterMapper {
       INSERT INTO unified_task_center (
         task_type, task_name, status, triggered_by, started_at, finished_at,
         summary, detail_preview, source_id, source_route, module_name, error_summary,
-        created_at, updated_at
+        tracking_timeline, tracking_log_summary, log_route, created_at, updated_at
       ) VALUES (
         #{taskType}, #{taskName}, #{status}, #{triggeredBy}, #{startedAt}, #{finishedAt},
         #{summary}, #{detailPreview}, #{sourceId}, #{sourceRoute}, #{moduleName}, #{errorSummary},
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        #{trackingTimeline}, #{trackingLogSummary}, #{logRoute}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       """)
   @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -42,6 +42,9 @@ public interface UnifiedTaskCenterMapper {
              source_route AS sourceRoute,
              module_name AS moduleName,
              error_summary AS errorSummary,
+             tracking_timeline AS trackingTimeline,
+             tracking_log_summary AS trackingLogSummary,
+             log_route AS logRoute,
              created_at AS createdAt,
              updated_at AS updatedAt
       FROM unified_task_center
@@ -87,6 +90,9 @@ public interface UnifiedTaskCenterMapper {
       "       source_route AS sourceRoute,",
       "       module_name AS moduleName,",
       "       error_summary AS errorSummary,",
+      "       tracking_timeline AS trackingTimeline,",
+      "       tracking_log_summary AS trackingLogSummary,",
+      "       log_route AS logRoute,",
       "       created_at AS createdAt,",
       "       updated_at AS updatedAt",
       "FROM unified_task_center",
@@ -124,12 +130,28 @@ public interface UnifiedTaskCenterMapper {
              source_route AS sourceRoute,
              module_name AS moduleName,
              error_summary AS errorSummary,
+             tracking_timeline AS trackingTimeline,
+             tracking_log_summary AS trackingLogSummary,
+             log_route AS logRoute,
              created_at AS createdAt,
              updated_at AS updatedAt
       FROM unified_task_center
       WHERE id = #{id}
       """)
   UnifiedTaskCenterRow findById(@Param("id") Long id);
+
+  @Update("""
+      UPDATE unified_task_center
+      SET tracking_timeline = #{trackingTimeline},
+          tracking_log_summary = #{trackingLogSummary},
+          log_route = #{logRoute},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = #{id}
+      """)
+  void updateTrackingSnapshot(@Param("id") Long id,
+                              @Param("trackingTimeline") String trackingTimeline,
+                              @Param("trackingLogSummary") String trackingLogSummary,
+                              @Param("logRoute") String logRoute);
 
   @Update("""
       UPDATE unified_task_center
