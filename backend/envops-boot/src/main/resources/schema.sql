@@ -228,8 +228,11 @@ CREATE TABLE unified_task_center (
     finished_at TIMESTAMP NULL,
     summary VARCHAR(500) NOT NULL,
     detail_preview CLOB NOT NULL,
+    tracking_timeline TEXT,
+    tracking_log_summary TEXT,
     source_id BIGINT NULL,
     source_route VARCHAR(255) NOT NULL,
+    log_route VARCHAR(512),
     module_name VARCHAR(64) NOT NULL,
     error_summary VARCHAR(500) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -322,5 +325,7 @@ CREATE TABLE sys_menu_route (
     route_order INT NOT NULL,
     route_type VARCHAR(32) NOT NULL,
     required_role VARCHAR(64),
+    hide_in_menu BOOLEAN DEFAULT FALSE,
+    active_menu VARCHAR(128),
     home_flag BOOLEAN DEFAULT FALSE
 );
