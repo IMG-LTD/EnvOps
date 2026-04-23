@@ -4,11 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.img.envops.modules.asset.application.AssetApplicationService;
 import com.img.envops.modules.asset.application.DatabaseConnectivityService;
+import com.img.envops.modules.asset.application.connectivity.DatabaseConnectivityChecker;
+import com.img.envops.modules.asset.application.connectivity.DatabaseConnectivityProbeResult;
+import com.img.envops.modules.asset.application.connectivity.DatabaseConnectivityTarget;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,9 +30,10 @@ import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -36,9 +43,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(AssetControllerTest.TestBeans.class)
 @TestPropertySource(properties = {
     "envops.security.token-secret=test-only-envops-token-secret-12345",
-    "envops.security.credential-protection-secret=test-only-envops-credential-protection-secret-12345"
+    "envops.security.credential-protection-secret=test-only-envops-credential-protection-secret-12345",
+    "spring.main.allow-bean-definition-overriding=true"
 })
 class AssetControllerTest {
   private static final String CREDENTIAL_PROTECTION_SECRET = "test-only-envops-credential-protection-secret-12345";
@@ -56,7 +65,7 @@ class AssetControllerTest {
   @SpyBean
   private AssetApplicationService assetApplicationService;
 
-  @MockBean
+  @SpyBean
   private DatabaseConnectivityService databaseConnectivityService;
 
   @Test
@@ -481,7 +490,7 @@ class AssetControllerTest {
                 "connected",
                 "online",
                 java.time.LocalDateTime.parse("2026-04-21T10:15:00"))));
-    when(databaseConnectivityService.checkOneDatabase(6L)).thenReturn(report);
+    doReturn(report).when(databaseConnectivityService).checkOneDatabase(6L);
 
     mockMvc.perform(post("/api/assets/databases/{id}/connectivity-check", 6L)
             .header("Authorization", "Bearer " + accessToken))
@@ -494,6 +503,61 @@ class AssetControllerTest {
   }
 
   @Test
+  void checkDatabaseConnectivityWritesTrackingSnapshotForUnifiedTask() throws Exception {
+    String accessToken = login();
+
+    Long databaseId = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(id), 0) + 100 FROM asset_database", Long.class);
+    jdbcTemplate.update(
+        """
+        INSERT INTO asset_database (
+            id, database_name, database_type, environment, host_id, port, instance_name,
+            credential_id, owner_name, lifecycle_status, connectivity_status,
+            connection_username, connection_password, description, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """,
+        databaseId,
+        "redis_tracking_snapshot",
+        "redis",
+        "sandbox",
+        4L,
+        6383,
+        "redis-sbx-tracking",
+        null,
+        "QA DBA",
+        "managed",
+        "unknown",
+        "sandbox_cache",
+        seal("Cache@123456"),
+        "追踪快照测试库");
+
+    try {
+      mockMvc.perform(post("/api/assets/databases/{id}/connectivity-check", databaseId)
+              .header("Authorization", "Bearer " + accessToken))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.code").value("0000"))
+          .andExpect(jsonPath("$.data.summary.total").value(1))
+          .andExpect(jsonPath("$.data.summary.success").value(1));
+
+      Long unifiedTaskId = jdbcTemplate.queryForObject(
+          "SELECT id FROM unified_task_center WHERE task_type = ? ORDER BY id DESC LIMIT 1",
+          Long.class,
+          "database_connectivity");
+
+      mockMvc.perform(get("/api/task-center/tasks/{id}/tracking", unifiedTaskId)
+              .header("Authorization", "Bearer " + accessToken))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.code").value("0000"))
+          .andExpect(jsonPath("$.data.basicInfo.taskType").value("database_connectivity"))
+          .andExpect(jsonPath("$.data.timeline.length()").value(2))
+          .andExpect(jsonPath("$.data.logSummary").value(containsString("成功")))
+          .andExpect(jsonPath("$.data.sourceLinks[0].route").value("/asset/database"))
+          .andExpect(jsonPath("$.data.degraded").value(false));
+    } finally {
+      jdbcTemplate.update("DELETE FROM asset_database WHERE id = ?", databaseId);
+    }
+  }
+
+  @Test
   void checkDatabaseConnectivityBySelectedRowsReturnsBatchReport() throws Exception {
     String accessToken = login();
     DatabaseConnectivityService.DatabaseConnectivityReport report =
@@ -502,7 +566,7 @@ class AssetControllerTest {
             List.of(
                 new DatabaseConnectivityService.DatabaseConnectivityItem(1L, "order_prod", "mysql", "production", "success", "connected", "online", java.time.LocalDateTime.parse("2026-04-21T10:15:00")),
                 new DatabaseConnectivityService.DatabaseConnectivityItem(2L, "traffic_gate", "postgresql", "production", "skipped", "缺少连接用户名或密码", "unknown", null)));
-    when(databaseConnectivityService.checkSelectedDatabases(List.of(1L, 2L))).thenReturn(report);
+    doReturn(report).when(databaseConnectivityService).checkSelectedDatabases(List.of(1L, 2L));
 
     mockMvc.perform(post("/api/assets/databases/connectivity-check:selected")
             .header("Authorization", "Bearer " + accessToken)
@@ -534,7 +598,7 @@ class AssetControllerTest {
                 "认证失败",
                 "offline",
                 java.time.LocalDateTime.parse("2026-04-21T10:20:00"))));
-    when(databaseConnectivityService.checkSelectedDatabases(List.of(4L))).thenReturn(report);
+    doReturn(report).when(databaseConnectivityService).checkSelectedDatabases(List.of(4L));
 
     mockMvc.perform(post("/api/assets/databases/connectivity-check:page")
             .header("Authorization", "Bearer " + accessToken)
@@ -565,8 +629,7 @@ class AssetControllerTest {
                 "connected",
                 "online",
                 java.time.LocalDateTime.parse("2026-04-21T10:25:00"))));
-    when(databaseConnectivityService.checkDatabasesByQuery("prod", "production", "mysql", "managed", "warning"))
-        .thenReturn(report);
+    doReturn(report).when(databaseConnectivityService).checkDatabasesByQuery("prod", "production", "mysql", "managed", "warning");
 
     mockMvc.perform(post("/api/assets/databases/connectivity-check:query")
             .header("Authorization", "Bearer " + accessToken)
@@ -733,6 +796,27 @@ class AssetControllerTest {
     return data.path("token").asText();
   }
 
+  private String seal(String rawSecret) {
+    try {
+      javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
+      byte[] iv = new byte[12];
+      new java.security.SecureRandom().nextBytes(iv);
+      cipher.init(
+          javax.crypto.Cipher.ENCRYPT_MODE,
+          new javax.crypto.spec.SecretKeySpec(
+              java.security.MessageDigest.getInstance("SHA-256").digest(CREDENTIAL_PROTECTION_SECRET.getBytes(StandardCharsets.UTF_8)),
+              "AES"),
+          new javax.crypto.spec.GCMParameterSpec(128, iv));
+      byte[] ciphertext = cipher.doFinal(rawSecret.trim().getBytes(StandardCharsets.UTF_8));
+      byte[] payload = new byte[iv.length + ciphertext.length];
+      System.arraycopy(iv, 0, payload, 0, iv.length);
+      System.arraycopy(ciphertext, 0, payload, iv.length, ciphertext.length);
+      return "sealed:v1:" + Base64.getUrlEncoder().withoutPadding().encodeToString(payload);
+    } catch (GeneralSecurityException exception) {
+      throw new IllegalStateException("failed to compute sealed database secret", exception);
+    }
+  }
+
   private String protect(String rawSecret) {
     try {
       Mac mac = Mac.getInstance("HmacSHA256");
@@ -741,6 +825,25 @@ class AssetControllerTest {
       return "protected:v1:" + encoded;
     } catch (GeneralSecurityException exception) {
       throw new IllegalStateException("failed to compute expected protected secret", exception);
+    }
+  }
+
+  @TestConfiguration
+  static class TestBeans {
+    @Bean
+    @Primary
+    DatabaseConnectivityChecker redisConnectivityChecker() {
+      return new DatabaseConnectivityChecker() {
+        @Override
+        public String databaseType() {
+          return "redis";
+        }
+
+        @Override
+        public DatabaseConnectivityProbeResult check(DatabaseConnectivityTarget target) {
+          return DatabaseConnectivityProbeResult.success("connected");
+        }
+      };
     }
   }
 

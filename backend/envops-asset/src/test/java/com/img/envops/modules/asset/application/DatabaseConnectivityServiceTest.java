@@ -16,6 +16,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -54,6 +55,12 @@ class DatabaseConnectivityServiceTest {
     ArgumentCaptor<UnifiedTaskRecorder.UpdateCommand> updateCaptor = ArgumentCaptor.forClass(UnifiedTaskRecorder.UpdateCommand.class);
     verify(unifiedTaskRecorder, times(1)).start(startCaptor.capture());
     verify(unifiedTaskRecorder, times(1)).update(updateCaptor.capture());
+    verify(unifiedTaskRecorder, times(1)).updateTrackingSnapshot(argThat(command ->
+        command.id().equals(9001L)
+            && command.trackingTimeline().contains("检测开始")
+            && command.trackingTimeline().contains("检测完成")
+            && command.trackingLogSummary().contains("成功")
+            && command.logRoute().equals("/asset/database")));
 
     UnifiedTaskRecorder.CreateCommand started = startCaptor.getValue();
     assertThat(started.taskType()).isEqualTo("database_connectivity");

@@ -3,6 +3,7 @@ package com.img.envops.modules.task.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
@@ -74,6 +75,14 @@ public class UnifiedTaskDetailPreviewFactory {
       return objectMapper.writeValueAsString(preview);
     } catch (JsonProcessingException exception) {
       throw new IllegalArgumentException("failed to serialize detail preview", exception);
+    }
+  }
+
+  public String toJsonArray(List<Map<String, Object>> items) {
+    try {
+      return objectMapper.writeValueAsString(items);
+    } catch (JsonProcessingException exception) {
+      throw new IllegalArgumentException("failed to serialize tracking timeline", exception);
     }
   }
 }

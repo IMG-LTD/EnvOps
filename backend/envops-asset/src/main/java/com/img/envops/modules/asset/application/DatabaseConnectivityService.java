@@ -239,6 +239,9 @@ public class DatabaseConnectivityService {
                                       long skipped,
                                       String errorSummary,
                                       String status) {
+    DatabaseConnectivityReport report = new DatabaseConnectivityReport(
+        new DatabaseConnectivitySummary(total, success, failed, skipped),
+        List.of());
     unifiedTaskRecorder.update(new UnifiedTaskRecorder.UpdateCommand(
         unifiedTaskId,
         status,
@@ -254,6 +257,31 @@ public class DatabaseConnectivityService {
             SOURCE_ROUTE,
             errorSummary)),
         errorSummary));
+    unifiedTaskRecorder.updateTrackingSnapshot(new UnifiedTaskRecorder.TrackingSnapshotCommand(
+        unifiedTaskId,
+        buildConnectivityTimeline(status, report),
+        buildConnectivityLogSummary(report, errorSummary),
+        SOURCE_ROUTE));
+  }
+
+  private String buildConnectivityTimeline(String status, DatabaseConnectivityReport report) {
+    return unifiedTaskDetailPreviewFactory.toJsonArray(List.of(
+        Map.of("label", "检测开始", "status", "success", "description", "数据库连通性检测已开始"),
+        Map.of("label", "检测完成", "status", status, "description", buildConnectivitySummary(report))));
+  }
+
+  private String buildConnectivityLogSummary(DatabaseConnectivityReport report, String errorSummary) {
+    String summary = buildConnectivitySummary(report);
+    return errorSummary == null || errorSummary.isBlank() ? summary : summary + "；失败摘要：" + errorSummary;
+  }
+
+  private String buildConnectivitySummary(DatabaseConnectivityReport report) {
+    return String.format(
+        "检测 %d 条，成功 %d，失败 %d，跳过 %d",
+        report.summary().total(),
+        report.summary().success(),
+        report.summary().failed(),
+        report.summary().skipped());
   }
 
   private DatabaseConnectivityItem checkRow(AssetDatabaseMapper.DatabaseRow row) {
