@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.img.envops.common.exception.NotFoundException;
+import com.img.envops.modules.task.application.tracking.UnifiedTaskTrackingViewAssembler;
 import com.img.envops.modules.task.infrastructure.entity.UnifiedTaskCenterRow;
 import com.img.envops.modules.task.infrastructure.mapper.UnifiedTaskCenterMapper;
 import java.time.LocalDateTime;
@@ -25,12 +26,15 @@ public class UnifiedTaskCenterApplicationService {
 
   private final UnifiedTaskCenterMapper unifiedTaskCenterMapper;
   private final ObjectMapper objectMapper;
+  private final List<UnifiedTaskTrackingViewAssembler> trackingViewAssemblers;
 
   public UnifiedTaskCenterApplicationService(
       UnifiedTaskCenterMapper unifiedTaskCenterMapper,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      List<UnifiedTaskTrackingViewAssembler> trackingViewAssemblers) {
     this.unifiedTaskCenterMapper = unifiedTaskCenterMapper;
     this.objectMapper = objectMapper;
+    this.trackingViewAssemblers = trackingViewAssemblers == null ? List.of() : List.copyOf(trackingViewAssemblers);
   }
 
   public UnifiedTaskPage getTasks(UnifiedTaskQuery query) {
@@ -72,6 +76,38 @@ public class UnifiedTaskCenterApplicationService {
         parseDetailPreview(row),
         row.getSourceRoute(),
         row.getErrorSummary());
+  }
+
+  public UnifiedTaskTrackingDetail getTaskTracking(Long id) {
+    UnifiedTaskCenterRow row = unifiedTaskCenterMapper.findById(id);
+    if (row == null) {
+      throw new NotFoundException("unified task not found: " + id);
+    }
+    TrackingViewParts parts = trackingViewAssemblers.stream()
+        .filter(assembler -> assembler.supports(row.getTaskType()))
+        .findFirst()
+        .map(assembler -> assembler.assemble(row))
+        .orElseGet(() -> new TrackingViewParts(
+            List.of(),
+            row.getSummary(),
+            row.getLogRoute(),
+            List.of(),
+            true));
+    return new UnifiedTaskTrackingDetail(
+        row.getId(),
+        new UnifiedTaskTrackingBasicInfo(
+            row.getTaskType(),
+            row.getTaskName(),
+            row.getStatus(),
+            row.getTriggeredBy(),
+            formatDateTime(row.getStartedAt()),
+            formatDateTime(row.getFinishedAt())),
+        parts.timeline(),
+        parts.logSummary(),
+        parts.logRoute(),
+        parseDetailPreview(row),
+        parts.sourceLinks(),
+        parts.degraded());
   }
 
   public static String normalizeStatus(String status) {
@@ -209,6 +245,35 @@ public class UnifiedTaskCenterApplicationService {
       Map<String, Object> detailPreview,
       String sourceRoute,
       String errorSummary) {}
+
+  public record UnifiedTaskTrackingDetail(
+      Long id,
+      UnifiedTaskTrackingBasicInfo basicInfo,
+      List<UnifiedTaskTimelineItem> timeline,
+      String logSummary,
+      String logRoute,
+      Map<String, Object> detailPreview,
+      List<UnifiedTaskSourceLink> sourceLinks,
+      boolean degraded) {}
+
+  public record UnifiedTaskTrackingBasicInfo(
+      String taskType,
+      String taskName,
+      String status,
+      String triggeredBy,
+      String startedAt,
+      String finishedAt) {}
+
+  public record UnifiedTaskTimelineItem(String label, String status, String occurredAt, String description) {}
+
+  public record UnifiedTaskSourceLink(String type, String label, String route) {}
+
+  public record TrackingViewParts(
+      List<UnifiedTaskTimelineItem> timeline,
+      String logSummary,
+      String logRoute,
+      List<UnifiedTaskSourceLink> sourceLinks,
+      boolean degraded) {}
 
   public record UnifiedTaskPage(Integer page, Integer pageSize, Long total, List<UnifiedTaskRecord> records) {}
 
