@@ -1304,6 +1304,8 @@ describe('task pages contract wiring', () => {
     expect(taskApiSource).toMatch(/url:\s*['"]\/api\/task-center\/tasks['"]/);
     expect(taskApiSource).toMatch(/export function fetchGetTaskCenterTaskDetail\s*\(/);
     expect(taskApiSource).toMatch(/url:\s*`\/api\/task-center\/tasks\/\$\{id\}`/);
+    expect(taskApiSource).toContain('fetchGetTaskCenterTaskTracking');
+    expect(taskApiSource).toContain('url: `/api/task-center/tasks/${id}/tracking`');
     expect(apiIndexSource).toContain("export * from './task'");
   });
 
@@ -1355,6 +1357,10 @@ describe('task pages contract wiring', () => {
     expect(taskTypingSource).toContain('interface TaskCenterTaskDetail extends TaskCenterRecord');
     expect(taskTypingSource).toContain('detailPreview: Record<string, unknown>;');
     expect(taskTypingSource).toContain('errorSummary?: string | null;');
+    expect(taskTypingSource).toContain('interface TaskCenterTrackingDetail');
+    expect(taskTypingSource).toContain('interface TaskCenterTrackingBasicInfo');
+    expect(taskTypingSource).toContain('interface TaskCenterTimelineItem');
+    expect(taskTypingSource).toContain('interface TaskCenterSourceLink');
     expect(taskTypingSource).not.toContain('sourceType: string;');
     expect(taskTypingSource).not.toContain('priority?: string | null;');
   });

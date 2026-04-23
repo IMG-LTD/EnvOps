@@ -178,6 +178,39 @@ declare namespace Api {
       detailPreview: Record<string, unknown>;
     }
 
+    interface TaskCenterTrackingBasicInfo {
+      taskType: TaskCenterTaskType;
+      taskName: string;
+      status: UnifiedTaskStatus;
+      triggeredBy: string;
+      startedAt: string;
+      finishedAt?: string | null;
+    }
+
+    interface TaskCenterTimelineItem {
+      label: string;
+      status: string;
+      occurredAt?: string | null;
+      description?: string | null;
+    }
+
+    interface TaskCenterSourceLink {
+      type: 'log' | 'detail' | 'module' | string;
+      label: string;
+      route: string;
+    }
+
+    interface TaskCenterTrackingDetail {
+      id: number;
+      basicInfo: TaskCenterTrackingBasicInfo;
+      timeline: TaskCenterTimelineItem[];
+      logSummary: string;
+      logRoute?: string | null;
+      detailPreview: Record<string, unknown>;
+      sourceLinks: TaskCenterSourceLink[];
+      degraded: boolean;
+    }
+
     type TaskCenterDetail = TaskCenterTaskDetail;
   }
 }
