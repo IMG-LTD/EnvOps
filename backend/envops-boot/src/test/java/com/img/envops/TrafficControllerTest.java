@@ -168,6 +168,13 @@ class TrafficControllerTest {
     assertThat(detail.path("detailPreview").path("rollbackTokenAvailable").asBoolean()).isTrue();
     assertThat(detail.path("detailPreview").path("sourceRoute").asText()).isEqualTo("/traffic/controller");
     assertThat(detail.path("detailPreview").path("errorSummary").isNull()).isTrue();
+
+    JsonNode tracking = getTaskTracking("Bearer " + accessToken, task.path("id").asLong());
+    assertThat(tracking.path("basicInfo").path("taskType").asText()).isEqualTo("traffic_action");
+    assertThat(tracking.path("timeline")).hasSize(2);
+    assertThat(tracking.path("logSummary").asText()).contains("preview");
+    assertThat(tracking.path("sourceLinks").get(0).path("route").asText()).isEqualTo("/traffic/controller");
+    assertThat(tracking.path("degraded").asBoolean()).isFalse();
   }
 
   @Test
@@ -385,6 +392,16 @@ class TrafficControllerTest {
         .andExpect(jsonPath("$.code").value("0000"))
         .andReturn();
     return readData(result);
+  }
+
+  private JsonNode getTaskTracking(String accessToken, long taskId) throws Exception {
+    String body = mockMvc.perform(get("/api/task-center/tasks/{id}/tracking", taskId)
+            .header("Authorization", accessToken))
+        .andExpect(status().isOk())
+        .andReturn()
+        .getResponse()
+        .getContentAsString();
+    return objectMapper.readTree(body).path("data");
   }
 
   private JsonNode findObjectById(JsonNode arrayNode, long id) {

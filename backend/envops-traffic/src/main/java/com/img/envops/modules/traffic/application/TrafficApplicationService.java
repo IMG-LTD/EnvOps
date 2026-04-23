@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class TrafficApplicationService {
@@ -308,6 +309,42 @@ public class TrafficApplicationService {
             SOURCE_ROUTE,
             errorSummary)),
         errorSummary));
+    updateTrafficTrackingSnapshot(unifiedTaskId, action, policy, rollbackTokenAvailable, status, errorSummary);
+  }
+
+  private void updateTrafficTrackingSnapshot(Long unifiedTaskId,
+                                             String action,
+                                             TrafficPolicyMapper.TrafficPolicyRow policy,
+                                             boolean rollbackTokenAvailable,
+                                             String status,
+                                             String errorSummary) {
+    UnifiedTaskRecorder.TrackingSnapshotCommand command = new UnifiedTaskRecorder.TrackingSnapshotCommand(
+        unifiedTaskId,
+        buildTrafficTimeline(action, status, errorSummary),
+        buildTrafficLogSummary(action, policy, rollbackTokenAvailable, status, errorSummary),
+        SOURCE_ROUTE);
+    try {
+      unifiedTaskRecorder.updateTrackingSnapshot(command);
+    } catch (RuntimeException ignored) {
+    }
+  }
+
+  private String buildTrafficTimeline(String action, String status, String errorSummary) {
+    return unifiedTaskDetailPreviewFactory.toJsonArray(List.of(
+        Map.of("label", "动作开始", "status", "success", "description", action + " 动作已提交"),
+        Map.of("label", "动作完成", "status", status, "description", errorSummary == null ? action + " 动作完成" : errorSummary)));
+  }
+
+  private String buildTrafficLogSummary(String action,
+                                        TrafficPolicyMapper.TrafficPolicyRow policy,
+                                        boolean rollbackTokenAvailable,
+                                        String status,
+                                        String errorSummary) {
+    String summary = action + " " + policy.getApp() + "，策略 " + policy.getStrategy()
+        + "，插件 " + policy.getPluginType()
+        + "，rollback token " + (rollbackTokenAvailable ? "可用" : "不可用")
+        + "，状态 " + status;
+    return errorSummary == null || errorSummary.isBlank() ? summary : summary + "；失败摘要：" + errorSummary;
   }
 
   private RuntimeException finishTrafficTaskOnFailure(Long unifiedTaskId,
