@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.img.envops.modules.task.application.tracking.DatabaseConnectivityTrackingViewAssembler;
 import com.img.envops.modules.task.application.tracking.DeployTrackingViewAssembler;
 import com.img.envops.modules.task.application.tracking.TrackingViewSupport;
 import com.img.envops.modules.task.application.tracking.TrafficActionTrackingViewAssembler;
@@ -364,6 +365,41 @@ class UnifiedTaskCenterApplicationServiceTest {
     assertThat(detail.sourceLinks())
         .extracting(UnifiedTaskCenterApplicationService.UnifiedTaskSourceLink::route)
         .containsExactly("/traffic/controller");
+    assertThat(detail.degraded()).isTrue();
+  }
+
+  @Test
+  void databaseConnectivityOldTrackingFallsBackWithoutPromisingFullHistory() {
+    UnifiedTaskCenterMapper mapper = mock(UnifiedTaskCenterMapper.class);
+    ObjectMapper objectMapper = new ObjectMapper();
+    TrackingViewSupport support = new TrackingViewSupport(objectMapper);
+    UnifiedTaskCenterApplicationService service = new UnifiedTaskCenterApplicationService(
+        mapper,
+        objectMapper,
+        List.of(new DatabaseConnectivityTrackingViewAssembler(support)));
+    UnifiedTaskCenterRow row = trackingRow(
+        "database_connectivity",
+        "Database Connectivity",
+        "success",
+        LocalDateTime.of(2026, 4, 22, 9, 0),
+        LocalDateTime.of(2026, 4, 22, 9, 1));
+    row.setSourceRoute("/asset/database");
+    row.setSummary("connectivity check success");
+    when(mapper.findById(9004L)).thenReturn(row);
+
+    UnifiedTaskCenterApplicationService.UnifiedTaskTrackingDetail detail = service.getTaskTracking(9004L);
+
+    assertThat(detail.timeline())
+        .extracting(UnifiedTaskCenterApplicationService.UnifiedTaskTimelineItem::label)
+        .containsExactly("任务开始", "任务完成");
+    assertThat(detail.logSummary()).isEqualTo("connectivity check success");
+    assertThat(detail.logRoute()).isNull();
+    assertThat(detail.sourceLinks())
+        .extracting(UnifiedTaskCenterApplicationService.UnifiedTaskSourceLink::type)
+        .containsExactly("source");
+    assertThat(detail.sourceLinks())
+        .extracting(UnifiedTaskCenterApplicationService.UnifiedTaskSourceLink::route)
+        .containsExactly("/asset/database");
     assertThat(detail.degraded()).isTrue();
   }
 
