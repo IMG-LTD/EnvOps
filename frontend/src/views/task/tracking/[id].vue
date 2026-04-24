@@ -29,7 +29,9 @@ watch(
     if (value) {
       void loadTrackingDetail(value);
     } else {
+      requestToken.value += 1;
       trackingDetail.value = null;
+      loading.value = false;
     }
   },
   { immediate: true }
@@ -38,6 +40,7 @@ watch(
 async function loadTrackingDetail(id: number) {
   const token = ++requestToken.value;
   loading.value = true;
+  trackingDetail.value = null;
 
   try {
     const { data, error } = await fetchGetTaskCenterTaskTracking(id);
