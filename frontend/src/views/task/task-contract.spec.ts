@@ -1536,6 +1536,9 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain('handlePageChange');
     expect(taskCenterPage).toContain('handlePageSizeChange');
     expect(taskCenterPage).toContain('handleOpenTaskDetail');
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openTaskTracking')");
+    expect(taskCenterPage).toContain("routerPushByKey('task_tracking_[id]'");
+    expect(taskCenterPage).toContain('params: { id: String(activeTaskDetail.value.id) }');
     expect(taskCenterPage).toContain('showTaskDetailDrawer');
     expect(taskCenterPage).toContain('showTaskDetailDrawer.value = true');
     expect(taskCenterPage).toContain('closeTaskDetailDrawer');

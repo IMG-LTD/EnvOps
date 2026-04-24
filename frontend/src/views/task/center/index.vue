@@ -216,6 +216,16 @@ async function handleOpenTaskDetail(taskId: number) {
   }
 }
 
+async function openTaskTracking() {
+  if (!activeTaskDetail.value?.id) {
+    return;
+  }
+
+  await routerPushByKey('task_tracking_[id]' as Parameters<typeof routerPushByKey>[0], {
+    params: { id: String(activeTaskDetail.value.id) }
+  });
+}
+
 async function openSourceDetail() {
   if (!activeTaskDetail.value?.sourceRoute) {
     return;
@@ -457,7 +467,10 @@ function getTaskTypeLabel(taskType: string | null | undefined) {
             </NDescriptionsItem>
           </NDescriptions>
 
-          <div class="mt-16px flex justify-end">
+          <div class="mt-16px flex justify-end gap-12px">
+            <NButton :disabled="!activeTaskDetail?.id" @click="openTaskTracking">
+              {{ t('page.envops.taskCenter.actions.openTaskTracking') }}
+            </NButton>
             <NButton type="primary" :disabled="!activeTaskDetail?.sourceRoute" @click="openSourceDetail">
               {{ t('page.envops.taskCenter.actions.openSourceDetail') }}
             </NButton>
