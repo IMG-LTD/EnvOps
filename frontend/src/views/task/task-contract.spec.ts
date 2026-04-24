@@ -8,10 +8,15 @@ import { formatLocalDateTimeRange, normalizeTaskCenterRouteQuery, toTaskCenterAp
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const deployTaskPage = readFileSync(path.resolve(__dirname, '../deploy/task/index.vue'), 'utf8');
 const taskCenterPage = readFileSync(path.resolve(__dirname, 'center/index.vue'), 'utf8');
+const taskTrackingPage = readFileSync(path.resolve(__dirname, 'tracking/[id].vue'), 'utf8');
 const taskApiSource = readFileSync(path.resolve(__dirname, '../../service/api/task.ts'), 'utf8');
 const taskTypingSource = readFileSync(path.resolve(__dirname, '../../typings/api/task.d.ts'), 'utf8');
 const appTypingSource = readFileSync(path.resolve(__dirname, '../../typings/app.d.ts'), 'utf8');
 const apiIndexSource = readFileSync(path.resolve(__dirname, '../../service/api/index.ts'), 'utf8');
+const elegantRoutesSource = readFileSync(path.resolve(__dirname, '../../router/elegant/routes.ts'), 'utf8');
+const elegantImportsSource = readFileSync(path.resolve(__dirname, '../../router/elegant/imports.ts'), 'utf8');
+const elegantTransformSource = readFileSync(path.resolve(__dirname, '../../router/elegant/transform.ts'), 'utf8');
+const elegantRouterTypingSource = readFileSync(path.resolve(__dirname, '../../typings/elegant-router.d.ts'), 'utf8');
 const zhLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/zh-cn.ts'), 'utf8');
 const enLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/en-us.ts'), 'utf8');
 
@@ -1304,6 +1309,8 @@ describe('task pages contract wiring', () => {
     expect(taskApiSource).toMatch(/url:\s*['"]\/api\/task-center\/tasks['"]/);
     expect(taskApiSource).toMatch(/export function fetchGetTaskCenterTaskDetail\s*\(/);
     expect(taskApiSource).toMatch(/url:\s*`\/api\/task-center\/tasks\/\$\{id\}`/);
+    expect(taskApiSource).toContain('fetchGetTaskCenterTaskTracking');
+    expect(taskApiSource).toContain('url: `/api/task-center/tasks/${id}/tracking`');
     expect(apiIndexSource).toContain("export * from './task'");
   });
 
@@ -1355,6 +1362,10 @@ describe('task pages contract wiring', () => {
     expect(taskTypingSource).toContain('interface TaskCenterTaskDetail extends TaskCenterRecord');
     expect(taskTypingSource).toContain('detailPreview: Record<string, unknown>;');
     expect(taskTypingSource).toContain('errorSummary?: string | null;');
+    expect(taskTypingSource).toContain('interface TaskCenterTrackingDetail');
+    expect(taskTypingSource).toContain('interface TaskCenterTrackingBasicInfo');
+    expect(taskTypingSource).toContain('interface TaskCenterTimelineItem');
+    expect(taskTypingSource).toContain('interface TaskCenterSourceLink');
     expect(taskTypingSource).not.toContain('sourceType: string;');
     expect(taskTypingSource).not.toContain('priority?: string | null;');
   });
@@ -1472,6 +1483,27 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).not.toContain('const taskList = computed(() => [');
   });
 
+  it('adds a full task tracking page without mutation controls', () => {
+    expect(taskTrackingPage).toContain('fetchGetTaskCenterTaskTracking');
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.basicInfo.title')");
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.timeline.title')");
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.logSummary.title')");
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.sourceLinks.title')");
+    expect(taskTrackingPage).not.toContain('retry');
+    expect(taskTrackingPage).not.toContain('cancel');
+    expect(taskTrackingPage).not.toContain('fullLog');
+  });
+
+  it('generates the task tracking route artifacts', () => {
+    expect(elegantRoutesSource).toContain("name: 'task_tracking_[id]'");
+    expect(elegantRoutesSource).toContain("path: '/task/tracking/:id'");
+    expect(elegantRoutesSource).toContain("component: 'view.task_tracking_[id]'");
+    expect(elegantImportsSource).toContain('"task_tracking_[id]": () => import("@/views/task/tracking/[id].vue")');
+    expect(elegantTransformSource).toContain('"task_tracking_[id]": "/task/tracking/:id"');
+    expect(elegantRouterTypingSource).toContain('"task_tracking_[id]": "/task/tracking/:id";');
+    expect(elegantRouterTypingSource).toContain('| "task_tracking_[id]"');
+  });
+
   it('drives unified task center list from route query pagination and detail drawer loading', () => {
     expect(taskCenterPage).toContain('useRoute(');
     expect(taskCenterPage).toContain('useRouter(');
@@ -1504,6 +1536,9 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain('handlePageChange');
     expect(taskCenterPage).toContain('handlePageSizeChange');
     expect(taskCenterPage).toContain('handleOpenTaskDetail');
+    expect(taskCenterPage).toContain("t('page.envops.taskCenter.actions.openTaskTracking')");
+    expect(taskCenterPage).toContain("routerPushByKey('task_tracking_[id]'");
+    expect(taskCenterPage).toContain('params: { id: String(activeTaskDetail.value.id) }');
     expect(taskCenterPage).toContain('showTaskDetailDrawer');
     expect(taskCenterPage).toContain('showTaskDetailDrawer.value = true');
     expect(taskCenterPage).toContain('closeTaskDetailDrawer');
@@ -2285,12 +2320,18 @@ describe('task pages contract wiring', () => {
     const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
     const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
     const taskCenterTypingFiltersBlock = extractSection(taskCenterTypingBlock, 'filters', 'taskTypes');
+    const taskCenterTypingTrackingBlock = extractSection(taskCenterTypingBlock, 'tracking', 'drawer');
     const taskCenterZhFiltersBlock = extractSection(taskCenterZhBlock, 'filters', 'taskTypes');
     const taskCenterEnFiltersBlock = extractSection(taskCenterEnBlock, 'filters', 'taskTypes');
 
+    expect(appTypingSource).toContain(
+      "type GeneratedRouteMapKey = import('@elegant-router/types').GeneratedRouteMapKey;"
+    );
+    expect(appTypingSource).toContain("type I18nRouteKey = Exclude<GeneratedRouteMapKey, 'root' | 'not-found'>;");
     expect(taskCenterTypingBlock).toContain('actions: {');
     expect(taskCenterTypingBlock).toContain('openTaskDetail: string');
     expect(taskCenterTypingBlock).toContain('openSourceDetail: string');
+    expect(taskCenterTypingBlock).toContain('openTaskTracking: string;');
     expect(taskCenterTypingBlock).toContain('filters: {');
     expect(taskCenterTypingFiltersBlock).toContain('keyword: string');
     expect(taskCenterTypingFiltersBlock).toContain('status: string');
@@ -2322,6 +2363,13 @@ describe('task pages contract wiring', () => {
     expect(taskCenterTypingBlock).toContain('summary: string');
     expect(taskCenterTypingBlock).toContain('errorSummary: string');
     expect(taskCenterTypingBlock).toContain('detailPreview: string');
+    expect(taskCenterTypingBlock).toContain('tracking: {');
+    expect(taskCenterTypingTrackingBlock).toContain('description: string;');
+    expect(taskCenterTypingTrackingBlock).toContain('basicInfo: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('timeline: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('logSummary: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('sourceLinks: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('degraded: string;');
 
     expect(taskCenterZhBlock).toContain('openTaskDetail');
     expect(taskCenterZhBlock).toContain('openSourceDetail');
@@ -2348,6 +2396,50 @@ describe('task pages contract wiring', () => {
     expect(taskCenterEnBlock).toContain('triggeredBy');
     expect(taskCenterEnBlock).toContain('drawer');
     expect(taskCenterEnBlock).toContain('detailPreview');
+  });
+
+  it('declares task tracking locale messages for routes actions and page sections', () => {
+    const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
+    const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
+
+    expect(zhLocaleSource).toContain("'task_tracking_[id]': '任务追踪'");
+    expect(enLocaleSource).toContain("'task_tracking_[id]': 'Task Tracking'");
+    expect(taskCenterZhBlock).toContain("openTaskTracking: '查看完整追踪'");
+    expect(taskCenterEnBlock).toContain("openTaskTracking: 'View full tracking'");
+    expect(taskCenterZhBlock).toMatch(/tracking:\s*\{\s*hero:\s*\{/s);
+    expect(taskCenterEnBlock).toMatch(/tracking:\s*\{\s*hero:\s*\{/s);
+    expect(taskCenterZhBlock).toContain("description: '查看统一任务的基础信息、状态时间线、日志摘要和原模块入口。'");
+    expect(taskCenterEnBlock).toContain(
+      "description: 'View basic information, status timeline, log summary, and source module entries.'"
+    );
+
+    [
+      [
+        taskCenterZhBlock,
+        '任务完整追踪',
+        '基础信息',
+        '状态时间线',
+        '日志摘要',
+        '原模块入口',
+        '该任务按历史数据现状降级展示'
+      ],
+      [
+        taskCenterEnBlock,
+        'Task Tracking',
+        'Basic information',
+        'Status timeline',
+        'Log summary',
+        'Source module entries',
+        'This task is shown in degraded mode'
+      ]
+    ].forEach(([localeBlock, heroTitle, basicInfo, timeline, logSummary, sourceLinks, degraded]) => {
+      expect(localeBlock).toContain(`title: '${heroTitle}'`);
+      expect(localeBlock).toContain(`basicInfo: { title: '${basicInfo}' }`);
+      expect(localeBlock).toContain(`timeline: { title: '${timeline}' }`);
+      expect(localeBlock).toContain(`logSummary: { title: '${logSummary}' }`);
+      expect(localeBlock).toContain(`sourceLinks: { title: '${sourceLinks}' }`);
+      expect(localeBlock).toContain(`degraded: '${degraded}`);
+    });
   });
 
   it('adds deploy task detail tabs local filters and guarded auto refresh wiring', () => {

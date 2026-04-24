@@ -40,4 +40,9 @@ public class UnifiedTaskCenterController {
   public R<UnifiedTaskCenterApplicationService.UnifiedTaskDetail> getTaskDetail(@PathVariable Long id) {
     return R.ok(unifiedTaskCenterApplicationService.getTaskDetail(id));
   }
+
+  @GetMapping("/api/task-center/tasks/{id}/tracking")
+  public R<UnifiedTaskCenterApplicationService.UnifiedTaskTrackingDetail> getTaskTracking(@PathVariable Long id) {
+    return R.ok(unifiedTaskCenterApplicationService.getTaskTracking(id));
+  }
 }

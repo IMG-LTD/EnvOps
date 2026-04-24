@@ -18,7 +18,9 @@ public interface RouteMenuMapper {
              title,
              icon,
              route_order AS routeOrder,
-             home_flag AS homeFlag
+             home_flag AS homeFlag,
+             hide_in_menu AS hideInMenu,
+             active_menu AS activeMenu
       FROM sys_menu_route
       WHERE route_type = 'CONSTANT'
       ORDER BY route_order, id
@@ -34,7 +36,9 @@ public interface RouteMenuMapper {
              m.title,
              m.icon,
              m.route_order AS routeOrder,
-             m.home_flag AS homeFlag
+             m.home_flag AS homeFlag,
+             m.hide_in_menu AS hideInMenu,
+             m.active_menu AS activeMenu
       FROM sys_menu_route m
       WHERE m.route_type = 'USER'
         AND (
@@ -61,6 +65,8 @@ public interface RouteMenuMapper {
     private String icon;
     private Integer routeOrder;
     private Boolean homeFlag;
+    private Boolean hideInMenu;
+    private String activeMenu;
 
     public Long getId() {
       return id;
@@ -132,6 +138,22 @@ public interface RouteMenuMapper {
 
     public void setHomeFlag(Boolean homeFlag) {
       this.homeFlag = homeFlag;
+    }
+
+    public Boolean getHideInMenu() {
+      return hideInMenu;
+    }
+
+    public void setHideInMenu(Boolean hideInMenu) {
+      this.hideInMenu = hideInMenu;
+    }
+
+    public String getActiveMenu() {
+      return activeMenu;
+    }
+
+    public void setActiveMenu(String activeMenu) {
+      this.activeMenu = activeMenu;
     }
   }
 }

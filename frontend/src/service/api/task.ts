@@ -118,3 +118,10 @@ export function fetchGetTaskCenterTaskDetail(id: number) {
     url: `/api/task-center/tasks/${id}`
   });
 }
+
+/** get task center task tracking detail */
+export function fetchGetTaskCenterTaskTracking(id: number) {
+  return request<Api.Task.TaskCenterTrackingDetail>({
+    url: `/api/task-center/tasks/${id}/tracking`
+  });
+}

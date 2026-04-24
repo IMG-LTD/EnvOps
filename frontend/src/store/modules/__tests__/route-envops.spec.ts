@@ -165,7 +165,20 @@ const mocks = vi.hoisted(() => {
           name: 'task_center',
           path: '/task/center',
           component: 'view.task_center',
-          meta: { title: 'task_center', i18nKey: 'route.task_center', order: 1 }
+          meta: { title: 'task_center', i18nKey: 'route.task_center', order: 1, hideInMenu: false }
+        },
+        {
+          id: 'task_tracking_[id]',
+          name: 'task_tracking_[id]',
+          path: '/task/tracking/:id',
+          component: 'view.task_tracking_[id]',
+          meta: {
+            title: '任务追踪',
+            i18nKey: 'route.task_tracking_[id]',
+            order: 2,
+            hideInMenu: true,
+            activeMenu: 'task_center'
+          }
         }
       ]
     },
@@ -431,7 +444,9 @@ describe('route envops integration', () => {
         ...child,
         meta: {
           title: child.meta.title,
-          order: child.meta.order
+          order: child.meta.order,
+          hideInMenu: child.meta.hideInMenu,
+          activeMenu: child.meta.activeMenu
         }
       }))
     }));
@@ -458,6 +473,24 @@ describe('route envops integration', () => {
     expect(mocks.router.removeRoute).toHaveBeenCalledWith('root');
     expect(mocks.router.addRoute).toHaveBeenCalledTimes(8);
     expect(mocks.tabStore.initHomeTab).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the hidden task tracking route routable while task center stays visible in menus', async () => {
+    const { useRouteStore } = await import('@/store/modules/route');
+
+    const routeStore = useRouteStore();
+
+    await routeStore.initAuthRoute();
+
+    const [injectedRoutes] = mocks.getAuthVueRoutes.mock.calls[0] as [any[]];
+    const injectedTaskRoute = injectedRoutes.find(route => route.name === 'task');
+
+    expect(routeStore.menus.map(menu => String(menu.routeKey)).includes('task_tracking_[id]')).toBe(false);
+    expect(routeStore.menus.find(menu => menu.routeKey === 'task')?.children?.map(item => item.routeKey)).toEqual([
+      'task_center'
+    ]);
+    expect(injectedRoutes.some(route => route.name === 'task')).toBe(true);
+    expect(injectedTaskRoute?.children?.some((child: any) => child.name === 'task_tracking_[id]')).toBe(true);
   });
 
   it('uses the full known route set to distinguish 403 from 404', async () => {

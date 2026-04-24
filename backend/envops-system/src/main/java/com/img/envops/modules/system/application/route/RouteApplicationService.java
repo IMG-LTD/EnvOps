@@ -72,7 +72,9 @@ public class RouteApplicationService {
                 row.getTitle(),
                 buildI18nKey(row.getRouteName()),
                 row.getIcon(),
-                row.getRouteOrder() == null ? 0 : row.getRouteOrder()),
+                row.getRouteOrder() == null ? 0 : row.getRouteOrder(),
+                Boolean.TRUE.equals(row.getHideInMenu()),
+                row.getActiveMenu()),
             null));
   }
 
@@ -99,6 +101,6 @@ public class RouteApplicationService {
                           List<MenuRoute> children) {
   }
 
-  public record Meta(String title, String i18nKey, String icon, Integer order) {
+  public record Meta(String title, String i18nKey, String icon, Integer order, Boolean hideInMenu, String activeMenu) {
   }
 }

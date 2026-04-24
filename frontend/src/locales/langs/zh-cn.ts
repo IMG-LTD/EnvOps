@@ -244,6 +244,7 @@ const local: App.I18n.Schema = {
     deploy_task: '发布任务',
     task: '任务编排',
     task_center: '任务中心',
+    'task_tracking_[id]': '任务追踪',
     traffic: '流量治理',
     traffic_controller: '流量控制',
     system: '系统管理',
@@ -1128,7 +1129,19 @@ const local: App.I18n.Schema = {
         },
         actions: {
           openTaskDetail: '查看任务详情',
-          openSourceDetail: '查看原始详情'
+          openSourceDetail: '查看原始详情',
+          openTaskTracking: '查看完整追踪'
+        },
+        tracking: {
+          hero: {
+            title: '任务完整追踪',
+            description: '查看统一任务的基础信息、状态时间线、日志摘要和原模块入口。'
+          },
+          basicInfo: { title: '基础信息' },
+          timeline: { title: '状态时间线' },
+          logSummary: { title: '日志摘要' },
+          sourceLinks: { title: '原模块入口' },
+          degraded: '该任务按历史数据现状降级展示，部分追踪信息可能不可用。'
         },
         drawer: {
           title: '任务详情',

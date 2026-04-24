@@ -248,6 +248,7 @@ const local: App.I18n.Schema = {
     deploy_task: 'Deployment Tasks',
     task: 'Task Orchestration',
     task_center: 'Task Center',
+    'task_tracking_[id]': 'Task Tracking',
     traffic: 'Traffic Governance',
     traffic_controller: 'Traffic Controller',
     system: 'System',
@@ -1139,7 +1140,19 @@ const local: App.I18n.Schema = {
         },
         actions: {
           openTaskDetail: 'View Task Detail',
-          openSourceDetail: 'View Source Detail'
+          openSourceDetail: 'View Source Detail',
+          openTaskTracking: 'View full tracking'
+        },
+        tracking: {
+          hero: {
+            title: 'Task Tracking',
+            description: 'View basic information, status timeline, log summary, and source module entries.'
+          },
+          basicInfo: { title: 'Basic information' },
+          timeline: { title: 'Status timeline' },
+          logSummary: { title: 'Log summary' },
+          sourceLinks: { title: 'Source module entries' },
+          degraded: 'This task is shown in degraded mode based on available historical data.'
         },
         drawer: {
           title: 'Task Detail',

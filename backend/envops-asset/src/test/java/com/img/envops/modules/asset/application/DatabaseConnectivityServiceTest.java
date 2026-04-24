@@ -9,6 +9,7 @@ import com.img.envops.modules.task.application.UnifiedTaskDetailPreviewFactory;
 import com.img.envops.modules.task.application.UnifiedTaskRecorder;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,8 +17,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -54,6 +57,15 @@ class DatabaseConnectivityServiceTest {
     ArgumentCaptor<UnifiedTaskRecorder.UpdateCommand> updateCaptor = ArgumentCaptor.forClass(UnifiedTaskRecorder.UpdateCommand.class);
     verify(unifiedTaskRecorder, times(1)).start(startCaptor.capture());
     verify(unifiedTaskRecorder, times(1)).update(updateCaptor.capture());
+    verify(unifiedTaskRecorder, times(1)).updateTrackingSnapshot(argThat(command ->
+        command.id().equals(9001L)
+            && command.trackingTimeline().contains("检测开始")
+            && command.trackingTimeline().contains("检测完成")
+            && command.trackingLogSummary().contains("成功")
+            && command.logRoute().equals("/asset/database")));
+    InOrder inOrder = inOrder(unifiedTaskRecorder);
+    inOrder.verify(unifiedTaskRecorder).update(any(UnifiedTaskRecorder.UpdateCommand.class));
+    inOrder.verify(unifiedTaskRecorder).updateTrackingSnapshot(any(UnifiedTaskRecorder.TrackingSnapshotCommand.class));
 
     UnifiedTaskRecorder.CreateCommand started = startCaptor.getValue();
     assertThat(started.taskType()).isEqualTo("database_connectivity");
@@ -364,6 +376,41 @@ class DatabaseConnectivityServiceTest {
     verify(unifiedTaskRecorder, times(1)).start(any(UnifiedTaskRecorder.CreateCommand.class));
     verify(unifiedTaskRecorder, times(1)).update(any(UnifiedTaskRecorder.UpdateCommand.class));
     verify(mapper).updateConnectivitySnapshot(eq(51L), eq("online"), any(LocalDateTime.class));
+  }
+
+  @Test
+  void checkOneDatabaseStillReturnsSuccessWhenTrackingSnapshotUpdateThrows() {
+    AssetDatabaseMapper mapper = mock(AssetDatabaseMapper.class);
+    DatabaseConnectionSecretProtector secretProtector = mock(DatabaseConnectionSecretProtector.class);
+    UnifiedTaskRecorder unifiedTaskRecorder = mock(UnifiedTaskRecorder.class);
+    DatabaseConnectionFactory factory = new DatabaseConnectionFactory(List.of(new StubChecker("mysql", true, "connected")));
+    DatabaseConnectivityService service = new DatabaseConnectivityService(
+        mapper,
+        factory,
+        secretProtector,
+        unifiedTaskRecorder,
+        new UnifiedTaskDetailPreviewFactory());
+
+    AssetDatabaseMapper.DatabaseRow mysql = databaseRow(61L, "tracking_failure_prod", "mysql", "10.20.1.61", 3306, "tracking_app", "sealed:tracking");
+
+    when(mapper.findDatabasesByIds(List.of(61L))).thenReturn(List.of(mysql));
+    when(secretProtector.reveal("sealed:tracking")).thenReturn("Tracking@123456");
+    when(unifiedTaskRecorder.start(any(UnifiedTaskRecorder.CreateCommand.class))).thenReturn(9007L);
+    doThrow(new RuntimeException("tracking snapshot failed"))
+        .when(unifiedTaskRecorder)
+        .updateTrackingSnapshot(any(UnifiedTaskRecorder.TrackingSnapshotCommand.class));
+
+    DatabaseConnectivityService.DatabaseConnectivityReport report = service.checkOneDatabase(61L);
+
+    assertThat(report.summary().total()).isEqualTo(1);
+    assertThat(report.summary().success()).isEqualTo(1);
+    assertThat(report.summary().failed()).isEqualTo(0);
+    assertThat(report.summary().skipped()).isEqualTo(0);
+
+    verify(unifiedTaskRecorder, times(1)).start(any(UnifiedTaskRecorder.CreateCommand.class));
+    verify(unifiedTaskRecorder, times(1)).update(any(UnifiedTaskRecorder.UpdateCommand.class));
+    verify(unifiedTaskRecorder, times(1)).updateTrackingSnapshot(any(UnifiedTaskRecorder.TrackingSnapshotCommand.class));
+    verify(mapper).updateConnectivitySnapshot(eq(61L), eq("online"), any(LocalDateTime.class));
   }
 
   private static AssetDatabaseMapper.DatabaseRow databaseRow(Long id,
