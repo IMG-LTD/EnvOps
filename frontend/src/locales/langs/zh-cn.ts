@@ -1,4 +1,4 @@
-const local = {
+const local: App.I18n.Schema = {
   system: {
     title: 'EnvOps',
     updateTitle: '系统版本更新通知',

@@ -294,7 +294,7 @@ declare namespace App {
    * Locales type
    */
   namespace I18n {
-    type RouteKey = import('@elegant-router/types').RouteKey;
+    type GeneratedRouteMapKey = import('@elegant-router/types').GeneratedRouteMapKey;
 
     type LangType = 'en-US' | 'zh-CN';
 
@@ -303,7 +303,7 @@ declare namespace App {
       key: LangType;
     };
 
-    type I18nRouteKey = Exclude<RouteKey, 'root' | 'not-found'>;
+    type I18nRouteKey = Exclude<GeneratedRouteMapKey, 'root' | 'not-found'>;
 
     type FormMsg = {
       required: string;
@@ -1358,6 +1358,18 @@ declare namespace App {
             actions: {
               openTaskDetail: string;
               openSourceDetail: string;
+              openTaskTracking: string;
+            };
+            tracking: {
+              hero: {
+                title: string;
+                description: string;
+              };
+              basicInfo: { title: string };
+              timeline: { title: string };
+              logSummary: { title: string };
+              sourceLinks: { title: string };
+              degraded: string;
             };
             drawer: {
               title: string;

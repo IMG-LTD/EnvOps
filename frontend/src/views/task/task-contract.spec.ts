@@ -2320,12 +2320,18 @@ describe('task pages contract wiring', () => {
     const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
     const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
     const taskCenterTypingFiltersBlock = extractSection(taskCenterTypingBlock, 'filters', 'taskTypes');
+    const taskCenterTypingTrackingBlock = extractSection(taskCenterTypingBlock, 'tracking', 'drawer');
     const taskCenterZhFiltersBlock = extractSection(taskCenterZhBlock, 'filters', 'taskTypes');
     const taskCenterEnFiltersBlock = extractSection(taskCenterEnBlock, 'filters', 'taskTypes');
 
+    expect(appTypingSource).toContain(
+      "type GeneratedRouteMapKey = import('@elegant-router/types').GeneratedRouteMapKey;"
+    );
+    expect(appTypingSource).toContain("type I18nRouteKey = Exclude<GeneratedRouteMapKey, 'root' | 'not-found'>;");
     expect(taskCenterTypingBlock).toContain('actions: {');
     expect(taskCenterTypingBlock).toContain('openTaskDetail: string');
     expect(taskCenterTypingBlock).toContain('openSourceDetail: string');
+    expect(taskCenterTypingBlock).toContain('openTaskTracking: string;');
     expect(taskCenterTypingBlock).toContain('filters: {');
     expect(taskCenterTypingFiltersBlock).toContain('keyword: string');
     expect(taskCenterTypingFiltersBlock).toContain('status: string');
@@ -2357,6 +2363,13 @@ describe('task pages contract wiring', () => {
     expect(taskCenterTypingBlock).toContain('summary: string');
     expect(taskCenterTypingBlock).toContain('errorSummary: string');
     expect(taskCenterTypingBlock).toContain('detailPreview: string');
+    expect(taskCenterTypingBlock).toContain('tracking: {');
+    expect(taskCenterTypingTrackingBlock).toContain('description: string;');
+    expect(taskCenterTypingTrackingBlock).toContain('basicInfo: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('timeline: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('logSummary: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('sourceLinks: { title: string };');
+    expect(taskCenterTypingTrackingBlock).toContain('degraded: string;');
 
     expect(taskCenterZhBlock).toContain('openTaskDetail');
     expect(taskCenterZhBlock).toContain('openSourceDetail');
