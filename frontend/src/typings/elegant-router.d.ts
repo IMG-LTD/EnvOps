@@ -145,32 +145,7 @@ declare module "@elegant-router/types" {
   /**
    * the last level route key, which has the page file and participates in app tabs and route home
    */
-  export type LastLevelRouteKey = Extract<
-    RouteKey,
-    | "403"
-    | "404"
-    | "500"
-    | "iframe-page"
-    | "login"
-    | "app_config-template"
-    | "app_definition"
-    | "app_package"
-    | "app_script-template"
-    | "app_version"
-    | "asset_credential"
-    | "asset_database"
-    | "asset_group"
-    | "asset_host"
-    | "asset_tag"
-    | "deploy_task"
-    | "home"
-    | "monitor_detect-task"
-    | "monitor_metric"
-    | "system_user"
-    | "task_center"
-    | "task_tracking_[id]"
-    | "traffic_controller"
-  >;
+  export type LastLevelRouteKey = Exclude<GeneratedLastLevelRouteKey, HiddenRouteKey>;
 
   /**
    * the custom last level route key
