@@ -2395,6 +2395,10 @@ describe('task pages contract wiring', () => {
     expect(taskCenterEnBlock).toContain("openTaskTracking: 'View full tracking'");
     expect(taskCenterZhBlock).toMatch(/tracking:\s*\{\s*hero:\s*\{/s);
     expect(taskCenterEnBlock).toMatch(/tracking:\s*\{\s*hero:\s*\{/s);
+    expect(taskCenterZhBlock).toContain("description: '查看统一任务的基础信息、状态时间线、日志摘要和原模块入口。'");
+    expect(taskCenterEnBlock).toContain(
+      "description: 'View basic information, status timeline, log summary, and source module entries.'"
+    );
 
     [
       [
