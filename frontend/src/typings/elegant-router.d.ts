@@ -44,14 +44,25 @@ declare module "@elegant-router/types" {
     "system_user": "/system/user";
     "task": "/task";
     "task_center": "/task/center";
+    "task_tracking_[id]": "/task/tracking/:id";
     "traffic": "/traffic";
     "traffic_controller": "/traffic/controller";
   };
 
   /**
+   * internal route key including generated hidden route entries
+   */
+  export type GeneratedRouteMapKey = keyof RouteMap;
+
+  /**
+   * hidden route keys that do not need top-level route locale records
+   */
+  type HiddenRouteKey = "task_tracking_[id]";
+
+  /**
    * route key
    */
-  export type RouteKey = keyof RouteMap;
+  export type RouteKey = Exclude<GeneratedRouteMapKey, HiddenRouteKey>;
 
   /**
    * route path
@@ -70,7 +81,7 @@ declare module "@elegant-router/types" {
   /**
    * the generated route key
    */
-  export type GeneratedRouteKey = Exclude<RouteKey, CustomRouteKey>;
+  export type GeneratedRouteKey = Exclude<GeneratedRouteMapKey, CustomRouteKey>;
 
   /**
    * the first level route key, which contain the layout of the route
@@ -102,7 +113,37 @@ declare module "@elegant-router/types" {
   >;
 
   /**
-   * the last level route key, which has the page file
+   * generated last level route key including hidden route entries
+   */
+  export type GeneratedLastLevelRouteKey = Extract<
+    GeneratedRouteMapKey,
+    | "403"
+    | "404"
+    | "500"
+    | "iframe-page"
+    | "login"
+    | "app_config-template"
+    | "app_definition"
+    | "app_package"
+    | "app_script-template"
+    | "app_version"
+    | "asset_credential"
+    | "asset_database"
+    | "asset_group"
+    | "asset_host"
+    | "asset_tag"
+    | "deploy_task"
+    | "home"
+    | "monitor_detect-task"
+    | "monitor_metric"
+    | "system_user"
+    | "task_center"
+    | "task_tracking_[id]"
+    | "traffic_controller"
+  >;
+
+  /**
+   * the last level route key, which has the page file and participates in app tabs and route home
    */
   export type LastLevelRouteKey = Extract<
     RouteKey,
@@ -127,6 +168,7 @@ declare module "@elegant-router/types" {
     | "monitor_metric"
     | "system_user"
     | "task_center"
+    | "task_tracking_[id]"
     | "traffic_controller"
   >;
 
@@ -162,7 +204,7 @@ declare module "@elegant-router/types" {
   /**
    * the center level route key
    */
-  export type CenterLevelRouteKey = Exclude<GeneratedRouteKey, FirstLevelRouteKey | LastLevelRouteKey>;
+  export type CenterLevelRouteKey = Exclude<GeneratedRouteKey, FirstLevelRouteKey | GeneratedLastLevelRouteKey>;
 
   /**
    * the custom center level route key
@@ -172,10 +214,14 @@ declare module "@elegant-router/types" {
   /**
    * the center level route key
    */
-  type GetChildRouteKey<K extends RouteKey, T extends RouteKey = RouteKey> = T extends `${K}_${infer R}`
-    ? R extends `${string}_${string}`
-      ? never
-      : T
+  type GetChildRouteKey<K extends GeneratedRouteMapKey, T extends GeneratedRouteMapKey = GeneratedRouteMapKey> = T extends `${K}_${infer R}`
+    ? R extends `[${string}]`
+      ? T
+      : R extends `tracking_[${string}]`
+        ? T
+        : R extends `${string}_${string}`
+          ? never
+          : T
     : never;
 
   /**
@@ -192,7 +238,7 @@ declare module "@elegant-router/types" {
   /**
    * the last level route
    */
-  type LastLevelRoute<K extends GeneratedRouteKey> = K extends LastLevelRouteKey
+  type LastLevelRoute<K extends GeneratedRouteKey> = K extends GeneratedLastLevelRouteKey
     ? Omit<ElegantConstRoute, 'children'> & {
         name: K;
         path: RouteMap[K];

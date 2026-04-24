@@ -8,10 +8,15 @@ import { formatLocalDateTimeRange, normalizeTaskCenterRouteQuery, toTaskCenterAp
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const deployTaskPage = readFileSync(path.resolve(__dirname, '../deploy/task/index.vue'), 'utf8');
 const taskCenterPage = readFileSync(path.resolve(__dirname, 'center/index.vue'), 'utf8');
+const taskTrackingPage = readFileSync(path.resolve(__dirname, 'tracking/[id].vue'), 'utf8');
 const taskApiSource = readFileSync(path.resolve(__dirname, '../../service/api/task.ts'), 'utf8');
 const taskTypingSource = readFileSync(path.resolve(__dirname, '../../typings/api/task.d.ts'), 'utf8');
 const appTypingSource = readFileSync(path.resolve(__dirname, '../../typings/app.d.ts'), 'utf8');
 const apiIndexSource = readFileSync(path.resolve(__dirname, '../../service/api/index.ts'), 'utf8');
+const elegantRoutesSource = readFileSync(path.resolve(__dirname, '../../router/elegant/routes.ts'), 'utf8');
+const elegantImportsSource = readFileSync(path.resolve(__dirname, '../../router/elegant/imports.ts'), 'utf8');
+const elegantTransformSource = readFileSync(path.resolve(__dirname, '../../router/elegant/transform.ts'), 'utf8');
+const elegantRouterTypingSource = readFileSync(path.resolve(__dirname, '../../typings/elegant-router.d.ts'), 'utf8');
 const zhLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/zh-cn.ts'), 'utf8');
 const enLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/en-us.ts'), 'utf8');
 
@@ -1476,6 +1481,27 @@ describe('task pages contract wiring', () => {
     expect(taskCenterPage).toContain('NDrawer');
     expect(taskCenterPage).toContain('NEmpty');
     expect(taskCenterPage).not.toContain('const taskList = computed(() => [');
+  });
+
+  it('adds a full task tracking page without mutation controls', () => {
+    expect(taskTrackingPage).toContain('fetchGetTaskCenterTaskTracking');
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.basicInfo.title')");
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.timeline.title')");
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.logSummary.title')");
+    expect(taskTrackingPage).toContain("t('page.envops.taskCenter.tracking.sourceLinks.title')");
+    expect(taskTrackingPage).not.toContain('retry');
+    expect(taskTrackingPage).not.toContain('cancel');
+    expect(taskTrackingPage).not.toContain('fullLog');
+  });
+
+  it('generates the task tracking route artifacts', () => {
+    expect(elegantRoutesSource).toContain("name: 'task_tracking_[id]'");
+    expect(elegantRoutesSource).toContain("path: '/task/tracking/:id'");
+    expect(elegantRoutesSource).toContain("component: 'view.task_tracking_[id]'");
+    expect(elegantImportsSource).toContain('"task_tracking_[id]": () => import("@/views/task/tracking/[id].vue")');
+    expect(elegantTransformSource).toContain('"task_tracking_[id]": "/task/tracking/:id"');
+    expect(elegantRouterTypingSource).toContain('"task_tracking_[id]": "/task/tracking/:id";');
+    expect(elegantRouterTypingSource).toContain('| "task_tracking_[id]"');
   });
 
   it('drives unified task center list from route query pagination and detail drawer loading', () => {

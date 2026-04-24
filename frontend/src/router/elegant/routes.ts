@@ -285,6 +285,14 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'task_center',
           i18nKey: 'route.task_center'
         }
+      },
+      {
+        name: 'task_tracking_[id]',
+        path: '/task/tracking/:id',
+        component: 'view.task_tracking_[id]',
+        meta: {
+          title: 'task_tracking_[id]'
+        }
       }
     ]
   },

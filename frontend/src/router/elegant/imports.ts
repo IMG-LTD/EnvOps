@@ -4,7 +4,7 @@
 // Read more: https://github.com/soybeanjs/elegant-router
 
 import type { RouteComponent } from "vue-router";
-import type { LastLevelRouteKey, RouteLayout } from "@elegant-router/types";
+import type { GeneratedLastLevelRouteKey, RouteLayout } from "@elegant-router/types";
 
 import BaseLayout from "@/layouts/base-layout/index.vue";
 import BlankLayout from "@/layouts/blank-layout/index.vue";
@@ -14,7 +14,7 @@ export const layouts: Record<RouteLayout, RouteComponent | (() => Promise<RouteC
   blank: BlankLayout,
 };
 
-export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<RouteComponent>)> = {
+export const views: Record<GeneratedLastLevelRouteKey, RouteComponent | (() => Promise<RouteComponent>)> = {
   403: () => import("@/views/_builtin/403/index.vue"),
   404: () => import("@/views/_builtin/404/index.vue"),
   500: () => import("@/views/_builtin/500/index.vue"),
@@ -36,5 +36,6 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   monitor_metric: () => import("@/views/monitor/metric/index.vue"),
   system_user: () => import("@/views/system/user/index.vue"),
   task_center: () => import("@/views/task/center/index.vue"),
+  "task_tracking_[id]": () => import("@/views/task/tracking/[id].vue"),
   traffic_controller: () => import("@/views/traffic/controller/index.vue"),
 };

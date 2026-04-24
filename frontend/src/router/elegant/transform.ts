@@ -190,6 +190,7 @@ const routeMap: RouteMap = {
   "system_user": "/system/user",
   "task": "/task",
   "task_center": "/task/center",
+  "task_tracking_[id]": "/task/tracking/:id",
   "traffic": "/traffic",
   "traffic_controller": "/traffic/controller"
 };
