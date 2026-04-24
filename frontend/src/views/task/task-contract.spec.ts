@@ -2385,6 +2385,46 @@ describe('task pages contract wiring', () => {
     expect(taskCenterEnBlock).toContain('detailPreview');
   });
 
+  it('declares task tracking locale messages for routes actions and page sections', () => {
+    const taskCenterZhBlock = extractSection(zhLocaleSource, 'taskCenter', 'trafficController');
+    const taskCenterEnBlock = extractSection(enLocaleSource, 'taskCenter', 'trafficController');
+
+    expect(zhLocaleSource).toContain("'task_tracking_[id]': '任务追踪'");
+    expect(enLocaleSource).toContain("'task_tracking_[id]': 'Task Tracking'");
+    expect(taskCenterZhBlock).toContain("openTaskTracking: '查看完整追踪'");
+    expect(taskCenterEnBlock).toContain("openTaskTracking: 'View full tracking'");
+    expect(taskCenterZhBlock).toMatch(/tracking:\s*\{\s*hero:\s*\{/s);
+    expect(taskCenterEnBlock).toMatch(/tracking:\s*\{\s*hero:\s*\{/s);
+
+    [
+      [
+        taskCenterZhBlock,
+        '任务完整追踪',
+        '基础信息',
+        '状态时间线',
+        '日志摘要',
+        '原模块入口',
+        '该任务按历史数据现状降级展示'
+      ],
+      [
+        taskCenterEnBlock,
+        'Task Tracking',
+        'Basic information',
+        'Status timeline',
+        'Log summary',
+        'Source module entries',
+        'This task is shown in degraded mode'
+      ]
+    ].forEach(([localeBlock, heroTitle, basicInfo, timeline, logSummary, sourceLinks, degraded]) => {
+      expect(localeBlock).toContain(`title: '${heroTitle}'`);
+      expect(localeBlock).toContain(`basicInfo: { title: '${basicInfo}' }`);
+      expect(localeBlock).toContain(`timeline: { title: '${timeline}' }`);
+      expect(localeBlock).toContain(`logSummary: { title: '${logSummary}' }`);
+      expect(localeBlock).toContain(`sourceLinks: { title: '${sourceLinks}' }`);
+      expect(localeBlock).toContain(`degraded: '${degraded}`);
+    });
+  });
+
   it('adds deploy task detail tabs local filters and guarded auto refresh wiring', () => {
     expect(deployTaskPage).toContain('activeDetailTab');
     expect(deployTaskPage).toContain('fetchGetDeployTask(');
