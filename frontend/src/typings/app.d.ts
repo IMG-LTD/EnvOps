@@ -369,6 +369,9 @@ declare namespace App {
         logoutWithModalMsg: string;
         tokenExpired: string;
       };
+      permission: {
+        missingAction: string;
+      };
       theme: {
         themeDrawerTitle: string;
         tabs: {
@@ -1463,6 +1466,14 @@ declare namespace App {
               refresh: string;
               save: string;
             };
+            roleAssignment: {
+              title: string;
+              roles: string;
+              placeholder: string;
+              save: string;
+              saveSuccess: string;
+              loadFailed: string;
+            };
             form: {
               titleCreate: string;
               titleEdit: string;
@@ -1496,6 +1507,48 @@ declare namespace App {
               lastLogin: string;
               status: string;
               operation: string;
+            };
+          };
+          systemRbac: {
+            hero: {
+              title: string;
+              description: string;
+            };
+            actions: {
+              createRole: string;
+              refresh: string;
+              saveRole: string;
+              savePermissions: string;
+            };
+            roleList: {
+              title: string;
+              searchPlaceholder: string;
+              builtIn: string;
+              enabled: string;
+              disabled: string;
+              empty: string;
+            };
+            detail: {
+              title: string;
+              roleKey: string;
+              roleName: string;
+              description: string;
+              enabled: string;
+              builtInHint: string;
+            };
+            permissions: {
+              title: string;
+              menu: string;
+              action: string;
+              empty: string;
+              menuRequired: string;
+            };
+            messages: {
+              loadFailed: string;
+              createSuccess: string;
+              updateSuccess: string;
+              permissionSaveSuccess: string;
+              missingRoleManagePermission: string;
             };
           };
         };

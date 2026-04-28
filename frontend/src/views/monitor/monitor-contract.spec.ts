@@ -52,43 +52,57 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router');
   const route = reactive(mocks.route);
   mocks.route = route;
 
   return {
+    ...actual,
     useRoute: () => route
   };
 });
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string, params?: Record<string, unknown>) => {
-      if (key === 'page.envops.monitorMetric.tags.host') {
-        return `Host #${params?.id ?? '-'}`;
-      }
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n');
 
-      if (key === 'page.envops.assetHost.table.viewMetrics') {
-        return 'View Metrics';
-      }
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'page.envops.monitorMetric.tags.host') {
+          return `Host #${params?.id ?? '-'}`;
+        }
 
-      if (key === 'page.envops.assetHost.form.actions.create') {
-        return 'Onboard Host';
-      }
+        if (key === 'page.envops.assetHost.table.viewMetrics') {
+          return 'View Metrics';
+        }
 
-      if (key === 'page.envops.monitorDetectTask.actions.execute') {
-        return 'Run Now';
-      }
+        if (key === 'page.envops.assetHost.form.actions.create') {
+          return 'Onboard Host';
+        }
 
-      if (key === 'page.envops.monitorDetectTask.actions.create') {
-        return 'Create Task';
-      }
+        if (key === 'page.envops.monitorDetectTask.actions.execute') {
+          return 'Run Now';
+        }
 
-      if (key === 'common.noData') {
-        return 'No Data';
-      }
+        if (key === 'page.envops.monitorDetectTask.actions.create') {
+          return 'Create Task';
+        }
 
-      return key;
-    }
+        if (key === 'common.noData') {
+          return 'No Data';
+        }
+
+        return key;
+      }
+    })
+  };
+});
+
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: () => true,
+    hasEveryAuth: () => true
   })
 }));
 

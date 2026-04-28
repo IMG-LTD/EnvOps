@@ -76,11 +76,13 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router');
   const { reactive } = await import('vue');
   const route = reactive(mocks.route);
   mocks.route = route;
 
   return {
+    ...actual,
     useRoute: () => route,
     useRouter: () => ({
       push: mocks.routerPush
@@ -251,9 +253,21 @@ vi.mock('naive-ui', () => ({
   NTabPane: passthroughStub
 }));
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n');
+
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) => key
+    })
+  };
+});
+
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: () => true,
+    hasEveryAuth: () => true
   })
 }));
 
@@ -1906,14 +1920,23 @@ describe('task pages contract wiring', () => {
     expect(deployTaskPage).toContain(
       'actionLoadingTaskIds.value = actionLoadingTaskIds.value.filter(id => id !== taskId)'
     );
-    expect(deployTaskPage).toContain('if (isTaskMutating(taskId)) {');
+    expect(deployTaskPage).toContain('if (!canExecuteDeployTask.value || isTaskMutating(taskId)) {');
+    expect(deployTaskPage).toContain('if (!canRetryDeployTask.value || isTaskMutating(taskId)) {');
+    expect(deployTaskPage).toContain('if (!canRollbackDeployTask.value || isTaskMutating(taskId)) {');
+    expect(deployTaskPage).toContain('if (!canCancelDeployTask.value || isTaskMutating(taskId)) {');
     expect(deployTaskPage).toContain("return taskType !== 'ROLLBACK'");
-    expect(deployTaskPage).toContain(':disabled="isTaskMutating(item.key) || !canExecuteTask(item.statusKey)"');
-    expect(deployTaskPage).toContain(':disabled="isTaskMutating(item.key) || !canRetryTask(item.statusKey)"');
     expect(deployTaskPage).toContain(
-      ':disabled="isTaskMutating(item.key) || !canRollbackTask(item.statusKey, item.taskType)"'
+      ':disabled="!canExecuteDeployTask || isTaskMutating(item.key) || !canExecuteTask(item.statusKey)"'
     );
-    expect(deployTaskPage).toContain(':disabled="isTaskMutating(item.key) || !canCancelTask(item.rawStatus)"');
+    expect(deployTaskPage).toContain(
+      ':disabled="!canRetryDeployTask || isTaskMutating(item.key) || !canRetryTask(item.statusKey)"'
+    );
+    expect(deployTaskPage).toMatch(
+      /:disabled="\s*!canRollbackDeployTask \|\|\s*isTaskMutating\(item\.key\) \|\|\s*!canRollbackTask\(item\.statusKey, item\.taskType\)\s*"/
+    );
+    expect(deployTaskPage).toContain(
+      ':disabled="!canCancelDeployTask || isTaskMutating(item.key) || !canCancelTask(item.rawStatus)"'
+    );
   });
 
   it('clears stale task detail state before loading a different task', () => {

@@ -22,7 +22,8 @@ const mocks = vi.hoisted(() => {
     'deploy_task',
     'task_center',
     'traffic_controller',
-    'system_user'
+    'system_user',
+    'system_rbac'
   ];
 
   const dynamicRoutes = [
@@ -211,6 +212,13 @@ const mocks = vi.hoisted(() => {
           path: '/system/user',
           component: 'view.system_user',
           meta: { title: 'system_user', i18nKey: 'route.system_user', order: 1 }
+        },
+        {
+          id: 'system_rbac',
+          name: 'system_rbac',
+          path: '/system/rbac',
+          component: 'view.system_rbac',
+          meta: { title: 'system_rbac', i18nKey: 'route.system_rbac', order: 2 }
         }
       ]
     }
@@ -469,6 +477,10 @@ describe('route envops integration', () => {
     expect(routeStore.isInitAuthRoute).toBe(true);
     expect(routeStore.routeHome).toBe('task_center');
     expect(routeStore.menus.map(item => item.routeKey)).toEqual(mocks.menuRouteKeys);
+    expect(routeStore.menus.find(menu => menu.routeKey === 'system')?.children?.map(item => item.routeKey)).toEqual([
+      'system_user',
+      'system_rbac'
+    ]);
     expect(routeStore.searchMenus.map(item => item.routeKey)).toEqual(mocks.searchMenuRouteKeys);
     expect(mocks.router.removeRoute).toHaveBeenCalledWith('root');
     expect(mocks.router.addRoute).toHaveBeenCalledTimes(8);

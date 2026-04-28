@@ -57,6 +57,9 @@ const local: App.I18n.Schema = {
     logoutWithModalMsg: '用户状态失效，请重新登录',
     tokenExpired: 'token已过期'
   },
+  permission: {
+    missingAction: '缺少权限：{permission}'
+  },
   theme: {
     themeDrawerTitle: '主题配置',
     tabs: {
@@ -248,7 +251,8 @@ const local: App.I18n.Schema = {
     traffic: '流量治理',
     traffic_controller: '流量控制',
     system: '系统管理',
-    system_user: '用户管理'
+    system_user: '用户管理',
+    system_rbac: '权限管理'
   },
   page: {
     login: {
@@ -1236,6 +1240,14 @@ const local: App.I18n.Schema = {
           refresh: '刷新',
           save: '保存'
         },
+        roleAssignment: {
+          title: '分配角色',
+          roles: '角色',
+          placeholder: '请选择要分配的角色',
+          save: '保存角色',
+          saveSuccess: '用户角色已更新',
+          loadFailed: '加载用户角色失败，请稍后重试'
+        },
         form: {
           titleCreate: '新增用户',
           titleEdit: '编辑用户',
@@ -1269,6 +1281,48 @@ const local: App.I18n.Schema = {
           lastLogin: '最近登录',
           status: '状态',
           operation: '操作'
+        }
+      },
+      systemRbac: {
+        hero: {
+          title: '权限管理',
+          description: '维护 EnvOps RBAC 的角色和固定菜单/操作权限。'
+        },
+        actions: {
+          createRole: '创建角色',
+          refresh: '刷新',
+          saveRole: '保存角色',
+          savePermissions: '保存权限'
+        },
+        roleList: {
+          title: '角色列表',
+          searchPlaceholder: '搜索角色名称或标识',
+          builtIn: '内置',
+          enabled: '启用',
+          disabled: '禁用',
+          empty: '暂无角色'
+        },
+        detail: {
+          title: '角色详情',
+          roleKey: '角色标识',
+          roleName: '角色名称',
+          description: '描述',
+          enabled: '启用',
+          builtInHint: '当前版本不支持删除内置角色。'
+        },
+        permissions: {
+          title: '权限树',
+          menu: '菜单',
+          action: '操作',
+          empty: '暂无权限',
+          menuRequired: '请先选择菜单权限，再分配其操作权限。'
+        },
+        messages: {
+          loadFailed: '加载权限数据失败',
+          createSuccess: '角色已创建',
+          updateSuccess: '角色已更新',
+          permissionSaveSuccess: '角色权限已保存',
+          missingRoleManagePermission: '缺少权限：system:role:manage'
         }
       }
     }

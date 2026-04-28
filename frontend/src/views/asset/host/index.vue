@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAuth } from '@/hooks/business/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { fetchCreateAssetHost, fetchGetAssetHosts } from '@/service/api';
 
@@ -9,7 +10,10 @@ defineOptions({
 });
 
 const { t } = useI18n();
+const { hasAuth } = useAuth();
 const { routerPushByKey } = useRouterPush();
+
+const canManageHosts = computed(() => hasAuth('asset:host:manage'));
 
 const loading = ref(false);
 const creating = ref(false);
@@ -116,6 +120,10 @@ async function loadHosts() {
 }
 
 async function handleCreateHost() {
+  if (!canManageHosts.value) {
+    return;
+  }
+
   if (
     !formModel.hostName.trim() ||
     !formModel.ipAddress.trim() ||
@@ -283,7 +291,7 @@ onMounted(() => {
               />
             </NFormItem>
             <NSpace>
-              <NButton type="primary" :loading="creating" @click="handleCreateHost">
+              <NButton type="primary" :loading="creating" :disabled="!canManageHosts" @click="handleCreateHost">
                 {{ t('page.envops.assetHost.form.actions.create') }}
               </NButton>
               <NButton @click="resetForm">{{ t('common.reset') }}</NButton>

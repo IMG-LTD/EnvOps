@@ -49,13 +49,13 @@ VALUES
     (21, 'traffic-owner', '$2a$10$PPuMaDMld2QRRagKXK7NMOZTqMZBFSbLXZbR8pmGhJCp.OH2D0lf2', '13700137000', 'traffic', 'SSO', 'REVIEW', TIMESTAMP '2026-04-17 19:20:00'),
     (22, 'qa-observer', '$2a$10$iXuMZ4iC1HB7Wdz4mF9lde.QeVz1WR5u0HpumRPn6oEu8s68oHV1u', '13600136000', 'qa', 'SSO', 'DISABLED', TIMESTAMP '2026-04-16 18:10:00');
 
-INSERT INTO sys_role (id, role_key, role_name)
+INSERT INTO sys_role (id, role_key, role_name, description, enabled, built_in, created_at, updated_at)
 VALUES
-    (1, 'SUPER_ADMIN', 'Super Admin'),
-    (2, 'PLATFORM_ADMIN', 'Platform Admin'),
-    (3, 'RELEASE_MANAGER', 'Release Manager'),
-    (4, 'TRAFFIC_OWNER', 'Traffic Owner'),
-    (5, 'OBSERVER', 'Observer');
+    (1, 'SUPER_ADMIN', 'Super Admin', 'Built-in full platform administrator', TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (2, 'PLATFORM_ADMIN', 'Platform Admin', 'Platform operator for assets and monitor data', TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (3, 'RELEASE_MANAGER', 'Release Manager', 'Release operator for app and deploy flows', TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (4, 'TRAFFIC_OWNER', 'Traffic Owner', 'Traffic policy operator', TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (5, 'OBSERVER', 'Observer', 'Conservative read-only observer', TRUE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO sys_user_role (user_id, role_id)
 VALUES
@@ -174,4 +174,92 @@ VALUES
     (260, NULL, 'traffic', '/traffic', 'layout.base', '流量控制', 'mdi:source-branch', 7, 'USER', 'SUPER_ADMIN', FALSE, FALSE, NULL),
     (261, 260, 'traffic_controller', '/traffic/controller', 'view.traffic_controller', '流量规则', NULL, 1, 'USER', 'SUPER_ADMIN', FALSE, FALSE, NULL),
     (270, NULL, 'system', '/system', 'layout.base', '系统管理', 'mdi:account-cog-outline', 8, 'USER', 'SUPER_ADMIN', FALSE, FALSE, NULL),
-    (271, 270, 'system_user', '/system/user', 'view.system_user', '用户管理', NULL, 1, 'USER', 'SUPER_ADMIN', FALSE, FALSE, NULL);
+    (271, 270, 'system_user', '/system/user', 'view.system_user', '用户管理', NULL, 1, 'USER', 'SUPER_ADMIN', FALSE, FALSE, NULL),
+    (272, 270, 'system_rbac', '/system/rbac', 'view.system_rbac', '权限管理', NULL, 2, 'USER', 'SUPER_ADMIN', FALSE, FALSE, NULL);
+
+INSERT INTO sys_permission (id, permission_key, permission_name, permission_type, module_key, parent_key, route_name, action_key, sort_order, enabled)
+VALUES
+    (1000, 'home', 'Home', 'menu', 'home', NULL, 'home', NULL, 1, TRUE),
+    (1100, 'asset', 'Asset', 'menu', 'asset', NULL, 'asset', NULL, 10, TRUE),
+    (1110, 'asset_host', 'Host Management', 'menu', 'asset', 'asset', 'asset_host', NULL, 11, TRUE),
+    (1111, 'asset:host:manage', 'Manage Hosts', 'action', 'asset', 'asset_host', NULL, 'manage', 12, TRUE),
+    (1120, 'asset_group', 'Group Management', 'menu', 'asset', 'asset', 'asset_group', NULL, 13, TRUE),
+    (1121, 'asset:group:manage', 'Manage Groups', 'action', 'asset', 'asset_group', NULL, 'manage', 14, TRUE),
+    (1130, 'asset_tag', 'Tag Management', 'menu', 'asset', 'asset', 'asset_tag', NULL, 15, TRUE),
+    (1131, 'asset:tag:manage', 'Manage Tags', 'action', 'asset', 'asset_tag', NULL, 'manage', 16, TRUE),
+    (1140, 'asset_credential', 'Credential Management', 'menu', 'asset', 'asset', 'asset_credential', NULL, 17, TRUE),
+    (1141, 'asset:credential:manage', 'Manage Credentials', 'action', 'asset', 'asset_credential', NULL, 'manage', 18, TRUE),
+    (1150, 'asset_database', 'Database Resources', 'menu', 'asset', 'asset', 'asset_database', NULL, 19, TRUE),
+    (1151, 'asset:database:manage', 'Manage Databases', 'action', 'asset', 'asset_database', NULL, 'manage', 20, TRUE),
+    (1152, 'asset:database:connectivity-check', 'Run Database Connectivity Checks', 'action', 'asset', 'asset_database', NULL, 'connectivity-check', 21, TRUE),
+    (1200, 'monitor', 'Monitor', 'menu', 'monitor', NULL, 'monitor', NULL, 30, TRUE),
+    (1210, 'monitor_detect-task', 'Detect Task', 'menu', 'monitor', 'monitor', 'monitor_detect-task', NULL, 31, TRUE),
+    (1211, 'monitor:detect-task:execute', 'Execute Detect Tasks', 'action', 'monitor', 'monitor_detect-task', NULL, 'execute', 32, TRUE),
+    (1220, 'monitor_metric', 'Metric Snapshot', 'menu', 'monitor', 'monitor', 'monitor_metric', NULL, 33, TRUE),
+    (1300, 'app', 'App', 'menu', 'app', NULL, 'app', NULL, 40, TRUE),
+    (1310, 'app_definition', 'App Definition', 'menu', 'app', 'app', 'app_definition', NULL, 41, TRUE),
+    (1311, 'app:definition:manage', 'Manage App Definitions', 'action', 'app', 'app_definition', NULL, 'manage', 42, TRUE),
+    (1320, 'app_version', 'App Version', 'menu', 'app', 'app', 'app_version', NULL, 43, TRUE),
+    (1321, 'app:version:manage', 'Manage App Versions', 'action', 'app', 'app_version', NULL, 'manage', 44, TRUE),
+    (1330, 'app_package', 'App Package', 'menu', 'app', 'app', 'app_package', NULL, 45, TRUE),
+    (1331, 'app:package:manage', 'Manage App Packages', 'action', 'app', 'app_package', NULL, 'manage', 46, TRUE),
+    (1340, 'app_config-template', 'Config Template', 'menu', 'app', 'app', 'app_config-template', NULL, 47, TRUE),
+    (1341, 'app:config-template:manage', 'Manage Config Templates', 'action', 'app', 'app_config-template', NULL, 'manage', 48, TRUE),
+    (1350, 'app_script-template', 'Script Template', 'menu', 'app', 'app', 'app_script-template', NULL, 49, TRUE),
+    (1351, 'app:script-template:manage', 'Manage Script Templates', 'action', 'app', 'app_script-template', NULL, 'manage', 50, TRUE),
+    (1400, 'deploy', 'Deploy', 'menu', 'deploy', NULL, 'deploy', NULL, 60, TRUE),
+    (1410, 'deploy_task', 'Deploy Task', 'menu', 'deploy', 'deploy', 'deploy_task', NULL, 61, TRUE),
+    (1411, 'deploy:task:create', 'Create Deploy Tasks', 'action', 'deploy', 'deploy_task', NULL, 'create', 62, TRUE),
+    (1412, 'deploy:task:approve', 'Approve Deploy Tasks', 'action', 'deploy', 'deploy_task', NULL, 'approve', 63, TRUE),
+    (1413, 'deploy:task:execute', 'Execute Deploy Tasks', 'action', 'deploy', 'deploy_task', NULL, 'execute', 64, TRUE),
+    (1414, 'deploy:task:cancel', 'Cancel Deploy Tasks', 'action', 'deploy', 'deploy_task', NULL, 'cancel', 65, TRUE),
+    (1415, 'deploy:task:retry', 'Retry Deploy Tasks', 'action', 'deploy', 'deploy_task', NULL, 'retry', 66, TRUE),
+    (1416, 'deploy:task:rollback', 'Rollback Deploy Tasks', 'action', 'deploy', 'deploy_task', NULL, 'rollback', 67, TRUE),
+    (1500, 'task', 'Task', 'menu', 'task', NULL, 'task', NULL, 70, TRUE),
+    (1510, 'task_center', 'Task Center', 'menu', 'task', 'task', 'task_center', NULL, 71, TRUE),
+    (1511, 'task_tracking_[id]', 'Task Tracking', 'menu', 'task', 'task_center', 'task_tracking_[id]', NULL, 72, TRUE),
+    (1600, 'traffic', 'Traffic', 'menu', 'traffic', NULL, 'traffic', NULL, 80, TRUE),
+    (1610, 'traffic_controller', 'Traffic Controller', 'menu', 'traffic', 'traffic', 'traffic_controller', NULL, 81, TRUE),
+    (1611, 'traffic:policy:preview', 'Preview Traffic Policies', 'action', 'traffic', 'traffic_controller', NULL, 'preview', 82, TRUE),
+    (1612, 'traffic:policy:apply', 'Apply Traffic Policies', 'action', 'traffic', 'traffic_controller', NULL, 'apply', 83, TRUE),
+    (1613, 'traffic:policy:rollback', 'Rollback Traffic Policies', 'action', 'traffic', 'traffic_controller', NULL, 'rollback', 84, TRUE),
+    (1700, 'system', 'System', 'menu', 'system', NULL, 'system', NULL, 90, TRUE),
+    (1710, 'system_user', 'System User', 'menu', 'system', 'system', 'system_user', NULL, 91, TRUE),
+    (1711, 'system:user:manage', 'Manage System Users', 'action', 'system', 'system_user', NULL, 'manage', 92, TRUE),
+    (1720, 'system_rbac', 'Permission Management', 'menu', 'system', 'system', 'system_rbac', NULL, 93, TRUE),
+    (1721, 'system:role:manage', 'Manage Roles and Permissions', 'action', 'system', 'system_rbac', NULL, 'manage', 94, TRUE);
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 1, id FROM sys_permission WHERE enabled = TRUE;
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 2, id FROM sys_permission
+WHERE permission_key IN (
+    'home',
+    'asset', 'asset_host', 'asset:host:manage', 'asset_group', 'asset_tag',
+    'asset_credential', 'asset:credential:manage', 'asset_database', 'asset:database:manage', 'asset:database:connectivity-check',
+    'monitor', 'monitor_detect-task', 'monitor:detect-task:execute', 'monitor_metric',
+    'task', 'task_center', 'task_tracking_[id]'
+);
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 3, id FROM sys_permission
+WHERE permission_key IN (
+    'home',
+    'app', 'app_definition', 'app_version', 'app_package', 'app_config-template', 'app_script-template',
+    'deploy', 'deploy_task', 'deploy:task:create', 'deploy:task:approve', 'deploy:task:execute',
+    'deploy:task:cancel', 'deploy:task:retry', 'deploy:task:rollback',
+    'task', 'task_center', 'task_tracking_[id]'
+);
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 4, id FROM sys_permission
+WHERE permission_key IN (
+    'home',
+    'traffic', 'traffic_controller', 'traffic:policy:preview', 'traffic:policy:apply', 'traffic:policy:rollback',
+    'task', 'task_center', 'task_tracking_[id]'
+);
+
+INSERT INTO sys_role_permission (role_id, permission_id)
+SELECT 5, id FROM sys_permission
+WHERE permission_key IN ('home', 'task', 'task_center', 'task_tracking_[id]');

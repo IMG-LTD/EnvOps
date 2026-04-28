@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { NButton, NCard, NDivider, NEmpty, NForm, NFormItem, NInput, NSelect, NSpace } from 'naive-ui';
+import { useAuth } from '@/hooks/business/auth';
 import {
   fetchCreateScriptTemplate,
   fetchDeleteScriptTemplate,
@@ -14,12 +15,15 @@ defineOptions({
   name: 'AppScriptTemplatePage'
 });
 
+const { hasAuth } = useAuth();
+
 const loading = ref(false);
 const submitting = ref(false);
 const templates = ref<Api.App.ScriptTemplate[]>([]);
 const formVisible = ref(false);
 const editingTemplateId = ref<Api.App.RecordId | null>(null);
 
+const canManageScriptTemplates = computed(() => hasAuth('app:script-template:manage'));
 const scriptTypeOptions = computed(() => getScriptTypeOptions());
 const statusOptions = computed(() => getStatusOptions());
 
@@ -72,12 +76,20 @@ async function loadTemplates() {
 }
 
 function handleAdd() {
+  if (!canManageScriptTemplates.value) {
+    return;
+  }
+
   editingTemplateId.value = null;
   resetFormModel();
   formVisible.value = true;
 }
 
 function handleEdit(item: Api.App.ScriptTemplate) {
+  if (!canManageScriptTemplates.value) {
+    return;
+  }
+
   editingTemplateId.value = item.id;
   fillFormModel(item);
   formVisible.value = true;
@@ -90,6 +102,10 @@ function handleCancel() {
 }
 
 async function handleSubmit() {
+  if (!canManageScriptTemplates.value) {
+    return;
+  }
+
   submitting.value = true;
 
   const payload = buildPayload();
@@ -111,12 +127,20 @@ async function handleSubmit() {
 }
 
 async function handleDelete(item: Api.App.ScriptTemplate) {
+  if (!canManageScriptTemplates.value) {
+    return;
+  }
+
   window.$dialog?.warning({
     title: $t('common.warning'),
     content: `${$t('common.confirmDelete')} ${item.templateName}?`,
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
     async onPositiveClick() {
+      if (!canManageScriptTemplates.value) {
+        return;
+      }
+
       const { error } = await fetchDeleteScriptTemplate(item.id);
 
       if (!error) {
@@ -138,7 +162,7 @@ onMounted(() => {
       <NSpace justify="space-between" align="center" wrap>
         <span class="text-#666">{{ $t('page.app.scriptTemplate.desc') }}</span>
         <NSpace>
-          <NButton type="primary" @click="handleAdd">
+          <NButton type="primary" :disabled="!canManageScriptTemplates" @click="handleAdd">
             {{ $t('common.add') }}
           </NButton>
           <NButton :loading="loading" @click="loadTemplates()">
@@ -157,10 +181,10 @@ onMounted(() => {
               <div class="mt-8px text-12px text-#666">{{ item.templateCode }}</div>
             </div>
             <div class="flex gap-8px">
-              <NButton text type="primary" @click="handleEdit(item)">
+              <NButton text type="primary" :disabled="!canManageScriptTemplates" @click="handleEdit(item)">
                 {{ $t('common.edit') }}
               </NButton>
-              <NButton text type="error" @click="handleDelete(item)">
+              <NButton text type="error" :disabled="!canManageScriptTemplates" @click="handleDelete(item)">
                 {{ $t('common.delete') }}
               </NButton>
             </div>
@@ -213,7 +237,7 @@ onMounted(() => {
         <NButton @click="handleCancel">
           {{ $t('common.cancel') }}
         </NButton>
-        <NButton type="primary" :loading="submitting" @click="handleSubmit">
+        <NButton type="primary" :loading="submitting" :disabled="!canManageScriptTemplates" @click="handleSubmit">
           {{ $t('page.app.common.save') }}
         </NButton>
       </NSpace>

@@ -42,7 +42,7 @@ public class UserDetailsLookupService implements UserDetailsService {
 
   private List<GrantedAuthority> loadAuthorities(Long userId) {
     Set<String> authorities = new LinkedHashSet<>();
-    for (String roleKey : userAuthMapper.findRoleKeysByUserId(userId)) {
+    for (String roleKey : userAuthMapper.findEnabledRoleKeysByUserId(userId)) {
       if (!StringUtils.hasText(roleKey)) {
         continue;
       }

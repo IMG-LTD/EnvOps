@@ -40,17 +40,15 @@ public interface RouteMenuMapper {
              m.hide_in_menu AS hideInMenu,
              m.active_menu AS activeMenu
       FROM sys_menu_route m
+      JOIN sys_permission p ON p.route_name = m.route_name
+      JOIN sys_role_permission rp ON rp.permission_id = p.id
+      JOIN sys_role r ON r.id = rp.role_id
+      JOIN sys_user_role ur ON ur.role_id = r.id
       WHERE m.route_type = 'USER'
-        AND (
-          m.required_role IS NULL
-          OR m.required_role = ''
-          OR m.required_role IN (
-            SELECT r.role_key
-            FROM sys_role r
-            JOIN sys_user_role ur ON ur.role_id = r.id
-            WHERE ur.user_id = #{userId}
-          )
-        )
+        AND ur.user_id = #{userId}
+        AND p.permission_type = 'menu'
+        AND p.enabled = TRUE
+        AND r.enabled = TRUE
       ORDER BY m.route_order, m.id
       """)
   List<RouteRow> findUserRoutesByUserId(@Param("userId") Long userId);

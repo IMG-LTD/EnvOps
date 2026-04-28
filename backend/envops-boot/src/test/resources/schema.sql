@@ -16,6 +16,8 @@ DROP TABLE IF EXISTS asset_group;
 DROP TABLE IF EXISTS asset_credential;
 DROP TABLE IF EXISTS asset_host;
 DROP TABLE IF EXISTS traffic_policy;
+DROP TABLE IF EXISTS sys_role_permission;
+DROP TABLE IF EXISTS sys_permission;
 DROP TABLE IF EXISTS sys_user_role;
 DROP TABLE IF EXISTS sys_menu_route;
 DROP TABLE IF EXISTS sys_role;
@@ -305,7 +307,36 @@ CREATE TABLE sys_user (
 CREATE TABLE sys_role (
     id BIGINT PRIMARY KEY,
     role_key VARCHAR(64) NOT NULL UNIQUE,
-    role_name VARCHAR(128) NOT NULL
+    role_name VARCHAR(128) NOT NULL,
+    description VARCHAR(512),
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    built_in BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE sys_permission (
+    id BIGINT PRIMARY KEY,
+    permission_key VARCHAR(128) NOT NULL UNIQUE,
+    permission_name VARCHAR(128) NOT NULL,
+    permission_type VARCHAR(32) NOT NULL,
+    module_key VARCHAR(64) NOT NULL,
+    parent_key VARCHAR(128),
+    route_name VARCHAR(128),
+    action_key VARCHAR(64),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE sys_role_permission (
+    role_id BIGINT NOT NULL,
+    permission_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (role_id, permission_id),
+    CONSTRAINT fk_sys_role_permission_role FOREIGN KEY (role_id) REFERENCES sys_role (id),
+    CONSTRAINT fk_sys_role_permission_permission FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
 );
 
 CREATE TABLE sys_user_role (

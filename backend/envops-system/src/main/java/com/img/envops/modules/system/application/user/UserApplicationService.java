@@ -40,6 +40,44 @@ public class UserApplicationService {
     return aggregateUsers(userAuthMapper.findAllUsers());
   }
 
+  public UserRoleAssignment getUserRoles(Long userId) {
+    requireUser(userId);
+    List<UserRoleRecord> roles = userAuthMapper.findRolesByUserId(userId).stream()
+        .map(this::toUserRoleRecord)
+        .toList();
+    return new UserRoleAssignment(
+        userId,
+        roles,
+        roles.stream().map(UserRoleRecord::id).toList(),
+        roles.stream().map(UserRoleRecord::roleKey).toList());
+  }
+
+  @Transactional
+  public UserRoleAssignment replaceUserRoles(Long userId, ReplaceUserRolesCommand command) {
+    requireUser(userId);
+    if (command == null || command.roleIds() == null || command.roleIds().isEmpty()) {
+      throw new IllegalArgumentException("roleIds must not be empty");
+    }
+
+    Map<Long, RoleRow> enabledRoles = userAuthMapper.findEnabledRoles().stream()
+        .collect(java.util.stream.Collectors.toMap(RoleRow::getRoleId, role -> role, (left, right) -> left, LinkedHashMap::new));
+
+    List<RoleBinding> roles = command.roleIds().stream()
+        .distinct()
+        .map(roleId -> {
+          RoleRow role = enabledRoles.get(roleId);
+          if (role == null) {
+            throw new IllegalArgumentException("roleId is invalid: " + roleId);
+          }
+          return new RoleBinding(role.getRoleId(), role.getRoleKey());
+        })
+        .toList();
+
+    replaceUserRoles(userId, roles);
+    ensureActiveSuperAdminExists();
+    return getUserRoles(userId);
+  }
+
   @Transactional
   public SystemUserRecord createUser(CreateSystemUserCommand command) {
     NormalizedUserMutation mutation = normalizeCreateCommand(command);
@@ -82,6 +120,7 @@ public class UserApplicationService {
         mutation.status(),
         existingUser.getLastLoginAt()));
     replaceUserRoles(userId, mutation.roles());
+    ensureActiveSuperAdminExists();
 
     return getUser(userId);
   }
@@ -162,6 +201,17 @@ public class UserApplicationService {
     userAuthMapper.deleteUserRoles(userId);
     for (RoleBinding role : roles) {
       userAuthMapper.insertUserRole(userId, role.roleId());
+    }
+  }
+
+  private UserRoleRecord toUserRoleRecord(RoleRow row) {
+    return new UserRoleRecord(row.getRoleId(), row.getRoleKey(), row.getRoleName(), row.getEnabled(), row.getBuiltIn());
+  }
+
+  private void ensureActiveSuperAdminExists() {
+    Integer count = userAuthMapper.countActiveEnabledSuperAdminUsers();
+    if (count == null || count <= 0) {
+      throw new ConflictException("at least one active SUPER_ADMIN user is required");
     }
   }
 
@@ -264,7 +314,7 @@ public class UserApplicationService {
     }
 
     Map<String, RoleRow> availableRoles = new LinkedHashMap<>();
-    for (RoleRow role : userAuthMapper.findAllRoles()) {
+    for (RoleRow role : userAuthMapper.findEnabledRoles()) {
       availableRoles.put(role.getRoleKey(), role);
     }
 
@@ -278,6 +328,18 @@ public class UserApplicationService {
     }
 
     return List.copyOf(normalizedRoles);
+  }
+
+  public record UserRoleAssignment(Long userId,
+                                   List<UserRoleRecord> roles,
+                                   List<Long> roleIds,
+                                   List<String> roleKeys) {
+  }
+
+  public record UserRoleRecord(Long id, String roleKey, String roleName, Boolean enabled, Boolean builtIn) {
+  }
+
+  public record ReplaceUserRolesCommand(List<Long> roleIds) {
   }
 
   public record SystemUserRecord(Long id,

@@ -256,6 +256,15 @@ export const generatedRoutes: GeneratedRoute[] = [
     },
     children: [
       {
+        name: 'system_rbac',
+        path: '/system/rbac',
+        component: 'view.system_rbac',
+        meta: {
+          title: 'system_rbac',
+          i18nKey: 'route.system_rbac'
+        }
+      },
+      {
         name: 'system_user',
         path: '/system/user',
         component: 'view.system_user',

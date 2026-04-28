@@ -14,6 +14,7 @@ import {
   NSelect,
   NSpace
 } from 'naive-ui';
+import { useAuth } from '@/hooks/business/auth';
 import { fetchCreateApp, fetchDeleteApp, fetchGetAppDetail, fetchGetApps, fetchUpdateApp } from '@/service/api';
 import { $t } from '@/locales';
 import {
@@ -29,6 +30,8 @@ defineOptions({
   name: 'AppDefinitionPage'
 });
 
+const { hasAuth } = useAuth();
+
 const loading = ref(false);
 const submitting = ref(false);
 const apps = ref<Api.App.AppDefinition[]>([]);
@@ -37,6 +40,7 @@ const activeApp = ref<Api.App.AppDefinition | null>(null);
 const formVisible = ref(false);
 const editingAppId = ref<Api.App.RecordId | null>(null);
 
+const canManageAppDefinitions = computed(() => hasAuth('app:definition:manage'));
 const appTypeOptions = computed(() => getAppTypeOptions());
 const deployModeOptions = computed(() => getDeployModeOptions());
 const statusOptions = computed(() => getStatusOptions());
@@ -131,12 +135,20 @@ async function loadApps(preferredId?: Api.App.RecordId | null) {
 }
 
 function handleAdd() {
+  if (!canManageAppDefinitions.value) {
+    return;
+  }
+
   editingAppId.value = null;
   resetFormModel();
   formVisible.value = true;
 }
 
 function handleEdit(app: Api.App.AppDefinition) {
+  if (!canManageAppDefinitions.value) {
+    return;
+  }
+
   editingAppId.value = app.id;
   fillFormModel(app);
   formVisible.value = true;
@@ -149,6 +161,10 @@ function handleCancel() {
 }
 
 async function handleSubmit() {
+  if (!canManageAppDefinitions.value) {
+    return;
+  }
+
   submitting.value = true;
 
   const payload = buildPayload();
@@ -168,12 +184,20 @@ async function handleSubmit() {
 }
 
 async function handleDelete(app: Api.App.AppDefinition) {
+  if (!canManageAppDefinitions.value) {
+    return;
+  }
+
   window.$dialog?.warning({
     title: $t('common.warning'),
     content: `${$t('common.confirmDelete')} ${app.appName}?`,
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
     async onPositiveClick() {
+      if (!canManageAppDefinitions.value) {
+        return;
+      }
+
       const { error } = await fetchDeleteApp(app.id);
 
       if (!error) {
@@ -195,7 +219,7 @@ onMounted(() => {
       <NSpace justify="space-between" align="center" wrap>
         <span class="text-#666">{{ $t('page.app.definition.desc') }}</span>
         <NSpace>
-          <NButton type="primary" @click="handleAdd">
+          <NButton type="primary" :disabled="!canManageAppDefinitions" @click="handleAdd">
             {{ $t('common.add') }}
           </NButton>
           <NButton :loading="loading" @click="loadApps()">
@@ -231,10 +255,10 @@ onMounted(() => {
                 <span>{{ $t('page.app.common.status') }}: {{ formatStatus(item.status) }}</span>
               </div>
               <div class="mt-12px flex justify-end gap-8px">
-                <NButton text type="primary" @click.stop="handleEdit(item)">
+                <NButton text type="primary" :disabled="!canManageAppDefinitions" @click.stop="handleEdit(item)">
                   {{ $t('common.edit') }}
                 </NButton>
-                <NButton text type="error" @click.stop="handleDelete(item)">
+                <NButton text type="error" :disabled="!canManageAppDefinitions" @click.stop="handleDelete(item)">
                   {{ $t('common.delete') }}
                 </NButton>
               </div>
@@ -363,7 +387,7 @@ onMounted(() => {
         <NButton @click="handleCancel">
           {{ $t('common.cancel') }}
         </NButton>
-        <NButton type="primary" :loading="submitting" @click="handleSubmit">
+        <NButton type="primary" :loading="submitting" :disabled="!canManageAppDefinitions" @click="handleSubmit">
           {{ $t('page.app.common.save') }}
         </NButton>
       </NSpace>

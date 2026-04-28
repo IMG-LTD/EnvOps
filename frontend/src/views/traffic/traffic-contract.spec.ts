@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp, defineComponent, h, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const trafficControllerSource = readFileSync(path.resolve(__dirname, 'controller/index.vue'), 'utf8');
 
 const translations = vi.hoisted(() => ({
   'common.noData': 'No Data',
@@ -70,11 +76,16 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => translations[key as keyof typeof translations] ?? key
-  })
-}));
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n');
+
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) => translations[key as keyof typeof translations] ?? key
+    })
+  };
+});
 
 vi.mock('@/service/api', () => ({
   fetchGetTrafficPolicies: mocks.fetchGetTrafficPolicies,
@@ -82,6 +93,13 @@ vi.mock('@/service/api', () => ({
   fetchPostPreviewTrafficPolicy: mocks.fetchPostPreviewTrafficPolicy,
   fetchPostApplyTrafficPolicy: mocks.fetchPostApplyTrafficPolicy,
   fetchPostRollbackTrafficPolicy: mocks.fetchPostRollbackTrafficPolicy
+}));
+
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: () => true,
+    hasEveryAuth: () => true
+  })
 }));
 
 const passthroughStub = defineComponent({
@@ -196,6 +214,13 @@ async function mountTrafficPage() {
 }
 
 describe('traffic controller contract wiring', () => {
+  it('gates traffic preview, apply and rollback actions by RBAC permissions', () => {
+    expect(trafficControllerSource).toMatch(/useAuth\s*\(/);
+    expect(trafficControllerSource).toContain('traffic:policy:preview');
+    expect(trafficControllerSource).toContain('traffic:policy:apply');
+    expect(trafficControllerSource).toContain('traffic:policy:rollback');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '';

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAuth } from '@/hooks/business/auth';
 import { fetchCreateAssetCredential, fetchGetAssetCredentials } from '@/service/api';
 
 defineOptions({
@@ -8,6 +9,9 @@ defineOptions({
 });
 
 const { t } = useI18n();
+const { hasAuth } = useAuth();
+
+const canManageCredentials = computed(() => hasAuth('asset:credential:manage'));
 
 const loading = ref(false);
 const creating = ref(false);
@@ -65,6 +69,10 @@ async function loadCredentials() {
 }
 
 async function handleCreateCredential() {
+  if (!canManageCredentials.value) {
+    return;
+  }
+
   if (!formModel.name?.trim() || !formModel.credentialType?.trim()) {
     window.$message?.warning(t('page.envops.assetCredential.messages.fillNameAndType'));
     return;
@@ -169,7 +177,12 @@ onMounted(() => {
               />
             </NFormItem>
             <NSpace>
-              <NButton type="primary" :loading="creating" @click="handleCreateCredential">
+              <NButton
+                type="primary"
+                :loading="creating"
+                :disabled="!canManageCredentials"
+                @click="handleCreateCredential"
+              >
                 {{ t('page.envops.assetCredential.form.actions.create') }}
               </NButton>
               <NButton @click="resetForm">{{ t('common.reset') }}</NButton>

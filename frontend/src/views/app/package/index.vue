@@ -13,6 +13,7 @@ import {
   NUpload,
   type UploadFileInfo
 } from 'naive-ui';
+import { useAuth } from '@/hooks/business/auth';
 import { createPackageUploadFormData, fetchDeletePackage, fetchGetPackages, fetchUploadPackage } from '@/service/api';
 import { $t } from '@/locales';
 import { formatFileSize, formatText, getPackageTypeOptions, getStorageTypeOptions } from '../shared';
@@ -21,11 +22,14 @@ defineOptions({
   name: 'AppPackagePage'
 });
 
+const { hasAuth } = useAuth();
+
 const loading = ref(false);
 const uploading = ref(false);
 const packages = ref<Api.App.AppPackage[]>([]);
 const fileList = ref<UploadFileInfo[]>([]);
 
+const canManagePackages = computed(() => hasAuth('app:package:manage'));
 const packageTypeOptions = computed(() => getPackageTypeOptions());
 const storageTypeOptions = computed(() => getStorageTypeOptions());
 
@@ -40,6 +44,10 @@ const formModel = reactive<{
 });
 
 function handleBeforeUpload(options: { file: UploadFileInfo }) {
+  if (!canManagePackages.value) {
+    return false;
+  }
+
   fileList.value = [options.file];
   return false;
 }
@@ -61,6 +69,10 @@ async function loadPackages() {
 }
 
 async function handleUpload() {
+  if (!canManagePackages.value) {
+    return;
+  }
+
   const selectedFile = fileList.value[0]?.file;
 
   if (!selectedFile) {
@@ -90,12 +102,20 @@ async function handleUpload() {
 }
 
 async function handleDelete(item: Api.App.AppPackage) {
+  if (!canManagePackages.value) {
+    return;
+  }
+
   window.$dialog?.warning({
     title: $t('common.warning'),
     content: `${$t('common.confirmDelete')} ${item.packageName}?`,
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
     async onPositiveClick() {
+      if (!canManagePackages.value) {
+        return;
+      }
+
       const { error } = await fetchDeletePackage(item.id);
 
       if (!error) {
@@ -136,10 +156,11 @@ onMounted(() => {
             :file-list="fileList"
             :default-upload="false"
             :max="1"
+            :disabled="!canManagePackages"
             @before-upload="handleBeforeUpload"
             @remove="handleRemove"
           >
-            <NButton>{{ $t('page.app.package.selectFile') }}</NButton>
+            <NButton :disabled="!canManagePackages">{{ $t('page.app.package.selectFile') }}</NButton>
           </NUpload>
         </NFormItem>
       </NForm>
@@ -147,7 +168,7 @@ onMounted(() => {
       <NDivider />
 
       <NSpace justify="end">
-        <NButton :loading="uploading" type="primary" @click="handleUpload">
+        <NButton :loading="uploading" type="primary" :disabled="!canManagePackages" @click="handleUpload">
           {{ $t('page.app.package.uploadAction') }}
         </NButton>
       </NSpace>
@@ -167,7 +188,7 @@ onMounted(() => {
               <div class="text-16px font-semibold">{{ item.packageName }}</div>
               <div class="mt-8px text-12px text-#666">{{ item.packageType }}</div>
             </div>
-            <NButton text type="error" @click="handleDelete(item)">
+            <NButton text type="error" :disabled="!canManagePackages" @click="handleDelete(item)">
               {{ $t('common.delete') }}
             </NButton>
           </div>

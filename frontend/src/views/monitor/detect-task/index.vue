@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAuth } from '@/hooks/business/auth';
 import {
   fetchGetAssetHosts,
   fetchGetMonitorDetectTasks,
@@ -16,6 +17,9 @@ type DetectTaskStatusKey = 'success' | 'warning' | 'timeout' | 'failed' | 'runni
 type DetectTaskTagType = 'success' | 'warning' | 'error' | 'info' | 'default';
 
 const { t } = useI18n();
+const { hasAuth } = useAuth();
+
+const canExecuteDetectTasks = computed(() => hasAuth('monitor:detect-task:execute'));
 
 const loading = ref(false);
 const creating = ref(false);
@@ -144,6 +148,10 @@ async function loadDetectTasks() {
 }
 
 async function handleCreateTask() {
+  if (!canExecuteDetectTasks.value) {
+    return;
+  }
+
   if (!formModel.taskName.trim() || formModel.hostId === null) {
     window.$message?.warning(t('page.envops.monitorDetectTask.messages.fillNameAndHost'));
     return;
@@ -171,6 +179,10 @@ async function handleCreateTask() {
 }
 
 async function handleExecuteTask(taskId: number) {
+  if (!canExecuteDetectTasks.value) {
+    return;
+  }
+
   executingTaskId.value = taskId;
 
   try {
@@ -345,7 +357,12 @@ onMounted(() => {
               <NSelect v-model:value="formModel.schedule" :options="scheduleOptions" />
             </NFormItem>
             <NSpace>
-              <NButton type="primary" :loading="creating" :disabled="!hostOptions.length" @click="handleCreateTask">
+              <NButton
+                type="primary"
+                :loading="creating"
+                :disabled="!canExecuteDetectTasks || !hostOptions.length"
+                @click="handleCreateTask"
+              >
                 {{ t('page.envops.monitorDetectTask.actions.create') }}
               </NButton>
               <NButton @click="resetForm">{{ t('common.reset') }}</NButton>
@@ -378,7 +395,13 @@ onMounted(() => {
                     <NTag :type="item.resultType" size="small">{{ item.result }}</NTag>
                   </td>
                   <td>
-                    <NButton text type="primary" :loading="item.executing" @click="handleExecuteTask(item.id)">
+                    <NButton
+                      text
+                      type="primary"
+                      :loading="item.executing"
+                      :disabled="!canExecuteDetectTasks"
+                      @click="handleExecuteTask(item.id)"
+                    >
                       {{ t('page.envops.monitorDetectTask.actions.execute') }}
                     </NButton>
                   </td>

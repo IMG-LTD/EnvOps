@@ -42,11 +42,16 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key
-  })
-}));
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n');
+
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) => key
+    })
+  };
+});
 
 vi.mock('@/service/api', () => ({
   fetchGetAssetDatabases: mocks.fetchGetAssetDatabases,
@@ -59,6 +64,13 @@ vi.mock('@/service/api', () => ({
   fetchCheckSelectedAssetDatabases: mocks.fetchCheckSelectedAssetDatabases,
   fetchCheckCurrentPageAssetDatabases: mocks.fetchCheckCurrentPageAssetDatabases,
   fetchCheckQueriedAssetDatabases: mocks.fetchCheckQueriedAssetDatabases
+}));
+
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: () => true,
+    hasEveryAuth: () => true
+  })
 }));
 
 const passthroughStub = defineComponent({
@@ -497,6 +509,12 @@ describe('asset database contract wiring', () => {
     expect(transformSource).toContain('"asset_database": "/asset/database"');
     expect(elegantTypingSource).toContain('"asset_database": "/asset/database";');
     expect(elegantTypingSource).toContain('| "asset_database"');
+  });
+
+  it('gates database management and connectivity actions by RBAC permissions', () => {
+    expect(databasePageSource).toMatch(/useAuth\s*\(/);
+    expect(databasePageSource).toContain('asset:database:manage');
+    expect(databasePageSource).toContain('asset:database:connectivity-check');
   });
 
   it('loads database summary and table data from asset apis', async () => {

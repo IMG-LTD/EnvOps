@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { fetchCreateSystemUser, fetchGetSystemUsers, fetchUpdateSystemUser } from '@/service/api';
+import {
+  fetchCreateSystemUser,
+  fetchGetSystemRbacRoles,
+  fetchGetSystemUserRoles,
+  fetchGetSystemUsers,
+  fetchUpdateSystemUser,
+  fetchUpdateSystemUserRoles
+} from '@/service/api';
+import { useAuth } from '@/hooks/business/auth';
 
 defineOptions({
   name: 'SystemUserPage'
@@ -21,16 +29,28 @@ type SystemUserFormModel = {
 
 const PHONE_PATTERN =
   /^[1](([3][0-9])|([4][01456789])|([5][012356789])|([6][2567])|([7][0-8])|([8][0-9])|([9][012356789]))[0-9]{8}$/;
+const USER_MANAGE_PERMISSION = 'system:user:manage';
 
 const { t } = useI18n();
+const { hasAuth } = useAuth();
 
 const loading = ref(false);
 const submitting = ref(false);
 const requestToken = ref(0);
+const roleAssignmentToken = ref(0);
 const drawerVisible = ref(false);
 const editingUserId = ref<number | null>(null);
 const systemUserList = ref<Api.SystemUser.SystemUserRecord[]>([]);
+const assignableRoles = ref<Api.SystemRbac.RoleRecord[]>([]);
+const roleDrawerVisible = ref(false);
+const assigningUserId = ref<number | null>(null);
+const selectedRoleIds = ref<number[]>([]);
+const loadingUserRoles = ref(false);
+const roleAssignmentLoaded = ref(false);
+const savingUserRoles = ref(false);
 const formModel = reactive<SystemUserFormModel>(createDefaultFormModel());
+
+const canManageUser = computed(() => hasAuth(USER_MANAGE_PERMISSION));
 
 const metrics = computed(() => [
   {
@@ -85,13 +105,17 @@ const statusOptions = computed(() => [
   { label: t('page.envops.common.status.disabled'), value: 'DISABLED' }
 ]);
 
-const roleOptions = computed(() => [
-  { label: t('page.envops.common.role.superAdmin'), value: 'SUPER_ADMIN' },
-  { label: t('page.envops.common.role.platformAdmin'), value: 'PLATFORM_ADMIN' },
-  { label: t('page.envops.common.role.releaseManager'), value: 'RELEASE_MANAGER' },
-  { label: t('page.envops.common.role.trafficOwner'), value: 'TRAFFIC_OWNER' },
-  { label: t('page.envops.common.role.observer'), value: 'OBSERVER' }
-]);
+const roleOptions = computed(() =>
+  assignableRoles.value
+    .filter(role => role.enabled)
+    .map(role => ({ label: `${role.roleName} (${role.roleKey})`, value: role.id }))
+);
+
+const formRoleOptions = computed(() =>
+  assignableRoles.value
+    .filter(role => role.enabled)
+    .map(role => ({ label: `${role.roleName} (${role.roleKey})`, value: role.roleKey }))
+);
 
 const drawerTitle = computed(() => {
   return t(
@@ -192,6 +216,14 @@ async function loadSystemUsers() {
   }
 }
 
+async function loadAssignableRoles() {
+  const { data, error } = await fetchGetSystemRbacRoles();
+
+  if (!error) {
+    assignableRoles.value = data.filter(role => role.enabled);
+  }
+}
+
 function getSystemUserRecords(data: Api.SystemUser.SystemUserListResponse) {
   return Array.isArray(data) ? data : [];
 }
@@ -214,6 +246,107 @@ function handleDrawerVisibleChange(show: boolean) {
   if (!show) {
     editingUserId.value = null;
     resetFormModel();
+  }
+}
+
+function resetRoleAssignmentState() {
+  roleAssignmentToken.value += 1;
+  assigningUserId.value = null;
+  selectedRoleIds.value = [];
+  loadingUserRoles.value = false;
+  roleAssignmentLoaded.value = false;
+}
+
+function handleRoleDrawerVisibleChange(show: boolean) {
+  if (!show && savingUserRoles.value) {
+    return;
+  }
+
+  roleDrawerVisible.value = show;
+
+  if (!show) {
+    resetRoleAssignmentState();
+  }
+}
+
+async function handleOpenRoleAssignment(record: Api.SystemUser.SystemUserRecord) {
+  if (!canManageUser.value || savingUserRoles.value) {
+    return;
+  }
+
+  const userId = record.id;
+  const currentRoleAssignmentToken = ++roleAssignmentToken.value;
+
+  assigningUserId.value = userId;
+  selectedRoleIds.value = [];
+  roleAssignmentLoaded.value = false;
+  roleDrawerVisible.value = true;
+  loadingUserRoles.value = true;
+
+  try {
+    const response = await fetchGetSystemUserRoles(userId);
+    const isCurrentRoleAssignment =
+      currentRoleAssignmentToken === roleAssignmentToken.value &&
+      assigningUserId.value === userId &&
+      roleDrawerVisible.value;
+
+    if (!isCurrentRoleAssignment) {
+      return;
+    }
+
+    if (!response.error) {
+      selectedRoleIds.value = response.data.roleIds;
+      roleAssignmentLoaded.value = true;
+    } else {
+      window.$message?.error(t('page.envops.systemUser.roleAssignment.loadFailed'));
+    }
+  } finally {
+    if (
+      currentRoleAssignmentToken === roleAssignmentToken.value &&
+      assigningUserId.value === userId &&
+      roleDrawerVisible.value
+    ) {
+      loadingUserRoles.value = false;
+    }
+  }
+}
+
+async function handleSaveUserRoles() {
+  if (
+    !canManageUser.value ||
+    assigningUserId.value === null ||
+    loadingUserRoles.value ||
+    !roleAssignmentLoaded.value ||
+    savingUserRoles.value
+  ) {
+    return;
+  }
+
+  const userId = assigningUserId.value;
+  const currentRoleAssignmentToken = roleAssignmentToken.value;
+  const roleIds = [...selectedRoleIds.value];
+
+  savingUserRoles.value = true;
+
+  try {
+    const response = await fetchUpdateSystemUserRoles(userId, { roleIds });
+
+    if (
+      !response.error &&
+      currentRoleAssignmentToken === roleAssignmentToken.value &&
+      assigningUserId.value === userId &&
+      roleDrawerVisible.value
+    ) {
+      window.$message?.success(t('page.envops.systemUser.roleAssignment.saveSuccess'));
+      savingUserRoles.value = false;
+      roleDrawerVisible.value = false;
+      resetRoleAssignmentState();
+      await loadSystemUsers();
+    }
+  } finally {
+    if (currentRoleAssignmentToken === roleAssignmentToken.value && assigningUserId.value === userId) {
+      savingUserRoles.value = false;
+    }
   }
 }
 
@@ -416,7 +549,7 @@ function getSystemUserTagType(statusKey: SystemUserStatusKey): SystemUserTagType
 }
 
 onMounted(() => {
-  void loadSystemUsers();
+  void Promise.all([loadSystemUsers(), loadAssignableRoles()]);
 });
 </script>
 
@@ -483,13 +616,23 @@ onMounted(() => {
                 <NTag :type="item.statusType" size="small">{{ item.status }}</NTag>
               </td>
               <td>
-                <NButton
-                  text
-                  type="primary"
-                  @click="handleOpenEditDrawer(systemUserList.find(user => user.id === item.id)!)"
-                >
-                  {{ t('page.envops.systemUser.actions.edit') }}
-                </NButton>
+                <NSpace>
+                  <NButton
+                    text
+                    type="primary"
+                    @click="handleOpenEditDrawer(systemUserList.find(user => user.id === item.id)!)"
+                  >
+                    {{ t('page.envops.systemUser.actions.edit') }}
+                  </NButton>
+                  <NButton
+                    text
+                    type="primary"
+                    :disabled="!canManageUser"
+                    @click="handleOpenRoleAssignment(systemUserList.find(user => user.id === item.id)!)"
+                  >
+                    {{ t('page.envops.systemUser.roleAssignment.title') }}
+                  </NButton>
+                </NSpace>
               </td>
             </tr>
           </tbody>
@@ -540,7 +683,7 @@ onMounted(() => {
             <NSelect
               v-model:value="formModel.roles"
               multiple
-              :options="roleOptions"
+              :options="formRoleOptions"
               :placeholder="t('page.envops.systemUser.form.placeholders.roles')"
             />
           </NFormItem>
@@ -553,6 +696,53 @@ onMounted(() => {
             </NButton>
             <NButton type="primary" :loading="submitting" @click="handleSubmit">
               {{ t('page.envops.systemUser.actions.save') }}
+            </NButton>
+          </NSpace>
+        </template>
+      </NDrawerContent>
+    </NDrawer>
+
+    <NDrawer
+      :show="roleDrawerVisible"
+      :width="420"
+      placement="right"
+      :mask-closable="!savingUserRoles"
+      :close-on-esc="!savingUserRoles"
+      @update:show="handleRoleDrawerVisibleChange"
+    >
+      <NDrawerContent :title="t('page.envops.systemUser.roleAssignment.title')" :closable="!savingUserRoles">
+        <NSpin :show="loadingUserRoles">
+          <NForm label-placement="top">
+            <NFormItem :label="t('page.envops.systemUser.roleAssignment.roles')">
+              <NSelect
+                v-model:value="selectedRoleIds"
+                multiple
+                :options="roleOptions"
+                :disabled="!canManageUser || loadingUserRoles || !roleAssignmentLoaded || savingUserRoles"
+                :placeholder="t('page.envops.systemUser.roleAssignment.placeholder')"
+              />
+            </NFormItem>
+          </NForm>
+        </NSpin>
+
+        <template #footer>
+          <NSpace justify="end">
+            <NButton :disabled="savingUserRoles" @click="handleRoleDrawerVisibleChange(false)">
+              {{ t('common.cancel') }}
+            </NButton>
+            <NButton
+              type="primary"
+              :loading="savingUserRoles"
+              :disabled="
+                !canManageUser ||
+                loadingUserRoles ||
+                !roleAssignmentLoaded ||
+                savingUserRoles ||
+                assigningUserId === null
+              "
+              @click="handleSaveUserRoles"
+            >
+              {{ t('page.envops.systemUser.roleAssignment.save') }}
             </NButton>
           </NSpace>
         </template>

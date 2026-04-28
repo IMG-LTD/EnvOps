@@ -32,6 +32,27 @@ declare namespace Api {
       roles: string[];
     }
 
+    interface UserRoleRecord {
+      id: number;
+      roleKey: string;
+      roleName: string;
+      enabled: boolean;
+      builtIn: boolean;
+      [key: string]: unknown;
+    }
+
+    interface UserRoleAssignmentResponse {
+      userId: number;
+      roles: UserRoleRecord[];
+      roleIds: number[];
+      roleKeys: string[];
+      [key: string]: unknown;
+    }
+
+    interface UpdateSystemUserRolesParams {
+      roleIds: number[];
+    }
+
     type SystemUserListResponse = SystemUserRecord[];
   }
 }

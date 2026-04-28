@@ -34,6 +34,7 @@ export const views: Record<GeneratedLastLevelRouteKey, RouteComponent | (() => P
   home: () => import("@/views/home/index.vue"),
   "monitor_detect-task": () => import("@/views/monitor/detect-task/index.vue"),
   monitor_metric: () => import("@/views/monitor/metric/index.vue"),
+  system_rbac: () => import("@/views/system/rbac/index.vue"),
   system_user: () => import("@/views/system/user/index.vue"),
   task_center: () => import("@/views/task/center/index.vue"),
   "task_tracking_[id]": () => import("@/views/task/tracking/[id].vue"),
