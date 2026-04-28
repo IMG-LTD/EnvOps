@@ -334,7 +334,9 @@ CREATE TABLE sys_role_permission (
     role_id BIGINT NOT NULL,
     permission_id BIGINT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (role_id, permission_id)
+    PRIMARY KEY (role_id, permission_id),
+    CONSTRAINT fk_sys_role_permission_role FOREIGN KEY (role_id) REFERENCES sys_role (id),
+    CONSTRAINT fk_sys_role_permission_permission FOREIGN KEY (permission_id) REFERENCES sys_permission (id)
 );
 
 CREATE TABLE sys_user_role (
