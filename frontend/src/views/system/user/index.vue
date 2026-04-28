@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   fetchCreateSystemUser,
@@ -46,6 +46,7 @@ const roleDrawerVisible = ref(false);
 const assigningUserId = ref<number | null>(null);
 const selectedRoleIds = ref<number[]>([]);
 const loadingUserRoles = ref(false);
+const roleAssignmentLoaded = ref(false);
 const savingUserRoles = ref(false);
 const formModel = reactive<SystemUserFormModel>(createDefaultFormModel());
 
@@ -253,11 +254,23 @@ function resetRoleAssignmentState() {
   assigningUserId.value = null;
   selectedRoleIds.value = [];
   loadingUserRoles.value = false;
-  savingUserRoles.value = false;
+  roleAssignmentLoaded.value = false;
+}
+
+function handleRoleDrawerVisibleChange(show: boolean) {
+  if (!show && savingUserRoles.value) {
+    return;
+  }
+
+  roleDrawerVisible.value = show;
+
+  if (!show) {
+    resetRoleAssignmentState();
+  }
 }
 
 async function handleOpenRoleAssignment(record: Api.SystemUser.SystemUserRecord) {
-  if (!canManageUser.value) {
+  if (!canManageUser.value || savingUserRoles.value) {
     return;
   }
 
@@ -266,19 +279,26 @@ async function handleOpenRoleAssignment(record: Api.SystemUser.SystemUserRecord)
 
   assigningUserId.value = userId;
   selectedRoleIds.value = [];
+  roleAssignmentLoaded.value = false;
   roleDrawerVisible.value = true;
   loadingUserRoles.value = true;
 
   try {
     const response = await fetchGetSystemUserRoles(userId);
-
-    if (
-      !response.error &&
+    const isCurrentRoleAssignment =
       currentRoleAssignmentToken === roleAssignmentToken.value &&
       assigningUserId.value === userId &&
-      roleDrawerVisible.value
-    ) {
+      roleDrawerVisible.value;
+
+    if (!isCurrentRoleAssignment) {
+      return;
+    }
+
+    if (!response.error) {
       selectedRoleIds.value = response.data.roleIds;
+      roleAssignmentLoaded.value = true;
+    } else {
+      window.$message?.error(t('page.envops.systemUser.roleAssignment.loadFailed'));
     }
   } finally {
     if (
@@ -292,7 +312,13 @@ async function handleOpenRoleAssignment(record: Api.SystemUser.SystemUserRecord)
 }
 
 async function handleSaveUserRoles() {
-  if (!canManageUser.value || assigningUserId.value === null || loadingUserRoles.value || savingUserRoles.value) {
+  if (
+    !canManageUser.value ||
+    assigningUserId.value === null ||
+    loadingUserRoles.value ||
+    !roleAssignmentLoaded.value ||
+    savingUserRoles.value
+  ) {
     return;
   }
 
@@ -312,6 +338,7 @@ async function handleSaveUserRoles() {
       roleDrawerVisible.value
     ) {
       window.$message?.success(t('page.envops.systemUser.roleAssignment.saveSuccess'));
+      savingUserRoles.value = false;
       roleDrawerVisible.value = false;
       resetRoleAssignmentState();
       await loadSystemUsers();
@@ -521,12 +548,6 @@ function getSystemUserTagType(statusKey: SystemUserStatusKey): SystemUserTagType
   return typeMap[statusKey];
 }
 
-watch(roleDrawerVisible, show => {
-  if (!show) {
-    resetRoleAssignmentState();
-  }
-});
-
 onMounted(() => {
   void Promise.all([loadSystemUsers(), loadAssignableRoles()]);
 });
@@ -681,17 +702,24 @@ onMounted(() => {
       </NDrawerContent>
     </NDrawer>
 
-    <NDrawer v-model:show="roleDrawerVisible" :width="420" placement="right">
-      <NDrawerContent :title="t('page.envops.systemUser.roleAssignment.title')" closable>
+    <NDrawer
+      :show="roleDrawerVisible"
+      :width="420"
+      placement="right"
+      :mask-closable="!savingUserRoles"
+      :close-on-esc="!savingUserRoles"
+      @update:show="handleRoleDrawerVisibleChange"
+    >
+      <NDrawerContent :title="t('page.envops.systemUser.roleAssignment.title')" :closable="!savingUserRoles">
         <NSpin :show="loadingUserRoles">
           <NForm label-placement="top">
-            <NFormItem :label="t('page.envops.systemUser.form.roles')">
+            <NFormItem :label="t('page.envops.systemUser.roleAssignment.roles')">
               <NSelect
                 v-model:value="selectedRoleIds"
                 multiple
                 :options="roleOptions"
-                :disabled="!canManageUser || loadingUserRoles || savingUserRoles"
-                :placeholder="t('page.envops.systemUser.form.placeholders.roles')"
+                :disabled="!canManageUser || loadingUserRoles || !roleAssignmentLoaded || savingUserRoles"
+                :placeholder="t('page.envops.systemUser.roleAssignment.placeholder')"
               />
             </NFormItem>
           </NForm>
@@ -699,16 +727,22 @@ onMounted(() => {
 
         <template #footer>
           <NSpace justify="end">
-            <NButton :disabled="savingUserRoles" @click="roleDrawerVisible = false">
+            <NButton :disabled="savingUserRoles" @click="handleRoleDrawerVisibleChange(false)">
               {{ t('common.cancel') }}
             </NButton>
             <NButton
               type="primary"
               :loading="savingUserRoles"
-              :disabled="!canManageUser || loadingUserRoles || savingUserRoles || assigningUserId === null"
+              :disabled="
+                !canManageUser ||
+                loadingUserRoles ||
+                !roleAssignmentLoaded ||
+                savingUserRoles ||
+                assigningUserId === null
+              "
               @click="handleSaveUserRoles"
             >
-              {{ t('page.envops.systemUser.actions.save') }}
+              {{ t('page.envops.systemUser.roleAssignment.save') }}
             </NButton>
           </NSpace>
         </template>

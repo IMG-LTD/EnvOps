@@ -9,6 +9,8 @@ const systemUserPage = readFileSync(path.resolve(__dirname, 'user/index.vue'), '
 const systemUserApiSource = readFileSync(path.resolve(__dirname, '../../service/api/system-user.ts'), 'utf8');
 const systemUserTypingSource = readFileSync(path.resolve(__dirname, '../../typings/api/system-user.d.ts'), 'utf8');
 const apiIndexSource = readFileSync(path.resolve(__dirname, '../../service/api/index.ts'), 'utf8');
+const zhLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/zh-cn.ts'), 'utf8');
+const enLocaleSource = readFileSync(path.resolve(__dirname, '../../locales/langs/en-us.ts'), 'utf8');
 
 const mocks = vi.hoisted(() => {
   const fetchGetSystemUsers = vi.fn();
@@ -104,6 +106,16 @@ async function settleRender() {
   await nextTick();
 }
 
+function getExactTextElement(container: HTMLElement, text: string, index = 0) {
+  const matches = Array.from(container.querySelectorAll<HTMLElement>('div, button')).filter(
+    element => element.textContent?.replace(/\s+/g, ' ').trim() === text
+  );
+
+  expect(matches.length).toBeGreaterThan(index);
+
+  return matches[index]!;
+}
+
 async function mountSystemUserPage() {
   const { default: SystemUserPage } = await import('./user/index.vue');
   const container = document.createElement('div');
@@ -147,6 +159,7 @@ describe('system user contract wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.innerHTML = '';
+    Object.assign(window, { $message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } });
     const today = new Date().toISOString().slice(0, 10);
 
     mocks.fetchGetSystemUsers.mockResolvedValue({
@@ -316,5 +329,71 @@ describe('system user contract wiring', () => {
     expect(systemUserPage).not.toContain("userName: 'amy.ops'");
     expect(systemUserPage).not.toContain("userName: 'jack.release'");
     expect(systemUserPage).not.toContain("userName: 'luna.qa'");
+  });
+
+  it('defines role assignment locale keys in Chinese and English', () => {
+    const localeSources = [zhLocaleSource, enLocaleSource];
+    const requiredKeys = ['title', 'roles', 'placeholder', 'save', 'saveSuccess', 'loadFailed'];
+
+    localeSources.forEach(source => {
+      const roleAssignmentMatch = source.match(/roleAssignment:\s*{([\s\S]*?)\n\s*},\n\s*form:/);
+
+      expect(roleAssignmentMatch).not.toBeNull();
+
+      const roleAssignmentBlock = roleAssignmentMatch?.[1] ?? '';
+
+      requiredKeys.forEach(key => {
+        expect(roleAssignmentBlock).toMatch(new RegExp(`${key}:\\s*'[^']+'`));
+      });
+    });
+  });
+
+  it('does not save an empty role set when assignment load fails', async () => {
+    const message = { error: vi.fn(), success: vi.fn(), warning: vi.fn() };
+
+    Object.assign(window, { $message: message });
+    mocks.fetchGetSystemUserRoles.mockResolvedValueOnce({ error: new Error('load failed'), data: null });
+
+    const page = await mountSystemUserPage();
+    const assignRolesButton = getExactTextElement(page.container, 'page.envops.systemUser.roleAssignment.title');
+
+    assignRolesButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.fetchGetSystemUserRoles).toHaveBeenCalledWith(1);
+    expect(message.error).toHaveBeenCalledWith('page.envops.systemUser.roleAssignment.loadFailed');
+
+    const saveRolesButton = getExactTextElement(page.container, 'page.envops.systemUser.roleAssignment.save');
+
+    saveRolesButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settleRender();
+
+    expect(mocks.fetchUpdateSystemUserRoles).not.toHaveBeenCalled();
+
+    page.unmount();
+  });
+
+  it('keeps role assignment save and close guarded by loaded and saving states', () => {
+    expect(systemUserPage).toContain('const roleAssignmentLoaded = ref(false);');
+    expect(systemUserPage).toContain('roleAssignmentLoaded.value = false;');
+    expect(systemUserPage).toContain('roleAssignmentLoaded.value = true;');
+    expect(systemUserPage).toContain('!roleAssignmentLoaded.value');
+    expect(systemUserPage).toContain("window.$message?.error(t('page.envops.systemUser.roleAssignment.loadFailed'))");
+    expect(systemUserPage).toContain('page.envops.systemUser.roleAssignment.roles');
+    expect(systemUserPage).toContain('page.envops.systemUser.roleAssignment.placeholder');
+    expect(systemUserPage).toContain('page.envops.systemUser.roleAssignment.save');
+    expect(systemUserPage).toContain('function handleRoleDrawerVisibleChange(show: boolean)');
+    expect(systemUserPage).toMatch(/if \(!show && savingUserRoles\.value\) {\n\s+return;\n\s+}/);
+    expect(systemUserPage).toContain(':show="roleDrawerVisible"');
+    expect(systemUserPage).toContain('@update:show="handleRoleDrawerVisibleChange"');
+    expect(systemUserPage).toContain(':mask-closable="!savingUserRoles"');
+    expect(systemUserPage).toContain(':close-on-esc="!savingUserRoles"');
+    expect(systemUserPage).toContain(':closable="!savingUserRoles"');
+    expect(systemUserPage).toContain('@click="handleRoleDrawerVisibleChange(false)"');
+    expect(systemUserPage).not.toContain('v-model:show="roleDrawerVisible"');
+
+    const resetRoleAssignmentMatch = systemUserPage.match(/function resetRoleAssignmentState\(\) {([\s\S]*?)\n}/);
+
+    expect(resetRoleAssignmentMatch?.[1]).not.toContain('savingUserRoles.value = false;');
   });
 });

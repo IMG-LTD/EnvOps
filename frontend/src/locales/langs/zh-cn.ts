@@ -1240,6 +1240,14 @@ const local: App.I18n.Schema = {
           refresh: '刷新',
           save: '保存'
         },
+        roleAssignment: {
+          title: '分配角色',
+          roles: '角色',
+          placeholder: '请选择要分配的角色',
+          save: '保存角色',
+          saveSuccess: '用户角色已更新',
+          loadFailed: '加载用户角色失败，请稍后重试'
+        },
         form: {
           titleCreate: '新增用户',
           titleEdit: '编辑用户',

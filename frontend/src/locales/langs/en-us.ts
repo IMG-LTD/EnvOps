@@ -1252,6 +1252,14 @@ const local: App.I18n.Schema = {
           refresh: 'Refresh',
           save: 'Save'
         },
+        roleAssignment: {
+          title: 'Assign Roles',
+          roles: 'Roles',
+          placeholder: 'Select roles to assign',
+          save: 'Save Roles',
+          saveSuccess: 'User roles updated',
+          loadFailed: 'Failed to load user roles. Please try again later.'
+        },
         form: {
           titleCreate: 'Create User',
           titleEdit: 'Edit User',

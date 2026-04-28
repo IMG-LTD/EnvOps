@@ -1466,6 +1466,14 @@ declare namespace App {
               refresh: string;
               save: string;
             };
+            roleAssignment: {
+              title: string;
+              roles: string;
+              placeholder: string;
+              save: string;
+              saveSuccess: string;
+              loadFailed: string;
+            };
             form: {
               titleCreate: string;
               titleEdit: string;
