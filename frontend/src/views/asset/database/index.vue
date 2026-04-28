@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAuth } from '@/hooks/business/auth';
 import {
   fetchCheckAssetDatabase,
   fetchCheckCurrentPageAssetDatabases,
@@ -44,6 +45,10 @@ type DatabaseFormModel = {
 };
 
 const { t } = useI18n();
+const { hasAuth } = useAuth();
+
+const canManageDatabases = computed(() => hasAuth('asset:database:manage'));
+const canCheckDatabaseConnectivity = computed(() => hasAuth('asset:database:connectivity-check'));
 
 const loading = ref(false);
 const saving = ref(false);
@@ -337,6 +342,10 @@ async function loadPageData() {
 }
 
 function handleOpenCreateDrawer() {
+  if (!canManageDatabases.value) {
+    return;
+  }
+
   editingDatabaseId.value = null;
   editingHasStoredConnectionCredential.value = false;
   resetForm();
@@ -344,6 +353,10 @@ function handleOpenCreateDrawer() {
 }
 
 function handleOpenEditDrawer(record: Api.Asset.DatabaseRecord) {
+  if (!canManageDatabases.value) {
+    return;
+  }
+
   editingDatabaseId.value = record.id;
   editingHasStoredConnectionCredential.value = Boolean(record.connectionUsername);
   fillForm(record);
@@ -413,6 +426,10 @@ function validateForm() {
 }
 
 async function handleSubmit() {
+  if (!canManageDatabases.value) {
+    return;
+  }
+
   if (!validateForm()) {
     return;
   }
@@ -444,12 +461,20 @@ async function handleSubmit() {
 }
 
 async function handleDelete(record: Api.Asset.DatabaseRecord) {
+  if (!canManageDatabases.value) {
+    return;
+  }
+
   window.$dialog?.warning({
     title: t('common.warning'),
     content: `${t('common.confirmDelete')} ${record.databaseName}?`,
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     async onPositiveClick() {
+      if (!canManageDatabases.value) {
+        return;
+      }
+
       const { error } = await fetchDeleteAssetDatabase(record.id);
 
       if (!error) {
@@ -483,18 +508,34 @@ async function runConnectivityCheck(requestPromise: ReturnType<typeof fetchCheck
 }
 
 async function handleCheckDatabase(record: Api.Asset.DatabaseRecord) {
+  if (!canCheckDatabaseConnectivity.value) {
+    return;
+  }
+
   await runConnectivityCheck(fetchCheckAssetDatabase(record.id));
 }
 
 async function handleCheckSelected() {
+  if (!canCheckDatabaseConnectivity.value) {
+    return;
+  }
+
   await runConnectivityCheck(fetchCheckSelectedAssetDatabases(selectedDatabaseIds.value));
 }
 
 async function handleCheckCurrentPage() {
+  if (!canCheckDatabaseConnectivity.value) {
+    return;
+  }
+
   await runConnectivityCheck(fetchCheckCurrentPageAssetDatabases(tableRows.value.map(item => item.id)));
 }
 
 async function handleCheckFiltered() {
+  if (!canCheckDatabaseConnectivity.value) {
+    return;
+  }
+
   await runConnectivityCheck(fetchCheckQueriedAssetDatabases({ ...query }));
 }
 
@@ -590,7 +631,7 @@ onMounted(() => {
           <NButton secondary :loading="loading" @click="loadPageData">
             {{ t('common.refresh') }}
           </NButton>
-          <NButton type="primary" @click="handleOpenCreateDrawer">
+          <NButton type="primary" :disabled="!canManageDatabases" @click="handleOpenCreateDrawer">
             {{ t('page.envops.assetDatabase.actions.create') }}
           </NButton>
         </NSpace>
@@ -657,13 +698,21 @@ onMounted(() => {
         <NSpace>
           <NButton type="primary" @click="handleSearch">{{ t('common.search') }}</NButton>
           <NButton @click="handleResetFilters">{{ t('common.reset') }}</NButton>
-          <NButton :disabled="!selectedDatabaseIds.length" :loading="checking" @click="handleCheckSelected">
+          <NButton
+            :disabled="!canCheckDatabaseConnectivity || !selectedDatabaseIds.length"
+            :loading="checking"
+            @click="handleCheckSelected"
+          >
             {{ t('page.envops.assetDatabase.actions.checkSelected') }}
           </NButton>
-          <NButton :disabled="!tableRows.length" :loading="checking" @click="handleCheckCurrentPage">
+          <NButton
+            :disabled="!canCheckDatabaseConnectivity || !tableRows.length"
+            :loading="checking"
+            @click="handleCheckCurrentPage"
+          >
             {{ t('page.envops.assetDatabase.actions.checkCurrentPage') }}
           </NButton>
-          <NButton :loading="checking" @click="handleCheckFiltered">
+          <NButton :disabled="!canCheckDatabaseConnectivity" :loading="checking" @click="handleCheckFiltered">
             {{ t('page.envops.assetDatabase.actions.checkAllFiltered') }}
           </NButton>
         </NSpace>
@@ -718,15 +767,22 @@ onMounted(() => {
                     text
                     type="primary"
                     data-action="check-database"
+                    :disabled="!canCheckDatabaseConnectivity"
                     :loading="checking"
                     @click="handleCheckDatabase(item)"
                   >
                     {{ t('page.envops.assetDatabase.actions.check') }}
                   </NButton>
-                  <NButton text type="primary" data-action="edit-database" @click="handleOpenEditDrawer(item)">
+                  <NButton
+                    text
+                    type="primary"
+                    data-action="edit-database"
+                    :disabled="!canManageDatabases"
+                    @click="handleOpenEditDrawer(item)"
+                  >
                     {{ t('page.envops.assetDatabase.actions.edit') }}
                   </NButton>
-                  <NButton text type="error" @click="handleDelete(item)">
+                  <NButton text type="error" :disabled="!canManageDatabases" @click="handleDelete(item)">
                     {{ t('common.delete') }}
                   </NButton>
                 </NSpace>
@@ -860,7 +916,7 @@ onMounted(() => {
           </NFormItem>
           <NSpace justify="end">
             <NButton @click="handleDrawerVisibleChange(false)">{{ t('common.cancel') }}</NButton>
-            <NButton type="primary" :loading="saving" @click="handleSubmit">
+            <NButton type="primary" :loading="saving" :disabled="!canManageDatabases" @click="handleSubmit">
               {{ t('page.envops.assetDatabase.actions.save') }}
             </NButton>
           </NSpace>

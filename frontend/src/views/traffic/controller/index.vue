@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAuth } from '@/hooks/business/auth';
 import {
   fetchGetTrafficPlugins,
   fetchGetTrafficPolicies,
@@ -26,6 +27,11 @@ type TrafficActionDisplay = {
 };
 
 const { t } = useI18n();
+const { hasAuth } = useAuth();
+
+const canPreviewTrafficPolicy = computed(() => hasAuth('traffic:policy:preview'));
+const canApplyTrafficPolicy = computed(() => hasAuth('traffic:policy:apply'));
+const canRollbackTrafficPolicy = computed(() => hasAuth('traffic:policy:rollback'));
 
 const loading = ref(false);
 const requestToken = ref(0);
@@ -72,9 +78,13 @@ const trafficPolicies = computed(() =>
       status: getTrafficPolicyStatusLabel(statusKey),
       statusType: getTrafficPolicyTagType(statusKey),
       statusKey,
-      canPreview: isSupportedPolicy && Boolean(plugin?.supportsPreview),
-      canApply: isSupportedPolicy && Boolean(plugin?.supportsApply),
-      canRollback: isSupportedPolicy && Boolean(plugin?.supportsRollback) && Boolean(rollbackToken)
+      canPreview: canPreviewTrafficPolicy.value && isSupportedPolicy && Boolean(plugin?.supportsPreview),
+      canApply: canApplyTrafficPolicy.value && isSupportedPolicy && Boolean(plugin?.supportsApply),
+      canRollback:
+        canRollbackTrafficPolicy.value &&
+        isSupportedPolicy &&
+        Boolean(plugin?.supportsRollback) &&
+        Boolean(rollbackToken)
     };
   })
 );
@@ -168,7 +178,27 @@ async function loadTrafficData() {
   }
 }
 
+function canRunTrafficPolicyAction(policyId: number, action: TrafficActionType) {
+  const policy = trafficPolicies.value.find(item => item.id === policyId);
+
+  if (!policy) {
+    return false;
+  }
+
+  const actionAvailabilityMap: Record<TrafficActionType, boolean> = {
+    preview: policy.canPreview,
+    apply: policy.canApply,
+    rollback: policy.canRollback
+  };
+
+  return actionAvailabilityMap[action];
+}
+
 async function handlePolicyAction(policyId: number, action: TrafficActionType) {
+  if (!canRunTrafficPolicyAction(policyId, action)) {
+    return;
+  }
+
   actingPolicyId.value = policyId;
 
   try {

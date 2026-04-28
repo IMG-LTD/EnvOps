@@ -3,6 +3,7 @@ import { NAlert, NTabPane } from 'naive-ui';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { useAuth } from '@/hooks/business/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import {
   fetchGetAppVersions,
@@ -69,6 +70,7 @@ const DEFAULT_DEPLOY_TASK_ROUTE_QUERY = normalizeDeployTaskRouteQuery({});
 const route = useRoute();
 const { routerPushByKey } = useRouterPush();
 const { t } = useI18n();
+const { hasAuth } = useAuth();
 
 const loading = ref(false);
 const detailLoading = ref(false);
@@ -145,6 +147,12 @@ const approvalForm = reactive<DeployTaskApprovalFormModel>(createDefaultApproval
 const normalizedRouteQuery = computed(() => normalizeDeployTaskRouteQuery(route.query as Record<string, unknown>));
 const detailDrawerVisible = computed(() => normalizedRouteQuery.value.taskId !== null);
 const deployTaskListQueryKey = computed(() => JSON.stringify(toDeployTaskApiQuery(normalizedRouteQuery.value)));
+const canCreateDeployTask = computed(() => hasAuth('deploy:task:create'));
+const canApproveDeployTask = computed(() => hasAuth('deploy:task:approve'));
+const canExecuteDeployTask = computed(() => hasAuth('deploy:task:execute'));
+const canCancelDeployTask = computed(() => hasAuth('deploy:task:cancel'));
+const canRetryDeployTask = computed(() => hasAuth('deploy:task:retry'));
+const canRollbackDeployTask = computed(() => hasAuth('deploy:task:rollback'));
 
 const statusOptions = computed(() => [
   { label: t('page.envops.common.status.pending'), value: 'PENDING' },
@@ -947,6 +955,10 @@ async function handleOpenTaskDetail(taskId: number) {
 }
 
 async function handleOpenCreateDrawer() {
+  if (!canCreateDeployTask.value) {
+    return;
+  }
+
   resetCreateForm();
   createDrawerVisible.value = true;
   await Promise.all([loadCreateVersions(createForm.appId), loadCreateHosts(createForm.environment)]);
@@ -1044,7 +1056,7 @@ function validateCreateForm() {
 }
 
 async function handleCreateTask() {
-  if (createSubmitting.value || !validateCreateForm()) {
+  if (!canCreateDeployTask.value || createSubmitting.value || !validateCreateForm()) {
     return;
   }
 
@@ -1071,6 +1083,10 @@ async function handleCreateTask() {
 }
 
 function openApprovalDrawer(taskId: number, action: DeployTaskApprovalAction) {
+  if (!canApproveDeployTask.value) {
+    return;
+  }
+
   resetApprovalForm();
   approvalForm.taskId = taskId;
   approvalForm.action = action;
@@ -1086,7 +1102,12 @@ function handleApprovalDrawerVisibleChange(show: boolean) {
 }
 
 async function handleSubmitApproval() {
-  if (approvalSubmitting.value || approvalForm.taskId === null || isTaskMutating(approvalForm.taskId)) {
+  if (
+    !canApproveDeployTask.value ||
+    approvalSubmitting.value ||
+    approvalForm.taskId === null ||
+    isTaskMutating(approvalForm.taskId)
+  ) {
     return;
   }
 
@@ -1199,7 +1220,7 @@ async function handleLogsPageSizeChange(pageSize: number) {
 }
 
 async function handleExecuteTask(taskId: number) {
-  if (isTaskMutating(taskId)) {
+  if (!canExecuteDeployTask.value || isTaskMutating(taskId)) {
     return;
   }
 
@@ -1220,7 +1241,7 @@ async function handleExecuteTask(taskId: number) {
 }
 
 async function handleRetryTask(taskId: number) {
-  if (isTaskMutating(taskId)) {
+  if (!canRetryDeployTask.value || isTaskMutating(taskId)) {
     return;
   }
 
@@ -1241,7 +1262,7 @@ async function handleRetryTask(taskId: number) {
 }
 
 async function handleRollbackTask(taskId: number) {
-  if (isTaskMutating(taskId)) {
+  if (!canRollbackDeployTask.value || isTaskMutating(taskId)) {
     return;
   }
 
@@ -1262,7 +1283,7 @@ async function handleRollbackTask(taskId: number) {
 }
 
 async function handleCancelTask(taskId: number) {
-  if (isTaskMutating(taskId)) {
+  if (!canCancelDeployTask.value || isTaskMutating(taskId)) {
     return;
   }
 
@@ -1790,7 +1811,7 @@ onBeforeUnmount(() => {
           <p class="mt-8px text-14px text-#666">{{ t('page.envops.deployTask.hero.description') }}</p>
         </div>
         <NSpace>
-          <NButton type="primary" @click="handleOpenCreateDrawer">
+          <NButton type="primary" :disabled="!canCreateDeployTask" @click="handleOpenCreateDrawer">
             {{ t('page.envops.deployTask.actions.create') }}
           </NButton>
           <NButton secondary :loading="loading" @click="handleRefreshList">
@@ -1927,7 +1948,7 @@ onBeforeUnmount(() => {
                     text
                     type="primary"
                     size="small"
-                    :disabled="isTaskMutating(item.key) || !canExecuteTask(item.statusKey)"
+                    :disabled="!canExecuteDeployTask || isTaskMutating(item.key) || !canExecuteTask(item.statusKey)"
                     :loading="isActionLoading('execute', item.key)"
                     @click="handleExecuteTask(item.key)"
                   >
@@ -1937,7 +1958,7 @@ onBeforeUnmount(() => {
                     text
                     type="warning"
                     size="small"
-                    :disabled="isTaskMutating(item.key) || !canRetryTask(item.statusKey)"
+                    :disabled="!canRetryDeployTask || isTaskMutating(item.key) || !canRetryTask(item.statusKey)"
                     :loading="isActionLoading('retry', item.key)"
                     @click="handleRetryTask(item.key)"
                   >
@@ -1947,7 +1968,11 @@ onBeforeUnmount(() => {
                     text
                     type="error"
                     size="small"
-                    :disabled="isTaskMutating(item.key) || !canRollbackTask(item.statusKey, item.taskType)"
+                    :disabled="
+                      !canRollbackDeployTask ||
+                      isTaskMutating(item.key) ||
+                      !canRollbackTask(item.statusKey, item.taskType)
+                    "
                     :loading="isActionLoading('rollback', item.key)"
                     @click="handleRollbackTask(item.key)"
                   >
@@ -1957,7 +1982,9 @@ onBeforeUnmount(() => {
                     text
                     type="success"
                     size="small"
-                    :disabled="isTaskMutating(item.key) || !canApproveOrRejectTask(item.statusKey)"
+                    :disabled="
+                      !canApproveDeployTask || isTaskMutating(item.key) || !canApproveOrRejectTask(item.statusKey)
+                    "
                     :loading="isActionLoading('approve', item.key)"
                     @click="openApprovalDrawer(item.key, 'approve')"
                   >
@@ -1967,7 +1994,9 @@ onBeforeUnmount(() => {
                     text
                     type="error"
                     size="small"
-                    :disabled="isTaskMutating(item.key) || !canApproveOrRejectTask(item.statusKey)"
+                    :disabled="
+                      !canApproveDeployTask || isTaskMutating(item.key) || !canApproveOrRejectTask(item.statusKey)
+                    "
                     :loading="isActionLoading('reject', item.key)"
                     @click="openApprovalDrawer(item.key, 'reject')"
                   >
@@ -1977,7 +2006,7 @@ onBeforeUnmount(() => {
                     text
                     type="warning"
                     size="small"
-                    :disabled="isTaskMutating(item.key) || !canCancelTask(item.rawStatus)"
+                    :disabled="!canCancelDeployTask || isTaskMutating(item.key) || !canCancelTask(item.rawStatus)"
                     :loading="isActionLoading('cancel', item.key)"
                     @click="handleCancelTask(item.key)"
                   >
@@ -2124,7 +2153,12 @@ onBeforeUnmount(() => {
             <NButton @click="handleCreateDrawerVisibleChange(false)">
               {{ t('common.cancel') }}
             </NButton>
-            <NButton type="primary" :loading="createSubmitting" @click="handleCreateTask">
+            <NButton
+              type="primary"
+              :loading="createSubmitting"
+              :disabled="!canCreateDeployTask"
+              @click="handleCreateTask"
+            >
               {{ t('page.envops.deployTask.actions.create') }}
             </NButton>
           </NSpace>
@@ -2154,7 +2188,12 @@ onBeforeUnmount(() => {
             <NButton @click="handleApprovalDrawerVisibleChange(false)">
               {{ t('common.cancel') }}
             </NButton>
-            <NButton type="primary" :loading="approvalSubmitting" @click="handleSubmitApproval">
+            <NButton
+              type="primary"
+              :loading="approvalSubmitting"
+              :disabled="!canApproveDeployTask"
+              @click="handleSubmitApproval"
+            >
               {{ approvalSubmitText }}
             </NButton>
           </NSpace>

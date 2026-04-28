@@ -15,7 +15,16 @@ export function useAuth() {
     return codes.some(code => authStore.userInfo.buttons.includes(code));
   }
 
+  function hasEveryAuth(codes: string[]) {
+    if (!authStore.isLogin) {
+      return false;
+    }
+
+    return codes.every(code => authStore.userInfo.buttons.includes(code));
+  }
+
   return {
-    hasAuth
+    hasAuth,
+    hasEveryAuth
   };
 }

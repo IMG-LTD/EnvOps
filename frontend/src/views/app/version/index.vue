@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { NButton, NCard, NDivider, NEmpty, NForm, NFormItem, NGrid, NGi, NInput, NSelect, NSpace } from 'naive-ui';
+import { useAuth } from '@/hooks/business/auth';
 import {
   fetchCreateAppVersion,
   fetchDeleteAppVersion,
@@ -18,6 +19,8 @@ defineOptions({
   name: 'AppVersionPage'
 });
 
+const { hasAuth } = useAuth();
+
 const loading = ref(false);
 const submitting = ref(false);
 const apps = ref<Api.App.AppDefinition[]>([]);
@@ -29,6 +32,7 @@ const selectedAppId = ref<Api.App.RecordId | null>(null);
 const formVisible = ref(false);
 const editingVersionId = ref<Api.App.RecordId | null>(null);
 
+const canManageAppVersions = computed(() => hasAuth('app:version:manage'));
 const statusOptions = computed(() => getStatusOptions());
 
 const packageOptions = computed(() => {
@@ -163,12 +167,20 @@ async function loadVersions(appId: Api.App.RecordId | null = selectedAppId.value
 }
 
 function handleAdd() {
+  if (!canManageAppVersions.value) {
+    return;
+  }
+
   editingVersionId.value = null;
   resetFormModel();
   formVisible.value = true;
 }
 
 function handleEdit(version: Api.App.AppVersion) {
+  if (!canManageAppVersions.value) {
+    return;
+  }
+
   editingVersionId.value = version.id;
   fillFormModel(version);
   formVisible.value = true;
@@ -181,6 +193,10 @@ function handleCancel() {
 }
 
 async function handleSubmit() {
+  if (!canManageAppVersions.value) {
+    return;
+  }
+
   if (selectedAppId.value === null) {
     return;
   }
@@ -206,12 +222,20 @@ async function handleSubmit() {
 }
 
 async function handleDelete(version: Api.App.AppVersion) {
+  if (!canManageAppVersions.value) {
+    return;
+  }
+
   window.$dialog?.warning({
     title: $t('common.warning'),
     content: `${$t('common.confirmDelete')} ${version.versionNo}?`,
     positiveText: $t('common.confirm'),
     negativeText: $t('common.cancel'),
     async onPositiveClick() {
+      if (!canManageAppVersions.value) {
+        return;
+      }
+
       const { error } = await fetchDeleteAppVersion(version.id);
 
       if (!error) {
@@ -241,7 +265,7 @@ onMounted(() => {
             :options="appOptions"
             @update:value="loadVersions"
           />
-          <NButton type="primary" :disabled="selectedAppId === null" @click="handleAdd">
+          <NButton type="primary" :disabled="!canManageAppVersions || selectedAppId === null" @click="handleAdd">
             {{ $t('common.add') }}
           </NButton>
           <NButton :loading="loading" @click="loadVersions()">
@@ -268,10 +292,10 @@ onMounted(() => {
               </div>
             </div>
             <div class="flex gap-8px">
-              <NButton text type="primary" @click="handleEdit(item)">
+              <NButton text type="primary" :disabled="!canManageAppVersions" @click="handleEdit(item)">
                 {{ $t('common.edit') }}
               </NButton>
-              <NButton text type="error" @click="handleDelete(item)">
+              <NButton text type="error" :disabled="!canManageAppVersions" @click="handleDelete(item)">
                 {{ $t('common.delete') }}
               </NButton>
             </div>
@@ -336,7 +360,7 @@ onMounted(() => {
         <NButton @click="handleCancel">
           {{ $t('common.cancel') }}
         </NButton>
-        <NButton type="primary" :loading="submitting" @click="handleSubmit">
+        <NButton type="primary" :loading="submitting" :disabled="!canManageAppVersions" @click="handleSubmit">
           {{ $t('page.app.common.save') }}
         </NButton>
       </NSpace>

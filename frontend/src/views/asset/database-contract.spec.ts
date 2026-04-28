@@ -61,6 +61,13 @@ vi.mock('@/service/api', () => ({
   fetchCheckQueriedAssetDatabases: mocks.fetchCheckQueriedAssetDatabases
 }));
 
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: () => true,
+    hasEveryAuth: () => true
+  })
+}));
+
 const passthroughStub = defineComponent({
   inheritAttrs: false,
   setup(_props, { attrs, slots }) {
@@ -497,6 +504,12 @@ describe('asset database contract wiring', () => {
     expect(transformSource).toContain('"asset_database": "/asset/database"');
     expect(elegantTypingSource).toContain('"asset_database": "/asset/database";');
     expect(elegantTypingSource).toContain('| "asset_database"');
+  });
+
+  it('gates database management and connectivity actions by RBAC permissions', () => {
+    expect(databasePageSource).toMatch(/useAuth\s*\(/);
+    expect(databasePageSource).toContain('asset:database:manage');
+    expect(databasePageSource).toContain('asset:database:connectivity-check');
   });
 
   it('loads database summary and table data from asset apis', async () => {
