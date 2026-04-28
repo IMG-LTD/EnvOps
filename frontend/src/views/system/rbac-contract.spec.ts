@@ -108,4 +108,31 @@ describe('system rbac frontend contract', () => {
       /:disabled="[\s\S]*loadingRolePermissions[\s\S]*permissionsLoadedForRoleId !== selectedRoleId[\s\S]*"/
     );
   });
+
+  it('guards stale role permission save responses', () => {
+    const savePermissionsSource = extractSourceBlock(
+      pageSource,
+      'async function handleSavePermissions',
+      'async function loadPageData'
+    );
+
+    expect(savePermissionsSource).toMatch(
+      /if \([\s\S]*selectedRoleId\.value === null[\s\S]*loadingRolePermissions\.value[\s\S]*permissionsLoadedForRoleId\.value !== selectedRoleId\.value[\s\S]*savingPermissions\.value[\s\S]*\) \{[\s\S]*return;/
+    );
+    expectInOrder(savePermissionsSource, [
+      /const roleId = selectedRoleId\.value;/,
+      /fetchUpdateSystemRbacRolePermissions\(roleId,\s*\{/,
+      /if \(!response\.error && selectedRoleId\.value === roleId\) \{/,
+      /assignedPermissionKeys\.value = response\.data\.permissionKeys;/
+    ]);
+
+    const saveButtonSource = extractSourceBlock(
+      pageSource,
+      '<NButton\n                  type="primary"\n                  :loading="savingPermissions"',
+      '@click="handleSavePermissions"'
+    );
+    expect(saveButtonSource).toMatch(
+      /:disabled="[\s\S]*savingPermissions[\s\S]*loadingRolePermissions[\s\S]*permissionsLoadedForRoleId !== selectedRoleId[\s\S]*"/
+    );
+  });
 });

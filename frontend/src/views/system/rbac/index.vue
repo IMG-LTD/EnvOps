@@ -203,19 +203,22 @@ async function handleSavePermissions() {
     !canManageRole.value ||
     selectedRoleId.value === null ||
     loadingRolePermissions.value ||
-    permissionsLoadedForRoleId.value !== selectedRoleId.value
+    permissionsLoadedForRoleId.value !== selectedRoleId.value ||
+    savingPermissions.value
   ) {
     return;
   }
 
+  const roleId = selectedRoleId.value;
+
   savingPermissions.value = true;
 
   try {
-    const response = await fetchUpdateSystemRbacRolePermissions(selectedRoleId.value, {
+    const response = await fetchUpdateSystemRbacRolePermissions(roleId, {
       permissionKeys: assignedPermissionKeys.value
     });
 
-    if (!response.error) {
+    if (!response.error && selectedRoleId.value === roleId) {
       assignedPermissionKeys.value = response.data.permissionKeys;
       window.$message?.success(t('page.envops.systemRbac.messages.permissionSaveSuccess'));
     }
@@ -329,7 +332,7 @@ onMounted(loadPageData);
                   <div v-for="permission in module.permissions" :key="permission.permissionKey">
                     <NCheckbox
                       :checked="isPermissionChecked(permission.permissionKey)"
-                      :disabled="!canManageRole"
+                      :disabled="!canManageRole || loadingRolePermissions"
                       @update:checked="checked => setPermissionChecked(permission, checked === true)"
                     >
                       {{ permission.permissionName }}
@@ -339,7 +342,7 @@ onMounted(loadPageData);
                         v-for="child in permission.children"
                         :key="child.permissionKey"
                         :checked="isPermissionChecked(child.permissionKey)"
-                        :disabled="!canManageRole || isActionDisabled(child)"
+                        :disabled="!canManageRole || loadingRolePermissions || isActionDisabled(child)"
                         @update:checked="checked => setPermissionChecked(child, checked === true)"
                       >
                         {{ child.permissionName }}
@@ -354,6 +357,7 @@ onMounted(loadPageData);
                   :loading="savingPermissions"
                   :disabled="
                     !canManageRole ||
+                    savingPermissions ||
                     selectedRoleId === null ||
                     loadingRolePermissions ||
                     permissionsLoadedForRoleId !== selectedRoleId
