@@ -14,11 +14,17 @@ const mocks = vi.hoisted(() => {
   const fetchGetSystemUsers = vi.fn();
   const fetchCreateSystemUser = vi.fn();
   const fetchUpdateSystemUser = vi.fn();
+  const fetchGetSystemRbacRoles = vi.fn();
+  const fetchGetSystemUserRoles = vi.fn();
+  const fetchUpdateSystemUserRoles = vi.fn();
 
   return {
     fetchGetSystemUsers,
     fetchCreateSystemUser,
-    fetchUpdateSystemUser
+    fetchUpdateSystemUser,
+    fetchGetSystemRbacRoles,
+    fetchGetSystemUserRoles,
+    fetchUpdateSystemUserRoles
   };
 });
 
@@ -31,7 +37,20 @@ vi.mock('vue-i18n', () => ({
 vi.mock('@/service/api', () => ({
   fetchGetSystemUsers: mocks.fetchGetSystemUsers,
   fetchCreateSystemUser: mocks.fetchCreateSystemUser,
-  fetchUpdateSystemUser: mocks.fetchUpdateSystemUser
+  fetchUpdateSystemUser: mocks.fetchUpdateSystemUser,
+  fetchGetSystemRbacRoles: mocks.fetchGetSystemRbacRoles,
+  fetchGetSystemUserRoles: mocks.fetchGetSystemUserRoles,
+  fetchUpdateSystemUserRoles: mocks.fetchUpdateSystemUserRoles
+}));
+
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: (code: string | string[]) => {
+      const permissions = ['system:user:manage'];
+
+      return typeof code === 'string' ? permissions.includes(code) : code.some(item => permissions.includes(item));
+    }
+  })
 }));
 
 const passthroughStub = defineComponent({
@@ -177,6 +196,41 @@ describe('system user contract wiring', () => {
     });
     mocks.fetchCreateSystemUser.mockResolvedValue({ error: null, data: null });
     mocks.fetchUpdateSystemUser.mockResolvedValue({ error: null, data: null });
+    mocks.fetchGetSystemRbacRoles.mockResolvedValue({
+      error: null,
+      data: [
+        {
+          id: 1,
+          roleKey: 'SUPER_ADMIN',
+          roleName: 'Super Admin',
+          description: null,
+          enabled: true,
+          builtIn: true,
+          createdAt: null,
+          updatedAt: null
+        },
+        {
+          id: 2,
+          roleKey: 'DISABLED_ROLE',
+          roleName: 'Disabled Role',
+          description: null,
+          enabled: false,
+          builtIn: false,
+          createdAt: null,
+          updatedAt: null
+        }
+      ]
+    });
+    mocks.fetchGetSystemUserRoles.mockResolvedValue({
+      error: null,
+      data: {
+        userId: 1,
+        roles: [],
+        roleIds: [1],
+        roleKeys: ['SUPER_ADMIN']
+      }
+    });
+    mocks.fetchUpdateSystemUserRoles.mockResolvedValue({ error: null, data: null });
   });
 
   afterEach(() => {
@@ -238,6 +292,12 @@ describe('system user contract wiring', () => {
     expect(systemUserPage).toContain('fetchGetSystemUsers');
     expect(systemUserPage).toContain('fetchCreateSystemUser');
     expect(systemUserPage).toContain('fetchUpdateSystemUser');
+    expect(systemUserPage).toContain('fetchGetSystemRbacRoles');
+    expect(systemUserPage).toContain('fetchGetSystemUserRoles');
+    expect(systemUserPage).toContain('fetchUpdateSystemUserRoles');
+    expect(systemUserPage).toContain('system:user:manage');
+    expect(systemUserPage).toContain('handleOpenRoleAssignment');
+    expect(systemUserPage).toContain('handleSaveUserRoles');
     expect(systemUserPage).toContain('const drawerVisible = ref(false);');
     expect(systemUserPage).toContain('const editingUserId = ref<number | null>(null);');
     expect(systemUserPage).toContain('function handleOpenCreateDrawer()');
