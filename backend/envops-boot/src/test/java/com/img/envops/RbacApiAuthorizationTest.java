@@ -6,7 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,12 +17,16 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,6 +39,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "envops.security.credential-protection-secret=test-only-envops-credential-protection-secret-12345"
 })
 class RbacApiAuthorizationTest {
+  @TestConfiguration
+  static class UnknownApiTestConfiguration {
+    @Bean
+    UnknownApiController unknownApiController() {
+      return new UnknownApiController();
+    }
+  }
+
+  @RestController
+  static class UnknownApiController {
+    @GetMapping("/api/not-registered-rbac-endpoint")
+    ResponseEntity<Void> notFound() {
+      return ResponseEntity.notFound().build();
+    }
+  }
+
   @Autowired
   private MockMvc mockMvc;
 
@@ -42,6 +65,33 @@ class RbacApiAuthorizationTest {
   private JdbcTemplate jdbcTemplate;
 
   private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+  @Test
+  void unauthenticatedKnownApiReturnsUnauthorized() throws Exception {
+    mockMvc.perform(get("/api/assets/databases"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("401"));
+  }
+
+  @Test
+  void publicConstantRoutesEndpointRemainsPublic() throws Exception {
+    mockMvc.perform(get("/api/routes/getConstantRoutes"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"));
+  }
+
+  @Test
+  void unknownApiEndpointRequiresAuthenticationButHasNoRbacRule() throws Exception {
+    mockMvc.perform(get("/api/not-registered-rbac-endpoint"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("401"));
+
+    seedUserWithPermissions(85L, "unknown-api-user", "UnknownApiUser@123", List.of("home"));
+    String token = login("unknown-api-user", "UnknownApiUser@123");
+
+    mockMvc.perform(get("/api/not-registered-rbac-endpoint").header("Authorization", "Bearer " + token))
+        .andExpect(status().isNotFound());
+  }
 
   @Test
   void databaseReadRequiresMenuPermission() throws Exception {
@@ -61,6 +111,37 @@ class RbacApiAuthorizationTest {
     mockMvc.perform(post("/api/assets/databases/1/connectivity-check").header("Authorization", "Bearer " + token))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("403"));
+  }
+
+  @Test
+  void actionPermissionWithoutMenuDoesNotAuthorizeDatabaseConnectivity() throws Exception {
+    seedUserWithPermissions(86L, "database-action-only", "DatabaseActionOnly@123", List.of("asset:database:connectivity-check"));
+    String token = login("database-action-only", "DatabaseActionOnly@123");
+
+    mockMvc.perform(post("/api/assets/databases/1/connectivity-check").header("Authorization", "Bearer " + token))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("403"));
+  }
+
+  @Test
+  void contextPathRequestStillEnforcesDatabaseMenuPermission() throws Exception {
+    seedUserWithPermissions(87L, "database-context-no-menu", "DatabaseContextNoMenu@123", List.of("home"));
+    String token = login("database-context-no-menu", "DatabaseContextNoMenu@123");
+
+    mockMvc.perform(get("/envops/api/assets/databases")
+            .contextPath("/envops")
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("403"));
+  }
+
+  @Test
+  void headRequestUsesGetDatabasePermissionRule() throws Exception {
+    seedUserWithPermissions(88L, "database-head-no-menu", "DatabaseHeadNoMenu@123", List.of("home"));
+    String token = login("database-head-no-menu", "DatabaseHeadNoMenu@123");
+
+    mockMvc.perform(head("/api/assets/databases").header("Authorization", "Bearer " + token))
+        .andExpect(status().isForbidden());
   }
 
   @Test
@@ -113,10 +194,13 @@ class RbacApiAuthorizationTest {
     jdbcTemplate.update("INSERT INTO sys_user_role (user_id, role_id) VALUES (?, ?)", userId, roleId);
 
     for (String permissionKey : permissionKeys) {
-      jdbcTemplate.update(
+      int insertedPermissionCount = jdbcTemplate.update(
           "INSERT INTO sys_role_permission (role_id, permission_id) SELECT ?, id FROM sys_permission WHERE permission_key = ?",
           roleId,
           permissionKey);
+      assertThat(insertedPermissionCount)
+          .as("permission key %s should exist", permissionKey)
+          .isEqualTo(1);
     }
   }
 

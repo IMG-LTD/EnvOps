@@ -1,5 +1,6 @@
 package com.img.envops.framework.security;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationDecision;
@@ -32,8 +33,8 @@ public class EnvOpsApiAuthorizationManager implements AuthorizationManager<Reque
       return new AuthorizationDecision(false);
     }
 
-    HttpMethod method = HttpMethod.valueOf(context.getRequest().getMethod());
-    String path = context.getRequest().getRequestURI();
+    HttpMethod method = normalizeMethod(HttpMethod.valueOf(context.getRequest().getMethod()));
+    String path = normalizePath(context.getRequest());
     ApiAuthorizationRule rule = apiAuthorizationRegistry.findRule(method, path).orElse(null);
 
     if (rule == null) {
@@ -49,5 +50,22 @@ public class EnvOpsApiAuthorizationManager implements AuthorizationManager<Reque
     boolean hasActionPermission = !StringUtils.hasText(rule.actionPermission()) || permissions.contains(rule.actionPermission());
 
     return new AuthorizationDecision(hasMenuPermission && hasActionPermission);
+  }
+
+  private HttpMethod normalizeMethod(HttpMethod method) {
+    if (method == HttpMethod.HEAD) {
+      return HttpMethod.GET;
+    }
+    return method;
+  }
+
+  private String normalizePath(HttpServletRequest request) {
+    String requestUri = request.getRequestURI();
+    String contextPath = request.getContextPath();
+    if (StringUtils.hasText(contextPath) && requestUri.startsWith(contextPath)) {
+      String path = requestUri.substring(contextPath.length());
+      return StringUtils.hasText(path) ? path : "/";
+    }
+    return requestUri;
   }
 }
