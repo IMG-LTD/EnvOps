@@ -1,12 +1,25 @@
 package com.img.envops;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -17,6 +30,12 @@ import org.springframework.test.context.TestPropertySource;
 class RbacControllerTest {
   @Autowired
   private JdbcTemplate jdbcTemplate;
+
+  @Autowired
+  private ObjectMapper objectMapper;
+
+  @Autowired
+  private MockMvc mockMvc;
 
   @Test
   void seedDataCreatesFixedPermissionPointsAndSystemRbacRoute() {
@@ -67,5 +86,89 @@ class RbacControllerTest {
     Assertions.assertThat(orphanPermissionBindingCount).isZero();
     Assertions.assertThat(systemRbacRoute).isEqualTo("system_rbac");
     Assertions.assertThat(superAdminRbacPermission).isEqualTo(1);
+  }
+
+  @Test
+  void superAdminCanReadRolesAndPermissionTree() throws Exception {
+    String token = login("envops-admin", "EnvOps@123");
+
+    mockMvc.perform(get("/api/system/rbac/roles").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data[0].roleKey").value("SUPER_ADMIN"))
+        .andExpect(jsonPath("$.data[0].builtIn").value(true));
+
+    mockMvc.perform(get("/api/system/rbac/permissions").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data[?(@.moduleKey == 'system')]").exists());
+  }
+
+  @Test
+  void superAdminCanCreateRoleAndReplacePermissions() throws Exception {
+    String token = login("envops-admin", "EnvOps@123");
+
+    MvcResult created = mockMvc.perform(post("/api/system/rbac/roles")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "roleKey": "OPS_VIEWER",
+                  "roleName": "Ops Viewer",
+                  "description": "Ops read only role",
+                  "enabled": true
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.roleKey").value("OPS_VIEWER"))
+        .andReturn();
+
+    long roleId = objectMapper.readTree(created.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+    mockMvc.perform(put("/api/system/rbac/roles/" + roleId + "/permissions")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "permissionKeys": ["home", "task", "task_center", "task_tracking_[id]"]
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.permissionKeys", org.hamcrest.Matchers.hasItem("task_center")));
+  }
+
+  @Test
+  void savingUnknownRolePermissionFails() throws Exception {
+    String token = login("envops-admin", "EnvOps@123");
+
+    mockMvc.perform(put("/api/system/rbac/roles/5/permissions")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "permissionKeys": ["not:a:permission"]
+                }
+                """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("400"));
+  }
+
+  private String login(String userName, String password) throws Exception {
+    MvcResult result = mockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  \"userName\": \"%s\",
+                  \"password\": \"%s\"
+                }
+                """.formatted(userName, password)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.token", not(blankOrNullString())))
+        .andReturn();
+
+    JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    return data.path("token").asText();
   }
 }

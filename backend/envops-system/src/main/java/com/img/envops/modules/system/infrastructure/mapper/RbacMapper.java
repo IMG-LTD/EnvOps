@@ -151,6 +151,19 @@ public interface RbacMapper {
       """)
   PermissionRow findPermissionByKey(@Param("permissionKey") String permissionKey);
 
+  @Select({
+      "<script>",
+      "SELECT permission_key",
+      "FROM sys_permission",
+      "WHERE enabled = TRUE",
+      "AND permission_key IN",
+      "<foreach collection='permissionKeys' item='permissionKey' open='(' separator=',' close=')'>",
+      "#{permissionKey}",
+      "</foreach>",
+      "</script>"
+  })
+  List<String> findEnabledPermissionKeysByKeys(@Param("permissionKeys") List<String> permissionKeys);
+
   @Select("""
       SELECT p.permission_key
       FROM sys_permission p
