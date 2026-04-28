@@ -9,6 +9,7 @@ const typingSource = readFileSync(resolve(root, 'src/typings/api/system-rbac.d.t
 const routesSource = readFileSync(resolve(root, 'src/router/elegant/routes.ts'), 'utf8');
 const zhSource = readFileSync(resolve(root, 'src/locales/langs/zh-cn.ts'), 'utf8');
 const enSource = readFileSync(resolve(root, 'src/locales/langs/en-us.ts'), 'utf8');
+const pageSource = readFileSync(resolve(root, 'src/views/system/rbac/index.vue'), 'utf8');
 
 describe('system rbac frontend contract', () => {
   it('declares rbac api methods and endpoints', () => {
@@ -36,5 +37,16 @@ describe('system rbac frontend contract', () => {
     expect(enSource).toContain("system_rbac: 'Permission Management'");
     expect(zhSource).toContain('systemRbac');
     expect(enSource).toContain('systemRbac');
+  });
+
+  it('implements role-first permission management behavior', () => {
+    expect(pageSource).toContain("name: 'SystemRbacPage'");
+    expect(pageSource).toContain('system:role:manage');
+    expect(pageSource).toContain('fetchGetSystemRbacRoles');
+    expect(pageSource).toContain('fetchGetSystemRbacPermissions');
+    expect(pageSource).toContain('fetchUpdateSystemRbacRolePermissions');
+    expect(pageSource).toContain('collectActionKeys');
+    expect(pageSource).toContain('isActionDisabled');
+    expect(pageSource).toContain('handleSavePermissions');
   });
 });
