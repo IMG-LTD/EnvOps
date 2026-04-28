@@ -65,6 +65,16 @@ public interface UserAuthMapper {
   List<String> findRoleKeysByUserId(@Param("userId") Long userId);
 
   @Select("""
+      SELECT r.role_key
+      FROM sys_role r
+      JOIN sys_user_role ur ON ur.role_id = r.id
+      WHERE ur.user_id = #{userId}
+        AND r.enabled = TRUE
+      ORDER BY r.id
+      """)
+  List<String> findEnabledRoleKeysByUserId(@Param("userId") Long userId);
+
+  @Select("""
       SELECT u.id AS userId,
              u.user_name AS userName,
              u.phone AS phone,

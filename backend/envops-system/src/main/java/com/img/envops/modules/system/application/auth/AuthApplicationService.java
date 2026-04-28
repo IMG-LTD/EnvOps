@@ -2,6 +2,7 @@ package com.img.envops.modules.system.application.auth;
 
 import com.img.envops.common.exception.UnauthorizedException;
 import com.img.envops.framework.security.JwtTokenService;
+import com.img.envops.modules.system.application.rbac.RbacAuthorizationService;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper;
 import com.img.envops.modules.system.infrastructure.mapper.UserAuthMapper.UserAuthRow;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,7 +18,6 @@ import java.util.regex.Pattern;
 
 @Service
 public class AuthApplicationService {
-  private static final String DEFAULT_BUTTON = "envops:dashboard:view";
   private static final int VERIFICATION_CODE_EXPIRE_SECONDS = 300;
   private static final Pattern PHONE_PATTERN = Pattern.compile(
       "^[1](([3][0-9])|([4][01456789])|([5][012356789])|([6][2567])|([7][0-8])|([8][0-9])|([9][012356789]))[0-9]{8}$");
@@ -26,14 +26,17 @@ public class AuthApplicationService {
   private final UserAuthMapper userAuthMapper;
   private final JwtTokenService jwtTokenService;
   private final PasswordEncoder passwordEncoder;
+  private final RbacAuthorizationService rbacAuthorizationService;
   private final Map<String, VerificationCodeSession> verificationCodeSessions = new ConcurrentHashMap<>();
 
   public AuthApplicationService(UserAuthMapper userAuthMapper,
                                 JwtTokenService jwtTokenService,
-                                PasswordEncoder passwordEncoder) {
+                                PasswordEncoder passwordEncoder,
+                                RbacAuthorizationService rbacAuthorizationService) {
     this.userAuthMapper = userAuthMapper;
     this.jwtTokenService = jwtTokenService;
     this.passwordEncoder = passwordEncoder;
+    this.rbacAuthorizationService = rbacAuthorizationService;
   }
 
   public LoginToken login(LoginCommand command) {
@@ -90,13 +93,14 @@ public class AuthApplicationService {
 
   public UserInfo getUserInfo(String userName) {
     UserAuthRow user = requireUser(userName);
-    List<String> roles = userAuthMapper.findRoleKeysByUserId(user.getUserId());
+    List<String> roles = userAuthMapper.findEnabledRoleKeysByUserId(user.getUserId());
+    List<String> buttons = rbacAuthorizationService.findEffectiveActionPermissionKeys(user.getUserName()).stream().toList();
 
     return new UserInfo(
         String.valueOf(user.getUserId()),
         user.getUserName(),
         roles,
-        List.of(DEFAULT_BUTTON));
+        buttons);
   }
 
   public UserAuthRow requireUser(String userName) {

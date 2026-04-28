@@ -250,7 +250,10 @@ class AuthRouteControllerTest {
         .andExpect(jsonPath("$.data.userId").value("1"))
         .andExpect(jsonPath("$.data.userName").value("envops-admin"))
         .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"))
-        .andExpect(jsonPath("$.data.buttons[0]").value("envops:dashboard:view"));
+        .andExpect(jsonPath("$.data.buttons").isArray())
+        .andExpect(jsonPath("$.data.buttons", org.hamcrest.Matchers.hasItem("system:role:manage")))
+        .andExpect(jsonPath("$.data.buttons", org.hamcrest.Matchers.hasItem("system:user:manage")))
+        .andExpect(jsonPath("$.data.buttons", org.hamcrest.Matchers.hasItem("asset:database:manage")));
   }
 
   @Test
