@@ -2,7 +2,7 @@
 
 ## 1. 文档说明
 
-本文档用于说明当前仓库当前基线的项目定位、交付范围、本地联调方式与能力边界。当前阶段重点不是继续扩张功能承诺，而是同步工程闸口、账号安全、本地默认配置，以及 Database / Deploy / Task / Traffic 的真实能力边界。
+本文档用于说明当前仓库当前基线的项目定位、交付范围、本地联调方式与能力边界。当前阶段重点不是继续扩张功能承诺，而是同步工程闸口、账号安全、本地默认配置，以及 Database / Deploy / Task / Traffic / RBAC 的真实能力边界。
 
 ## 2. 当前基线定位
 
@@ -16,6 +16,7 @@
 - Task Center 当前保留统一列表和轻量详情抽屉，并新增统一任务完整追踪页，统一纳入 Deploy、数据库连通性检测、Traffic 动作三类任务。
 - Deploy 历史任务允许在完整追踪页降级展示；数据库连通性检测与 Traffic 动作只保证新任务完整追踪；数据库批量检测按一批一条记录。
 - Traffic 页面与接口当前已收敛为最小真实切流 MVP，只覆盖 REST 插件、`weighted_routing` 策略，以及 `preview` / `apply` / `rollback` 真闭环。
+- RBAC 权限管理提供固定权限点、角色维护、角色权限分配和用户角色分配；后端 API 授权与动态菜单权限统一使用菜单 + 操作权限模型。
 
 ## 3. 仓库结构
 
@@ -113,6 +114,19 @@ Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 - 页面会展示范围 warning、最近一次动作结果，以及不支持记录的禁用原因
 - 当前不扩展多插件、多策略矩阵、审批体系大改、批量切流、高级编排与灰度报表
 
+### 5.5 RBAC 权限管理
+
+RBAC 权限管理当前落地第一版，采用固定权限点、角色优先的权限维护方式：
+
+- 权限点由系统固定种子数据提供，分为菜单权限和操作权限，不允许在 UI 中创建任意 API matcher
+- 系统管理 / 权限管理提供角色优先的维护入口，可创建和编辑角色、启停角色，并维护角色菜单/操作权限
+- 系统管理 / 用户管理新增用户-角色绑定，可为用户分配已启用角色
+- Home、Asset、Monitor、App、Deploy、Task Center、Traffic、System 全模块均纳入菜单 + 操作权限模型
+- 菜单权限控制菜单可见和模块读 API
+- 操作权限控制创建、编辑、删除、执行、审批、应用、回滚、系统管理等高风险动作
+- 后端 API 授权是权威判断和安全边界，前端按钮禁用和提示只作为用户体验
+- RBAC 不在 v0.0.8 提供 UI 创建任意 API matcher、组织架构、部门继承、审批流、审计中心、资源级归属权限或 JWT 登录模型替换
+
 ## 6. 本地验证建议
 
 建议按以下命令验证当前基线：
@@ -120,7 +134,10 @@ Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 - `mvn -f backend/pom.xml -pl envops-task -am -Dtest=UnifiedTaskCenterApplicationServiceTest test`
 - `mvn -f backend/pom.xml -pl envops-asset -am -Dtest=DatabaseConnectionSecretProtectorTest,DatabaseConnectivityServiceTest test`
 - `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=DeployTaskControllerTest,AssetControllerTest,TrafficControllerTest test`
+- `mvn -f backend/pom.xml -pl envops-boot -Dtest=AuthRouteControllerTest,UserControllerTest,RbacControllerTest,RbacApiAuthorizationTest,RbacRegistryCoverageTest test`
+- `mvn -f backend/pom.xml test`
 - `pnpm --dir frontend exec vitest run src/views/task/task-contract.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
+- `pnpm --dir frontend exec vitest run src/views/system/rbac-contract.spec.ts src/views/system/user-contract.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
 - `pnpm --dir frontend typecheck`
 - `pnpm --dir frontend build`
 - `bash backend/scripts/test-envops-boot.sh`
@@ -136,10 +153,12 @@ Traffic 当前已收敛为最小真实切流 MVP，真实边界如下：
 - Traffic 的多插件适配、多策略矩阵、审批体系重构、批量切流、高级编排与灰度报表
 - Task Center 的统一任务内重试、统一任务内取消、多任务编排、统一完整日志平台、数据库与 Traffic 全历史补录，以及新执行引擎抽象
 - Deploy 大规模主机检索与更深执行器增强
+- RBAC 不在 v0.0.8 提供 UI 创建任意 API matcher、组织架构、部门继承、审批流、审计中心、资源级归属权限或 JWT 登录模型替换
 
 ## 8. 文档同步要求
 
 当前项目口径需要与以下材料保持一致：
 
 - `README.md`
+- `release/0.0.8-release-notes.md`
 - `release/0.0.7-release-notes.md`

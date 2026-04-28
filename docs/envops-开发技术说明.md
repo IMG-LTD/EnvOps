@@ -2,7 +2,7 @@
 
 ## 1. 文档定位
 
-本文档面向开发、联调、测试与维护人员，说明当前基线的工程版本字段、本地联调方式、验证命令，以及 Deploy / Task / Traffic 的技术边界，其中 Task Center 在统一列表和轻量详情抽屉之外新增统一任务完整追踪页，Traffic 已收敛到最小真实能力口径。
+本文档面向开发、联调、测试与维护人员，说明当前基线的工程版本字段、本地联调方式、验证命令，以及 Deploy / Task / Traffic / RBAC 的技术边界，其中 Task Center 在统一列表和轻量详情抽屉之外新增统一任务完整追踪页，Traffic 已收敛到最小真实能力口径，RBAC 新增第一版固定权限点和角色授权模型。
 
 ## 2. 版本字段
 
@@ -10,7 +10,7 @@
 
 - `backend/pom.xml` 当前包含 `<version>0.0.4-SNAPSHOT</version>`
 - `frontend/package.json` 当前包含 `"version": "0.0.4"`
-- 当前功能说明与发布材料按 `release/0.0.7-release-notes.md` 的统一任务追踪口径同步
+- 当前功能说明与发布材料按 `release/0.0.8-release-notes.md` 的 RBAC 权限管理口径同步，并保留 `release/0.0.7-release-notes.md` 的统一任务追踪口径
 
 ## 3. 本地联调方式
 
@@ -44,9 +44,12 @@ pnpm --dir frontend dev
 - `mvn -f backend/pom.xml -pl envops-task -am -Dtest=UnifiedTaskCenterApplicationServiceTest test`
 - `mvn -f backend/pom.xml -pl envops-asset -am -Dtest=DatabaseConnectionSecretProtectorTest,DatabaseConnectivityServiceTest test`
 - `mvn -f backend/pom.xml -pl envops-boot -am -Dtest=DeployTaskControllerTest,AssetControllerTest,TrafficControllerTest test`
+- `mvn -f backend/pom.xml -pl envops-boot -Dtest=AuthRouteControllerTest,UserControllerTest,RbacControllerTest,RbacApiAuthorizationTest,RbacRegistryCoverageTest test`
 - `mvn -f backend/pom.xml -pl envops-traffic -am -Dtest=RestTrafficPluginTest test`
+- `mvn -f backend/pom.xml test`
 - `pnpm --dir frontend exec vitest run src/views/task/task-contract.spec.ts src/views/task/shared/query.spec.ts src/views/asset/database-contract.spec.ts src/views/asset/database-connectivity.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
 - `pnpm --dir frontend exec vitest run src/views/traffic/traffic-contract.spec.ts`
+- `pnpm --dir frontend exec vitest run src/views/system/rbac-contract.spec.ts src/views/system/user-contract.spec.ts src/store/modules/__tests__/route-envops.spec.ts`
 - `pnpm --dir frontend typecheck`
 - `pnpm --dir frontend build`
 - `bash backend/scripts/test-envops-boot.sh`
@@ -115,6 +118,31 @@ Traffic 当前技术边界已收敛为最小真实能力：
 - 页面只对 REST + weighted routing + 插件就绪的记录开放动作按钮，其余记录展示禁用原因
 - 当前不纳入多插件适配、多策略矩阵、审批重构、批量切流、高级编排与灰度报表
 
+### 5.5 RBAC 架构与 API
+
+RBAC 权限管理采用固定权限点 + 角色绑定模型，当前技术口径如下：
+
+- 权限点固定写入 `sys_permission`，由系统种子数据维护，不提供 UI 创建任意 API matcher
+- 角色到权限的绑定写入 `sys_role_permission`，用户到角色的绑定写入 `sys_user_role`
+- 用户有效权限来自已启用角色和已启用权限点的交集
+- 后端通过集中 API 授权注册表维护接口与菜单/操作权限的映射，并以该注册表作为 API 授权的权威判断
+- 动态路由按菜单权限过滤；菜单权限同时控制模块读 API 的访问
+- 用户信息接口返回操作权限编码，前端据此做按钮禁用和提示等 UX gating；后端 API 授权仍是安全边界
+- Home、Asset、Monitor、App、Deploy、Task Center、Traffic、System 全模块均纳入菜单 + 操作权限模型
+
+RBAC 管理 API 包括：
+
+- `GET /api/system/rbac/roles`
+- `POST /api/system/rbac/roles`
+- `PUT /api/system/rbac/roles/{id}`
+- `GET /api/system/rbac/permissions`
+- `GET /api/system/rbac/roles/{id}/permissions`
+- `PUT /api/system/rbac/roles/{id}/permissions`
+- `GET /api/system/users/{id}/roles`
+- `PUT /api/system/users/{id}/roles`
+
+RBAC 不在 v0.0.8 提供 UI 创建任意 API matcher、组织架构、部门继承、审批流、审计中心、资源级归属权限或 JWT 登录模型替换。
+
 ## 6. 账号与安全基线
 
 - 本地默认账号仍为 `envops-admin / EnvOps@123`
@@ -128,3 +156,4 @@ Traffic 当前技术边界已收敛为最小真实能力：
 - Traffic 的多插件适配、多策略矩阵、审批重构、批量切流、高级编排与灰度报表
 - Task Center 的统一任务内重试、统一任务内取消、多任务编排、统一完整日志平台、数据库与 Traffic 全历史补录，以及新执行引擎抽象
 - Deploy 大规模主机检索与更深执行器增强
+- RBAC 不在 v0.0.8 提供 UI 创建任意 API matcher、组织架构、部门继承、审批流、审计中心、资源级归属权限或 JWT 登录模型替换
