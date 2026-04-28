@@ -6,6 +6,7 @@ import ElegantVueRouter from '@elegant-router/vue/vite';
 import type { RouteKey } from '@elegant-router/types';
 
 let frontendRoot = process.cwd();
+let viteCommand: ResolvedConfig['command'] = 'build';
 
 export function setupElegantRouter() {
   return [
@@ -85,6 +86,7 @@ export function setupElegantRouter() {
       enforce: 'pre' as const,
       configResolved(config: ResolvedConfig) {
         frontendRoot = config.root;
+        viteCommand = config.command;
       },
       buildStart() {
         patchTaskTrackingRouteArtifacts();
@@ -178,8 +180,8 @@ function patchTaskTrackingRouteArtifacts() {
     }
   ];
 
-  patches.forEach(patch => patchFile(patch));
-  patches.forEach(assertPatchedArtifact);
+  const nonEmptyArtifacts = patches.filter(patch => patchFile(patch));
+  nonEmptyArtifacts.forEach(assertPatchedArtifact);
 }
 
 function patchImportsArtifact(source: string) {
@@ -311,11 +313,18 @@ ${lastLevelRouteUnion}  >;
 function patchFile(patch: RouteArtifactPatch) {
   const filePath = resolve(frontendRoot, patch.path);
   const source = readFileSync(filePath, 'utf8');
+
+  if (!source.trim() && viteCommand === 'serve') {
+    return false;
+  }
+
   const next = patch.patch(source);
 
   if (next !== source) {
     writeFileSync(filePath, next);
   }
+
+  return true;
 }
 
 function assertPatchedArtifact(patch: RouteArtifactPatch) {

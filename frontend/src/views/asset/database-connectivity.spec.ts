@@ -14,11 +14,16 @@ const mocks = vi.hoisted(() => ({
   fetchCheckQueriedAssetDatabases: vi.fn()
 }));
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key: string) => key
-  })
-}));
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n');
+
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) => key
+    })
+  };
+});
 
 vi.mock('@/service/api', () => ({
   fetchGetAssetDatabases: mocks.fetchGetAssetDatabases,
@@ -31,6 +36,13 @@ vi.mock('@/service/api', () => ({
   fetchCheckSelectedAssetDatabases: mocks.fetchCheckSelectedAssetDatabases,
   fetchCheckCurrentPageAssetDatabases: mocks.fetchCheckCurrentPageAssetDatabases,
   fetchCheckQueriedAssetDatabases: mocks.fetchCheckQueriedAssetDatabases
+}));
+
+vi.mock('@/hooks/business/auth', () => ({
+  useAuth: () => ({
+    hasAuth: () => true,
+    hasEveryAuth: () => true
+  })
 }));
 
 const passthroughStub = defineComponent({
