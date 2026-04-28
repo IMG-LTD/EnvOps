@@ -41,7 +41,8 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                  JwtTokenService jwtTokenService,
                                                  UserDetailsService userDetailsService,
-                                                 ObjectMapper objectMapper) throws Exception {
+                                                 ObjectMapper objectMapper,
+                                                 EnvOpsApiAuthorizationManager envOpsApiAuthorizationManager) throws Exception {
     http
         .csrf(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
@@ -53,21 +54,7 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/api/auth/codeLogin").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/routes/getConstantRoutes").permitAll()
             .requestMatchers("/error").permitAll()
-            .requestMatchers(
-                "/api/apps",
-                "/api/apps/**",
-                "/api/app-versions",
-                "/api/app-versions/**",
-                "/api/packages",
-                "/api/packages/**",
-                "/api/config-templates",
-                "/api/config-templates/**",
-                "/api/script-templates",
-                "/api/script-templates/**",
-                "/api/system/users",
-                "/api/system/users/**")
-            .hasRole("SUPER_ADMIN")
-            .requestMatchers("/api/**").authenticated()
+            .requestMatchers("/api/**").access(envOpsApiAuthorizationManager)
             .anyRequest().permitAll())
         .exceptionHandling(ex -> ex
             .authenticationEntryPoint((request, response, exception) ->
