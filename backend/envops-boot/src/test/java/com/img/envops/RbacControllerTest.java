@@ -98,10 +98,21 @@ class RbacControllerTest {
         .andExpect(jsonPath("$.data[0].roleKey").value("SUPER_ADMIN"))
         .andExpect(jsonPath("$.data[0].builtIn").value(true));
 
-    mockMvc.perform(get("/api/system/rbac/permissions").header("Authorization", "Bearer " + token))
+    MvcResult permissions = mockMvc.perform(get("/api/system/rbac/permissions").header("Authorization", "Bearer " + token))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
-        .andExpect(jsonPath("$.data[?(@.moduleKey == 'system')]").exists());
+        .andExpect(jsonPath("$.data[?(@.moduleKey == 'system')]").exists())
+        .andReturn();
+
+    JsonNode permissionData = objectMapper.readTree(permissions.getResponse().getContentAsString()).path("data");
+    JsonNode systemModule = findByField(permissionData, "moduleKey", "system");
+    Assertions.assertThat(systemModule.path("moduleName").asText()).isEqualTo("System");
+
+    JsonNode systemRbac = findByField(systemModule.path("permissions"), "permissionKey", "system_rbac");
+    Assertions.assertThat(systemRbac.path("enabled").asBoolean()).isTrue();
+
+    JsonNode roleManage = findByField(systemRbac.path("children"), "permissionKey", "system:role:manage");
+    Assertions.assertThat(roleManage.path("enabled").asBoolean()).isTrue();
   }
 
   @Test
@@ -153,6 +164,16 @@ class RbacControllerTest {
                 """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("400"));
+  }
+
+  private JsonNode findByField(JsonNode nodes, String fieldName, String expectedValue) {
+    for (JsonNode node : nodes) {
+      if (expectedValue.equals(node.path(fieldName).asText())) {
+        return node;
+      }
+    }
+    Assertions.fail("Expected node with " + fieldName + "=" + expectedValue);
+    return objectMapper.createObjectNode();
   }
 
   private String login(String userName, String password) throws Exception {

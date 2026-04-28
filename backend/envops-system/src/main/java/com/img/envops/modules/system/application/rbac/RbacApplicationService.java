@@ -98,7 +98,7 @@ public class RbacApplicationService {
 
     List<PermissionModule> modules = new ArrayList<>();
     for (Map.Entry<String, List<PermissionRow>> entry : rowsByModule.entrySet()) {
-      modules.add(new PermissionModule(entry.getKey(), buildPermissionNodes(entry.getValue())));
+      modules.add(new PermissionModule(entry.getKey(), resolveModuleName(entry.getKey(), entry.getValue()), buildPermissionNodes(entry.getValue())));
     }
     return List.copyOf(modules);
   }
@@ -124,24 +124,42 @@ public class RbacApplicationService {
     return getRolePermissions(role.getRoleId());
   }
 
-  private List<PermissionNode> buildPermissionNodes(List<PermissionRow> rows) {
-    Map<String, MutablePermissionNode> nodesByKey = new LinkedHashMap<>();
-    for (PermissionRow row : rows) {
-      nodesByKey.put(row.getPermissionKey(), new MutablePermissionNode(row, new ArrayList<>()));
-    }
+  private String resolveModuleName(String moduleKey, List<PermissionRow> rows) {
+    return rows.stream()
+        .filter(row -> Objects.equals("menu", row.getPermissionType()))
+        .filter(row -> Objects.equals(moduleKey, row.getPermissionKey()))
+        .findFirst()
+        .map(PermissionRow::getPermissionName)
+        .orElse(moduleKey);
+  }
 
-    List<MutablePermissionNode> roots = new ArrayList<>();
-    for (MutablePermissionNode node : nodesByKey.values()) {
-      String parentKey = node.row().getParentKey();
-      MutablePermissionNode parent = StringUtils.hasText(parentKey) ? nodesByKey.get(parentKey) : null;
-      if (parent == null) {
-        roots.add(node);
-      } else {
-        parent.children().add(node);
+  private List<PermissionNode> buildPermissionNodes(List<PermissionRow> rows) {
+    Map<String, MutablePermissionNode> menuNodesByKey = new LinkedHashMap<>();
+    List<MutablePermissionNode> moduleNodes = new ArrayList<>();
+
+    for (PermissionRow row : rows) {
+      if (Objects.equals("menu", row.getPermissionType())) {
+        MutablePermissionNode menuNode = new MutablePermissionNode(row, new ArrayList<>());
+        menuNodesByKey.put(row.getPermissionKey(), menuNode);
+        moduleNodes.add(menuNode);
       }
     }
 
-    return roots.stream().map(MutablePermissionNode::toRecord).toList();
+    for (PermissionRow row : rows) {
+      if (!Objects.equals("action", row.getPermissionType())) {
+        continue;
+      }
+
+      MutablePermissionNode actionNode = new MutablePermissionNode(row, new ArrayList<>());
+      MutablePermissionNode parentMenu = StringUtils.hasText(row.getParentKey()) ? menuNodesByKey.get(row.getParentKey()) : null;
+      if (parentMenu == null) {
+        moduleNodes.add(actionNode);
+      } else {
+        parentMenu.children().add(actionNode);
+      }
+    }
+
+    return moduleNodes.stream().map(MutablePermissionNode::toRecord).toList();
   }
 
   private RoleRow requireRoleId(Long roleId) {
@@ -291,6 +309,7 @@ public class RbacApplicationService {
   }
 
   public record PermissionModule(String moduleKey,
+                                 String moduleName,
                                  List<PermissionNode> permissions) {
   }
 
@@ -303,6 +322,7 @@ public class RbacApplicationService {
                                String routeName,
                                String actionKey,
                                Integer sortOrder,
+                               Boolean enabled,
                                List<PermissionNode> children) {
   }
 
@@ -333,6 +353,7 @@ public class RbacApplicationService {
           row.getRouteName(),
           row.getActionKey(),
           row.getSortOrder(),
+          row.getEnabled(),
           children.stream().map(MutablePermissionNode::toRecord).toList());
     }
   }
