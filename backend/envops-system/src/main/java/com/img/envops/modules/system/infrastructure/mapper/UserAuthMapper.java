@@ -110,11 +110,49 @@ public interface UserAuthMapper {
   @Select("""
       SELECT id AS roleId,
              role_key AS roleKey,
-             role_name AS roleName
+             role_name AS roleName,
+             enabled AS enabled,
+             built_in AS builtIn
       FROM sys_role
       ORDER BY id
       """)
   List<RoleRow> findAllRoles();
+
+  @Select("""
+      SELECT r.id AS roleId,
+             r.role_key AS roleKey,
+             r.role_name AS roleName,
+             r.enabled AS enabled,
+             r.built_in AS builtIn
+      FROM sys_role r
+      JOIN sys_user_role ur ON ur.role_id = r.id
+      WHERE ur.user_id = #{userId}
+      ORDER BY r.id
+      """)
+  List<RoleRow> findRolesByUserId(@Param("userId") Long userId);
+
+  @Select("""
+      SELECT id AS roleId,
+             role_key AS roleKey,
+             role_name AS roleName,
+             enabled AS enabled,
+             built_in AS builtIn
+      FROM sys_role
+      WHERE enabled = TRUE
+      ORDER BY id
+      """)
+  List<RoleRow> findEnabledRoles();
+
+  @Select("""
+      SELECT COUNT(*)
+      FROM sys_user u
+      JOIN sys_user_role ur ON ur.user_id = u.id
+      JOIN sys_role r ON r.id = ur.role_id
+      WHERE u.status = 'ACTIVE'
+        AND r.role_key = 'SUPER_ADMIN'
+        AND r.enabled = TRUE
+      """)
+  Integer countActiveEnabledSuperAdminUsers();
 
   @Select("""
       SELECT COALESCE(MAX(id), 0) + 1
@@ -315,6 +353,8 @@ public interface UserAuthMapper {
     private Long roleId;
     private String roleKey;
     private String roleName;
+    private Boolean enabled;
+    private Boolean builtIn;
 
     public Long getRoleId() {
       return roleId;
@@ -338,6 +378,22 @@ public interface UserAuthMapper {
 
     public void setRoleName(String roleName) {
       this.roleName = roleName;
+    }
+
+    public Boolean getEnabled() {
+      return enabled;
+    }
+
+    public void setEnabled(Boolean enabled) {
+      this.enabled = enabled;
+    }
+
+    public Boolean getBuiltIn() {
+      return builtIn;
+    }
+
+    public void setBuiltIn(Boolean builtIn) {
+      this.builtIn = builtIn;
     }
   }
 

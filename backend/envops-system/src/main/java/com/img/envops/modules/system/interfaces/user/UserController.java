@@ -26,6 +26,18 @@ public class UserController {
     return R.ok(userApplicationService.getUsers());
   }
 
+  @GetMapping("/{id}/roles")
+  public R<UserApplicationService.UserRoleAssignment> getUserRoles(@PathVariable Long id) {
+    return R.ok(userApplicationService.getUserRoles(id));
+  }
+
+  @PutMapping("/{id}/roles")
+  public R<UserApplicationService.UserRoleAssignment> replaceUserRoles(@PathVariable Long id,
+                                                                       @RequestBody(required = false) ReplaceSystemUserRolesRequest request) {
+    return R.ok(userApplicationService.replaceUserRoles(id, new UserApplicationService.ReplaceUserRolesCommand(
+        request == null ? null : request.roleIds())));
+  }
+
   @PostMapping
   public R<UserApplicationService.SystemUserRecord> createUser(@RequestBody(required = false) CreateSystemUserRequest request) {
     return R.ok(userApplicationService.createUser(new UserApplicationService.CreateSystemUserCommand(
@@ -67,5 +79,8 @@ public class UserController {
                                         String loginType,
                                         String status,
                                         List<String> roles) {
+  }
+
+  public record ReplaceSystemUserRolesRequest(List<Long> roleIds) {
   }
 }

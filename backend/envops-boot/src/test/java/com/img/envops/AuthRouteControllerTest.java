@@ -16,6 +16,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -273,6 +275,20 @@ class AuthRouteControllerTest {
   }
 
   @Test
+  void getUserRoutesFiltersByMenuPermissions() throws Exception {
+    seedPermissionOnlyUser(90L, "task-only-user", "TaskOnly@123", "TASK_ONLY", List.of("home", "task", "task_center", "task_tracking_[id]"));
+    String token = login("task-only-user", "TaskOnly@123");
+
+    mockMvc.perform(get("/api/routes/getUserRoutes")
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.routes[?(@.name == 'task')]").exists())
+        .andExpect(jsonPath("$.data.routes[?(@.name == 'system')]").doesNotExist())
+        .andExpect(jsonPath("$.data.routes[?(@.name == 'asset')]").doesNotExist());
+  }
+
+  @Test
   void getUserRoutesReturnsEnvOpsShellRoutesWithLocalizedMeta() throws Exception {
     String accessToken = login();
 
@@ -327,15 +343,46 @@ class AuthRouteControllerTest {
         .andExpect(jsonPath("$.data.routes[7].children[0].meta.i18nKey").value("route.system_user"));
   }
 
+  private void seedPermissionOnlyUser(Long userId, String userName, String password, String roleKey, List<String> permissionKeys) {
+    long roleId = 9000L + userId;
+    jdbcTemplate.update(
+        "INSERT INTO sys_user (id, user_name, password, phone, team_key, login_type, status, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+        userId,
+        userName,
+        passwordEncoder.encode(password),
+        "138" + String.format("%08d", userId % 100000000L),
+        "qa",
+        "PASSWORD",
+        "ACTIVE");
+    jdbcTemplate.update(
+        "INSERT INTO sys_role (id, role_key, role_name, description, enabled, built_in, created_at, updated_at) VALUES (?, ?, ?, ?, TRUE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        roleId,
+        roleKey,
+        roleKey,
+        "Test route role");
+    jdbcTemplate.update("INSERT INTO sys_user_role (user_id, role_id) VALUES (?, ?)", userId, roleId);
+    for (String permissionKey : permissionKeys) {
+      int inserted = jdbcTemplate.update(
+          "INSERT INTO sys_role_permission (role_id, permission_id) SELECT ?, id FROM sys_permission WHERE permission_key = ?",
+          roleId,
+          permissionKey);
+      Assertions.assertThat(inserted).as("permission insert count for %s", permissionKey).isEqualTo(1);
+    }
+  }
+
   private String login() throws Exception {
+    return login("envops-admin", "EnvOps@123");
+  }
+
+  private String login(String userName, String password) throws Exception {
     MvcResult result = mockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {
-                  "userName": "envops-admin",
-                  "password": "EnvOps@123"
+                  \"userName\": \"%s\",
+                  \"password\": \"%s\"
                 }
-                """))
+                """.formatted(userName, password)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("0000"))
         .andExpect(jsonPath("$.data.token", not(blankOrNullString())))

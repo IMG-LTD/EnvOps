@@ -213,6 +213,47 @@ class UserControllerTest {
     Assertions.assertThat(login("traffic-owner", "Traffic@456")).isNotBlank();
   }
 
+  @Test
+  void superAdminCanReadAndReplaceUserRoles() throws Exception {
+    String accessToken = login("envops-admin", "EnvOps@123");
+
+    mockMvc.perform(get("/api/system/users/21/roles")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.userId").value(21))
+        .andExpect(jsonPath("$.data.roleKeys", containsInAnyOrder("TRAFFIC_OWNER")));
+
+    mockMvc.perform(put("/api/system/users/21/roles")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "roleIds": [5]
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.code").value("0000"))
+        .andExpect(jsonPath("$.data.roleKeys", containsInAnyOrder("OBSERVER")));
+  }
+
+  @Test
+  void replacingLastSuperAdminRoleIsRejected() throws Exception {
+    String accessToken = login("envops-admin", "EnvOps@123");
+    jdbcTemplate.update("DELETE FROM sys_user_role WHERE user_id = 20 AND role_id = 1");
+
+    mockMvc.perform(put("/api/system/users/1/roles")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "roleIds": [5]
+                }
+                """))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("409"));
+  }
+
   private void seedUserWithRole(Long userId,
                                 String userName,
                                 String password,
