@@ -11,6 +11,26 @@ const zhSource = readFileSync(resolve(root, 'src/locales/langs/zh-cn.ts'), 'utf8
 const enSource = readFileSync(resolve(root, 'src/locales/langs/en-us.ts'), 'utf8');
 const pageSource = readFileSync(resolve(root, 'src/views/system/rbac/index.vue'), 'utf8');
 
+function extractSourceBlock(source: string, start: string, end: string) {
+  const startIndex = source.indexOf(start);
+  expect(startIndex).toBeGreaterThanOrEqual(0);
+
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  expect(endIndex).toBeGreaterThan(startIndex);
+
+  return source.slice(startIndex, endIndex);
+}
+
+function expectInOrder(source: string, patterns: RegExp[]) {
+  let searchStart = 0;
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(source.slice(searchStart));
+    expect(match).not.toBeNull();
+    searchStart += (match?.index ?? 0) + (match?.[0].length ?? 0);
+  }
+}
+
 describe('system rbac frontend contract', () => {
   it('declares rbac api methods and endpoints', () => {
     expect(apiSource).toContain('fetchGetSystemRbacRoles');
@@ -48,5 +68,44 @@ describe('system rbac frontend contract', () => {
     expect(pageSource).toContain('collectActionKeys');
     expect(pageSource).toContain('isActionDisabled');
     expect(pageSource).toContain('handleSavePermissions');
+  });
+
+  it('guards stale role permission loads before saving permissions', () => {
+    expect(pageSource).toContain('const loadingRolePermissions = ref(false);');
+    expect(pageSource).toContain('const permissionsLoadedForRoleId = ref<number | null>(null);');
+
+    const selectRoleSource = extractSourceBlock(pageSource, 'async function selectRole', 'function handleCreateRole');
+
+    expectInOrder(selectRoleSource, [
+      /selectedRoleId\.value = role\.id;/,
+      /fillRoleForm\(role\);/,
+      /assignedPermissionKeys\.value = \[\];/,
+      /permissionsLoadedForRoleId\.value = null;/,
+      /loadingRolePermissions\.value = true;/
+    ]);
+    expect(selectRoleSource).toMatch(
+      /if \(!response\.error && selectedRoleId\.value === role\.id\) \{[\s\S]*assignedPermissionKeys\.value = response\.data\.permissionKeys;[\s\S]*permissionsLoadedForRoleId\.value = role\.id;/
+    );
+    expect(selectRoleSource).toMatch(
+      /finally \{[\s\S]*if \(selectedRoleId\.value === role\.id\) \{[\s\S]*loadingRolePermissions\.value = false;/
+    );
+
+    const savePermissionsSource = extractSourceBlock(
+      pageSource,
+      'async function handleSavePermissions',
+      'async function loadPageData'
+    );
+    expect(savePermissionsSource).toMatch(
+      /if \([\s\S]*selectedRoleId\.value === null[\s\S]*loadingRolePermissions\.value[\s\S]*permissionsLoadedForRoleId\.value !== selectedRoleId\.value[\s\S]*\) \{[\s\S]*return;/
+    );
+
+    const saveButtonSource = extractSourceBlock(
+      pageSource,
+      '<NButton\n                  type="primary"\n                  :loading="savingPermissions"',
+      '@click="handleSavePermissions"'
+    );
+    expect(saveButtonSource).toMatch(
+      /:disabled="[\s\S]*loadingRolePermissions[\s\S]*permissionsLoadedForRoleId !== selectedRoleId[\s\S]*"/
+    );
   });
 });

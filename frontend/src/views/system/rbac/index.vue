@@ -35,6 +35,8 @@ const keyword = ref('');
 const loading = ref(false);
 const savingRole = ref(false);
 const savingPermissions = ref(false);
+const loadingRolePermissions = ref(false);
+const permissionsLoadedForRoleId = ref<number | null>(null);
 const roleForm = reactive<RoleFormModel>(createDefaultRoleForm());
 
 const canManageRole = computed(() => hasAuth(ROLE_MANAGE_PERMISSION));
@@ -132,17 +134,29 @@ async function loadPermissions() {
 async function selectRole(role: Api.SystemRbac.RoleRecord) {
   selectedRoleId.value = role.id;
   fillRoleForm(role);
+  assignedPermissionKeys.value = [];
+  permissionsLoadedForRoleId.value = null;
+  loadingRolePermissions.value = true;
 
-  const response = await fetchGetSystemRbacRolePermissions(role.id);
+  try {
+    const response = await fetchGetSystemRbacRolePermissions(role.id);
 
-  if (!response.error) {
-    assignedPermissionKeys.value = response.data.permissionKeys;
+    if (!response.error && selectedRoleId.value === role.id) {
+      assignedPermissionKeys.value = response.data.permissionKeys;
+      permissionsLoadedForRoleId.value = role.id;
+    }
+  } finally {
+    if (selectedRoleId.value === role.id) {
+      loadingRolePermissions.value = false;
+    }
   }
 }
 
 function handleCreateRole() {
   selectedRoleId.value = null;
   assignedPermissionKeys.value = [];
+  permissionsLoadedForRoleId.value = null;
+  loadingRolePermissions.value = false;
   resetRoleForm();
 }
 
@@ -185,7 +199,12 @@ async function handleSaveRole() {
 }
 
 async function handleSavePermissions() {
-  if (!canManageRole.value || selectedRoleId.value === null) {
+  if (
+    !canManageRole.value ||
+    selectedRoleId.value === null ||
+    loadingRolePermissions.value ||
+    permissionsLoadedForRoleId.value !== selectedRoleId.value
+  ) {
     return;
   }
 
@@ -333,7 +352,12 @@ onMounted(loadPageData);
                 <NButton
                   type="primary"
                   :loading="savingPermissions"
-                  :disabled="!canManageRole || selectedRoleId === null"
+                  :disabled="
+                    !canManageRole ||
+                    selectedRoleId === null ||
+                    loadingRolePermissions ||
+                    permissionsLoadedForRoleId !== selectedRoleId
+                  "
                   @click="handleSavePermissions"
                 >
                   {{ t('page.envops.systemRbac.actions.savePermissions') }}
