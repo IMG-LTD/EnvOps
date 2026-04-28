@@ -64,8 +64,23 @@ public class EnvOpsApiAuthorizationManager implements AuthorizationManager<Reque
     String contextPath = request.getContextPath();
     if (StringUtils.hasText(contextPath) && requestUri.startsWith(contextPath)) {
       String path = requestUri.substring(contextPath.length());
-      return StringUtils.hasText(path) ? path : "/";
+      return stripMatrixParameters(StringUtils.hasText(path) ? path : "/");
     }
-    return requestUri;
+    return stripMatrixParameters(requestUri);
+  }
+
+  private String stripMatrixParameters(String path) {
+    if (!StringUtils.hasText(path) || !path.contains(";")) {
+      return path;
+    }
+
+    String[] segments = path.split("/", -1);
+    for (int index = 0; index < segments.length; index++) {
+      int matrixParameterIndex = segments[index].indexOf(';');
+      if (matrixParameterIndex >= 0) {
+        segments[index] = segments[index].substring(0, matrixParameterIndex);
+      }
+    }
+    return String.join("/", segments);
   }
 }

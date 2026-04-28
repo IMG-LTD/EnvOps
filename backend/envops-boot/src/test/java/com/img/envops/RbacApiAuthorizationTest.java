@@ -11,8 +11,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +46,13 @@ class RbacApiAuthorizationTest {
     @Bean
     UnknownApiController unknownApiController() {
       return new UnknownApiController();
+    }
+
+    @Bean
+    WebSecurityCustomizer allowMatrixParameterRequests() {
+      StrictHttpFirewall firewall = new StrictHttpFirewall();
+      firewall.setAllowSemicolon(true);
+      return web -> web.httpFirewall(firewall);
     }
   }
 
@@ -142,6 +151,37 @@ class RbacApiAuthorizationTest {
 
     mockMvc.perform(head("/api/assets/databases").header("Authorization", "Bearer " + token))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void matrixParamRequestStillEnforcesDatabaseMenuPermission() throws Exception {
+    seedUserWithPermissions(89L, "database-matrix-no-menu", "DatabaseMatrixNoMenu@123", List.of("home"));
+    String token = login("database-matrix-no-menu", "DatabaseMatrixNoMenu@123");
+
+    mockMvc.perform(get("/api/assets/databases;foo=bar").header("Authorization", "Bearer " + token))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("403"));
+  }
+
+  @Test
+  void headMatrixParamRequestUsesGetDatabasePermissionRule() throws Exception {
+    seedUserWithPermissions(90L, "database-head-matrix-no-menu", "DatabaseHeadMatrixNoMenu@123", List.of("home"));
+    String token = login("database-head-matrix-no-menu", "DatabaseHeadMatrixNoMenu@123");
+
+    mockMvc.perform(head("/api/assets/databases;foo=bar").header("Authorization", "Bearer " + token))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void contextPathMatrixParamRequestStillEnforcesDatabaseMenuPermission() throws Exception {
+    seedUserWithPermissions(91L, "database-context-matrix-no-menu", "DatabaseContextMatrixNoMenu@123", List.of("home"));
+    String token = login("database-context-matrix-no-menu", "DatabaseContextMatrixNoMenu@123");
+
+    mockMvc.perform(get("/envops/api/assets/databases;foo=bar")
+            .contextPath("/envops")
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("403"));
   }
 
   @Test
