@@ -263,6 +263,15 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'system_user',
           i18nKey: 'route.system_user'
         }
+      },
+      {
+        name: 'system_rbac',
+        path: '/system/rbac',
+        component: 'view.system_rbac',
+        meta: {
+          title: 'system_rbac',
+          i18nKey: 'route.system_rbac'
+        }
       }
     ]
   },

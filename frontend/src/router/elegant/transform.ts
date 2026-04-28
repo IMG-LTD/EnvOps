@@ -187,6 +187,7 @@ const routeMap: RouteMap = {
   "monitor_detect-task": "/monitor/detect-task",
   "monitor_metric": "/monitor/metric",
   "system": "/system",
+  "system_rbac": "/system/rbac",
   "system_user": "/system/user",
   "task": "/task",
   "task_center": "/task/center",

@@ -187,6 +187,8 @@ describe('system user contract wiring', () => {
     expect(systemUserApiSource).toMatch(/export function fetchGetSystemUsers\s*\(/);
     expect(systemUserApiSource).toMatch(/export function fetchCreateSystemUser\s*\(/);
     expect(systemUserApiSource).toMatch(/export function fetchUpdateSystemUser\s*\(/);
+    expect(systemUserApiSource).toContain('fetchGetSystemUserRoles');
+    expect(systemUserApiSource).toContain('fetchUpdateSystemUserRoles');
     expect(systemUserApiSource).toMatch(/url:\s*['"]\/api\/system\/users['"]/);
     expect(systemUserApiSource).toMatch(/method:\s*['"]post['"]/);
     expect(systemUserApiSource).toMatch(/url:\s*`\/api\/system\/users\/\$\{id\}`/);
@@ -197,6 +199,8 @@ describe('system user contract wiring', () => {
     expect(systemUserTypingSource).toContain('interface SystemUserRecord');
     expect(systemUserTypingSource).toContain('interface CreateSystemUserParams');
     expect(systemUserTypingSource).toContain('interface UpdateSystemUserParams');
+    expect(systemUserTypingSource).toContain('UpdateSystemUserRolesParams');
+    expect(systemUserTypingSource).toContain('roleIds: number[]');
     expect(systemUserTypingSource).toContain('teamKey: string;');
     expect(systemUserTypingSource).toContain('loginType: string;');
     expect(systemUserTypingSource).toContain('status: string;');

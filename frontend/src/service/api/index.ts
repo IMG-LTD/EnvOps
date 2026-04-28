@@ -3,6 +3,7 @@ export * from './asset';
 export * from './auth';
 export * from './monitor';
 export * from './route';
+export * from './system-rbac';
 export * from './system-user';
 export * from './task';
 export * from './traffic';

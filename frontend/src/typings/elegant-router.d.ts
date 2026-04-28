@@ -41,6 +41,7 @@ declare module "@elegant-router/types" {
     "monitor_detect-task": "/monitor/detect-task";
     "monitor_metric": "/monitor/metric";
     "system": "/system";
+    "system_rbac": "/system/rbac";
     "system_user": "/system/user";
     "task": "/task";
     "task_center": "/task/center";
@@ -136,6 +137,7 @@ declare module "@elegant-router/types" {
     | "home"
     | "monitor_detect-task"
     | "monitor_metric"
+    | "system_rbac"
     | "system_user"
     | "task_center"
     | "task_tracking_[id]"

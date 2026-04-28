@@ -22,3 +22,17 @@ export function fetchUpdateSystemUser(id: number, data: Api.SystemUser.UpdateSys
     data
   });
 }
+
+/** get system user roles */
+export function fetchGetSystemUserRoles(id: number) {
+  return request<Api.SystemUser.UserRoleAssignmentResponse>({ url: `/api/system/users/${id}/roles` });
+}
+
+/** replace system user roles */
+export function fetchUpdateSystemUserRoles(id: number, data: Api.SystemUser.UpdateSystemUserRolesParams) {
+  return request<Api.SystemUser.UserRoleAssignmentResponse>({
+    url: `/api/system/users/${id}/roles`,
+    method: 'put',
+    data
+  });
+}

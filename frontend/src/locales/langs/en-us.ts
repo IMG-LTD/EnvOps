@@ -57,6 +57,9 @@ const local: App.I18n.Schema = {
     logoutWithModalMsg: 'User status is invalid, please log in again',
     tokenExpired: 'The requested token has expired'
   },
+  permission: {
+    missingAction: 'Missing permission: {permission}'
+  },
   theme: {
     themeDrawerTitle: 'Theme Configuration',
     tabs: {
@@ -252,7 +255,8 @@ const local: App.I18n.Schema = {
     traffic: 'Traffic Governance',
     traffic_controller: 'Traffic Controller',
     system: 'System',
-    system_user: 'User Management'
+    system_user: 'User Management',
+    system_rbac: 'Permission Management'
   },
   page: {
     login: {
@@ -1281,6 +1285,48 @@ const local: App.I18n.Schema = {
           lastLogin: 'Last Login',
           status: 'Status',
           operation: 'Action'
+        }
+      },
+      systemRbac: {
+        hero: {
+          title: 'Permission Management',
+          description: 'Manage roles and fixed menu/action permissions for EnvOps RBAC.'
+        },
+        actions: {
+          createRole: 'Create Role',
+          refresh: 'Refresh',
+          saveRole: 'Save Role',
+          savePermissions: 'Save Permissions'
+        },
+        roleList: {
+          title: 'Roles',
+          searchPlaceholder: 'Search role name or key',
+          builtIn: 'Built-in',
+          enabled: 'Enabled',
+          disabled: 'Disabled',
+          empty: 'No roles found'
+        },
+        detail: {
+          title: 'Role Details',
+          roleKey: 'Role Key',
+          roleName: 'Role Name',
+          description: 'Description',
+          enabled: 'Enabled',
+          builtInHint: 'Built-in roles cannot be deleted in this version.'
+        },
+        permissions: {
+          title: 'Permission Tree',
+          menu: 'Menu',
+          action: 'Action',
+          empty: 'No permissions available',
+          menuRequired: 'Select the menu permission before assigning its actions.'
+        },
+        messages: {
+          loadFailed: 'Failed to load RBAC data',
+          createSuccess: 'Role created',
+          updateSuccess: 'Role updated',
+          permissionSaveSuccess: 'Role permissions saved',
+          missingRoleManagePermission: 'Missing permission: system:role:manage'
         }
       }
     }
